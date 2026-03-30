@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Microsoft JhengHei', '微軟正黑體', 'PingFang TC', 'Noto Sans TC', sans-serif;
+  background: #f0f0ec;
+}
+
+.diagram-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 120px);
+  border: 1px solid #cccccc;
+  border-radius: 6px;
+  background: white;
+}
+
+.yaml-input {
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  border: 1px solid #cccccc;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fafaf8;
+  color: #333;
+  width: 100%;
+  height: calc(100vh - 200px);
+  min-height: 300px;
+}
+
+.yaml-input:focus {
+  border-color: #5a7a6a;
+  box-shadow: 0 0 0 2px rgba(90,122,106,0.15);
+}
+
+.btn-primary {
+  background: #4d4d2e;
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-primary:hover {
+  background: #3a3a1e;
+}
+
+.btn-secondary {
+  background: #5a7a6a;
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #486858;
+}
+
+.error-box {
+  background: #fff0f0;
+  border: 1px solid #ffaaaa;
+  border-radius: 5px;
+  padding: 10px 14px;
+  color: #cc3333;
+  font-size: 13px;
+  margin-top: 8px;
+}
