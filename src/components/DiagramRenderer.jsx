@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { toPng } from 'html-to-image';
 import { computeLayout, routeArrow } from '../diagram/layout.js';
 import { LAYOUT, COLORS } from '../diagram/constants.js';
-import { exportVsdx } from '../utils/vsdxExport.js';
+import { exportDrawio } from '../utils/drawioExport.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H, TITLE_H, NODE_W, NODE_H, DIAMOND_SIZE, CIRCLE_R } = LAYOUT;
 
@@ -234,11 +234,11 @@ export default function DiagramRenderer({ flow, showExport = true }) {
     }
   }
 
-  async function handleExportVsdx() {
+  function handleExportDrawio() {
     try {
-      await exportVsdx(flow);
+      exportDrawio(flow);
     } catch (e) {
-      console.error('VSDX 匯出失敗', e);
+      console.error('Draw.io 匯出失敗', e);
     }
   }
 
@@ -254,9 +254,10 @@ export default function DiagramRenderer({ flow, showExport = true }) {
               className="px-4 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-900 transition-colors">
               ↓ 匯出 PNG
             </button>
-            <button onClick={handleExportVsdx}
+            <button onClick={handleExportDrawio}
+              title="可用 diagrams.net（免費）或 VS Code Draw.io 擴充套件開啟編輯"
               className="px-4 py-1.5 text-sm bg-indigo-700 text-white rounded hover:bg-indigo-900 transition-colors">
-              ↓ 匯出 .vsdx
+              ↓ 匯出 .drawio
             </button>
           </div>
         </div>
