@@ -236,9 +236,10 @@ export function routeArrow(fromPos, toPos, exitSide, entrySide, laneBottomY) {
   }
 
   // ── top → left: gateway to adjacent upper lane ───────────────
+  // 1-bend L-path: go straight up to the target's row level, then right.
+  // (The old midY 3-segment path caused the line to pass through the target box.)
   if (exitSide === 'top') {
-    const midY = (sy + ty) / 2;
-    return [[sx, sy], [sx, midY], [tx, midY], [tx, ty]];
+    return [[sx, sy], [sx, ty], [tx, ty]];
   }
 
   // ── bottom → left: gateway to adjacent lower lane ────────────

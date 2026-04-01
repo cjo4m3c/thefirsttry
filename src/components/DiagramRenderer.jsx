@@ -144,10 +144,12 @@ function ConnectionArrow({ conn, positions }) {
   const pts = routeArrow(from, to, conn.exitSide, conn.entrySide, conn.laneBottomY);
   const pointsStr = pts.map(p => `${p[0]},${p[1]}`).join(' ');
 
-  // Place label at the midpoint of the longest/routing segment (pts[1]→pts[2] for 4-pt paths)
-  const labelPt = pts.length >= 4
+  // Place label at midpoint of the 2nd segment (pts[1]→pts[2]) for paths with ≥3 points,
+  // or at the midpoint of the whole line for 2-point paths.
+  // This keeps the label away from the arrowhead (which is at the final endpoint).
+  const labelPt = pts.length >= 3
     ? [(pts[1][0] + pts[2][0]) / 2, (pts[1][1] + pts[2][1]) / 2]
-    : pts[Math.floor(pts.length / 2)];
+    : [(pts[0][0] + pts[pts.length - 1][0]) / 2, (pts[0][1] + pts[pts.length - 1][1]) / 2];
 
   return (
     <g>
