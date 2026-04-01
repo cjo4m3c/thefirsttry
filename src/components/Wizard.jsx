@@ -33,14 +33,30 @@ function makeCondition() {
   return { id: generateId(), label: '', nextTaskId: '' };
 }
 
+/**
+ * Ensure every non-end/non-gateway task has at least one nextTaskIds slot,
+ * pre-filling with the sequential next task if currently empty.
+ * Tasks that already have an explicit (non-empty) nextTaskIds[0] are left unchanged.
+ */
+function applySequentialDefaults(tasks) {
+  return tasks.map((t, i) => {
+    if (t.type === 'end' || t.type === 'gateway') return t;
+    const hasExplicitNext = t.nextTaskIds?.length && t.nextTaskIds[0];
+    if (hasExplicitNext) return t;
+    return { ...t, nextTaskIds: tasks[i + 1] ? [tasks[i + 1].id] : [] };
+  });
+}
+
 function initFormData(flow) {
   if (flow) {
-    // Migrate legacy nextTaskId → nextTaskIds[]
-    const tasks = (flow.tasks || []).map(t => {
+    // Step 1: migrate legacy nextTaskId string → nextTaskIds[]
+    const migrated = (flow.tasks || []).map(t => {
       if (t.nextTaskIds?.length) return t;
       const ids = t.nextTaskId ? [t.nextTaskId] : [];
       return { ...t, nextTaskIds: ids };
     });
+    // Step 2: auto-fill empty nextTaskIds with sequential next
+    const tasks = applySequentialDefaults(migrated);
     return { ...flow, tasks };
   }
 
@@ -388,10 +404,11 @@ function TaskRow({ task, rowIndex, roles, allTasks, displayLabels, onUpdate, onR
           {TASK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
 
-        {/* Next task — supports multiple parallel targets */}
+        {/* Next task — always show ≥1 slot; extra slots = parallel targets */}
         {showNextTask ? (
           <div className="w-40 flex-shrink-0 flex flex-col gap-1">
-            {(task.nextTaskIds || []).map((nid, idx) => (
+            {/* Always show at least one slot, even when nextTaskIds is empty */}
+            {(task.nextTaskIds?.length ? task.nextTaskIds : ['']).map((nid, idx) => (
               <div key={idx} className="flex items-center gap-1">
                 <select value={nid}
                   onChange={e => updateNextId(idx, e.target.value)}
@@ -409,7 +426,7 @@ function TaskRow({ task, rowIndex, roles, allTasks, displayLabels, onUpdate, onR
             ))}
             <button onClick={addParallelNext}
               className="text-left text-xs text-blue-500 hover:text-blue-700 leading-none">
-              + 並行
+              + 新增並行任務
             </button>
           </div>
         ) : (
@@ -454,19 +471,19 @@ function Step3({ data, onChange }) {
   const { dragIdx, overIdx, rowProps } = useDragReorder(
     data.tasks,
     newTasks => {
-      // After drag reorder, auto-reset nextTaskIds to sequential order.
-      // Gateway and end tasks don't use nextTaskIds — leave them unchanged.
-      const updated = newTasks.map((t, i) => {
-        if (t.type === 'gateway' || t.type === 'end') return t;
-        return { ...t, nextTaskIds: newTasks[i + 1] ? [newTasks[i + 1].id] : [] };
-      });
+      // After drag reorder:
+      // - Tasks with an explicit next (nextTaskIds[0] is set) keep their setting.
+      // - Tasks with no next set get auto-filled with the new sequential next.
+      // - Gateway and end tasks are always left unchanged.
+      const updated = applySequentialDefaults(newTasks);
       onChange({ tasks: updated });
     }
   );
 
   function addTask() {
     const newTask = makeTask();
-    onChange({ tasks: [...data.tasks, newTask] });
+    // applySequentialDefaults will auto-fill any previously-last task that had no next set
+    onChange({ tasks: applySequentialDefaults([...data.tasks, newTask]) });
   }
 
   function updateTask(id, updated) {
