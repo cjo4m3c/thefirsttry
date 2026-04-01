@@ -17,6 +17,8 @@ export function computeLayout(flow) {
   const positions = {};
   const l4Numbers = {};
 
+  // Only 'task' type gets L4 numbers
+  let taskCounter = 1;
   tasks.forEach((task, colIdx) => {
     const row = roleIndexMap[task.roleId] ?? 0;
     const cx = LANE_HEADER_W + colIdx * COL_W + COL_W / 2;
@@ -35,13 +37,13 @@ export function computeLayout(flow) {
       top:    { x: cx, y: cy - hy },
     };
 
-    l4Numbers[task.id] = `${l3Number}.${colIdx + 1}`;
+    l4Numbers[task.id] = task.type === 'task' ? `${l3Number}.${taskCounter++}` : null;
   });
 
   const connections = [];
   const taskIdSet = new Set(tasks.map(t => t.id));
 
-  tasks.forEach((task, i) => {
+  tasks.forEach(task => {
     const fromPos = positions[task.id];
 
     if (task.type === 'gateway' && task.conditions?.length > 0) {
@@ -50,17 +52,15 @@ export function computeLayout(flow) {
         const toTask = tasks.find(t => t.id === cond.nextTaskId);
         if (!toTask) return;
         const toPos = positions[toTask.id];
-
         const exitSide = condIdx === 0 ? 'right' : 'bottom';
-        let entrySide = 'left';
-        if (exitSide === 'bottom') {
-          entrySide = toPos.col > fromPos.col ? 'left' : toPos.col === fromPos.col ? 'top' : 'left';
-        }
-
+        const entrySide = toPos.col > fromPos.col ? 'left'
+          : toPos.col === fromPos.col ? 'top' : 'left';
         connections.push({ fromId: task.id, toId: toTask.id, label: cond.label, exitSide, entrySide });
       });
-    } else if (task.type !== 'end' && i + 1 < tasks.length) {
-      connections.push({ fromId: task.id, toId: tasks[i + 1].id, label: '', exitSide: 'right', entrySide: 'left' });
+    } else if (task.type !== 'end' && task.type !== 'gateway' && task.nextTaskId && taskIdSet.has(task.nextTaskId)) {
+      const toTask = tasks.find(t => t.id === task.nextTaskId);
+      if (!toTask) return;
+      connections.push({ fromId: task.id, toId: toTask.id, label: '', exitSide: 'right', entrySide: 'left' });
     }
   });
 
@@ -76,22 +76,16 @@ export function routeArrow(fromPos, toPos, exitSide, entrySide) {
   const tx = toPos[entrySide].x;
   const ty = toPos[entrySide].y;
 
-  if (Math.abs(sy - ty) < 1) {
-    return [[sx, sy], [tx, ty]];
-  }
-
-  if (Math.abs(sx - tx) < 1) {
-    return [[sx, sy], [tx, ty]];
-  }
+  if (Math.abs(sy - ty) < 1) return [[sx, sy], [tx, ty]];
+  if (Math.abs(sx - tx) < 1) return [[sx, sy], [tx, ty]];
 
   if (exitSide === 'bottom') {
     if (sx <= tx) {
       const midY = sy + (ty - sy) / 2;
       return [[sx, sy], [sx, midY], [tx, midY], [tx, ty]];
-    } else {
-      const belowY = sy + 30;
-      return [[sx, sy], [sx, belowY], [tx, belowY], [tx, ty]];
     }
+    const belowY = sy + 30;
+    return [[sx, sy], [sx, belowY], [tx, belowY], [tx, ty]];
   }
 
   if (sx < tx) {

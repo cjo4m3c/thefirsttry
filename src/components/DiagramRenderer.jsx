@@ -31,6 +31,7 @@ function SvgLabel({ text, cx, cy, maxChars = 7, lineH = 14, fontSize = 11.5, fil
 }
 
 function L4Number({ number, cx, y }) {
+  if (!number) return null;
   return (
     <text x={cx} y={y - 5} textAnchor="middle" fontSize={9} fill={COLORS.TASK_NUMBER}
       fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
