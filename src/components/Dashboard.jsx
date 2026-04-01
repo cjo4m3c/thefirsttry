@@ -4,6 +4,14 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete }) {
     return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
   }
 
+  function fmtDateTime(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('zh-TW', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
   return (
     <div className="min-h-screen" style={{ background: '#F3F4F6' }}>
       {/* Top bar */}
@@ -53,8 +61,10 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete }) {
                   <span>角色 {flow.roles?.length ?? 0}</span>
                   <span>·</span>
                   <span>任務 {flow.tasks?.length ?? 0}</span>
-                  <span>·</span>
-                  <span>更新 {fmtDate(flow.updatedAt)}</span>
+                </div>
+                <div className="flex flex-col gap-0.5 text-xs text-gray-400">
+                  {flow.createdAt && <span>建立：{fmtDateTime(flow.createdAt)}</span>}
+                  {flow.updatedAt && <span>更新：{fmtDateTime(flow.updatedAt)}</span>}
                 </div>
 
                 {/* Roles preview */}

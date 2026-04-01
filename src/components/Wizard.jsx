@@ -421,7 +421,15 @@ function Step3({ data, onChange }) {
 
   const { dragIdx, overIdx, rowProps } = useDragReorder(
     data.tasks,
-    newTasks => onChange({ tasks: newTasks })
+    newTasks => {
+      // After drag reorder, auto-update nextTaskId to match new sequential order.
+      // Gateway and end tasks don't use nextTaskId — leave them unchanged.
+      const updated = newTasks.map((t, i) => {
+        if (t.type === 'gateway' || t.type === 'end') return t;
+        return { ...t, nextTaskId: newTasks[i + 1]?.id || '' };
+      });
+      onChange({ tasks: updated });
+    }
   );
 
   function addTask() {

@@ -12,20 +12,31 @@ function halfExtent(type, axis) {
  * For a gateway at fromPos connecting to a target at toPos,
  * determine the correct exit and entry sides based on relative position.
  *
- * Cases (per user spec):
- *   target above (row < gateway row)     → exit TOP,    enter LEFT
- *   same row, adjacent (col+1)            → exit RIGHT,  enter LEFT
- *   same row, non-adjacent (skip/loop)    → exit BOTTOM, enter BOTTOM (route below lane)
- *   target below (row > gateway row)      → exit BOTTOM, enter LEFT
+ * Cases:
+ *   same row, adjacent forward (dc=1)           → exit RIGHT,  enter LEFT
+ *   same row, skip/backward (dc≠1)              → exit BOTTOM, enter BOTTOM (route below lane)
+ *   target above, adjacent forward (dr<0, dc=1) → exit TOP,    enter LEFT
+ *   target above, backward or 2+ skip (dr<0)    → exit TOP,    enter TOP   (route above nodes)
+ *   target below, adjacent forward (dr>0, dc=1) → exit BOTTOM, enter LEFT
+ *   target below, backward or 2+ skip (dr>0)    → exit BOTTOM, enter BOTTOM (route below nodes)
  */
 function getGatewayExitEntry(fromPos, toPos) {
   const dr = toPos.row - fromPos.row;
   const dc = toPos.col - fromPos.col;
 
-  if (dr < 0) return { exitSide: 'top',    entrySide: 'left' };
-  if (dr > 0) return { exitSide: 'bottom', entrySide: 'left' };
+  if (dr < 0) {
+    // Target is in upper lane
+    if (dc === 1) return { exitSide: 'top', entrySide: 'left' }; // adjacent forward upper
+    return { exitSide: 'top', entrySide: 'top' }; // backward or 2+ skip → route above
+  }
+  if (dr > 0) {
+    // Target is in lower lane
+    if (dc === 1) return { exitSide: 'bottom', entrySide: 'left' }; // adjacent forward lower
+    return { exitSide: 'bottom', entrySide: 'bottom' }; // backward or 2+ skip → route below
+  }
+  // Same row
   if (dc === 1) return { exitSide: 'right', entrySide: 'left' };
-  // same lane, skip or backward loop → route below the lane nodes
+  // Same lane, skip or backward loop → route below the lane nodes
   return { exitSide: 'bottom', entrySide: 'bottom' };
 }
 
@@ -112,15 +123,26 @@ export function routeArrow(fromPos, toPos, exitSide, entrySide, laneBottomY) {
   // Straight vertical
   if (Math.abs(sx - tx) < 1) return [[sx, sy], [tx, ty]];
 
-  // ── Same-lane skip/loop: bottom exit → bottom entry ──────────────
-  // Route BELOW the node shapes in the same lane, then back up to target bottom.
+  // ── bottom → bottom ──────────────────────────────────────────────
   if (exitSide === 'bottom' && entrySide === 'bottom') {
-    const routeY = laneBottomY ?? (Math.max(sy, ty) + 24);
-    return [[sx, sy], [sx, routeY], [tx, routeY], [tx, ty]];
+    if (fromPos.row === toPos.row) {
+      // Same-lane skip/loop: route BELOW lane nodes
+      const routeY = laneBottomY ?? (Math.max(sy, ty) + 24);
+      return [[sx, sy], [sx, routeY], [tx, routeY], [tx, ty]];
+    }
+    // Different lanes (backward lower or 2+ skip): route below the lower node
+    const corridorY = Math.max(sy, ty) + 28;
+    return [[sx, sy], [sx, corridorY], [tx, corridorY], [tx, ty]];
   }
 
-  // ── Target above: top exit → left entry ─────────────────────────
-  // Go up from gateway top to mid-row, turn horizontal to target left.
+  // ── top → top: backward upper lane or 2+ skip to upper ──────────
+  // Route through the space ABOVE the higher of the two nodes.
+  if (exitSide === 'top' && entrySide === 'top') {
+    const corridorY = Math.min(sy, ty) - 28;
+    return [[sx, sy], [sx, corridorY], [tx, corridorY], [tx, ty]];
+  }
+
+  // ── Target above: top exit → left entry (adjacent forward) ──────
   if (exitSide === 'top') {
     const midY = (sy + ty) / 2;
     return [[sx, sy], [sx, midY], [tx, midY], [tx, ty]];

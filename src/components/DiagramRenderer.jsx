@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { toPng } from 'html-to-image';
 import { computeLayout, routeArrow } from '../diagram/layout.js';
 import { LAYOUT, COLORS } from '../diagram/constants.js';
+import { exportVsdx } from '../utils/vsdxExport.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H, TITLE_H, NODE_W, NODE_H, DIAMOND_SIZE, CIRCLE_R } = LAYOUT;
 
@@ -40,22 +41,36 @@ function L4Number({ number, cx, y }) {
   );
 }
 
-function StartShape({ pos, l4Number }) {
+function StartShape({ pos, l4Number, task }) {
   const { cx, cy } = pos;
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
       <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.START_FILL} stroke={COLORS.START_STROKE} strokeWidth={2} />
+      {task.name && (
+        <text x={cx} y={cy + CIRCLE_R + 13} textAnchor="middle" dominantBaseline="middle"
+          fontSize={10} fill={COLORS.TASK_TEXT}
+          fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
+          {task.name}
+        </text>
+      )}
     </>
   );
 }
 
-function EndShape({ pos, l4Number }) {
+function EndShape({ pos, l4Number, task }) {
   const { cx, cy } = pos;
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
       <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.END_FILL} stroke={COLORS.END_FILL} strokeWidth={2} />
+      {task.name && (
+        <text x={cx} y={cy + CIRCLE_R + 13} textAnchor="middle" dominantBaseline="middle"
+          fontSize={10} fill={COLORS.TASK_TEXT}
+          fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
+          {task.name}
+        </text>
+      )}
     </>
   );
 }
@@ -209,28 +224,41 @@ export default function DiagramRenderer({ flow, showExport = true }) {
   async function handleExport() {
     if (!exportRef.current) return;
     try {
-      // Capture the inner SVG wrapper (full diagram size, not clipped by scroll container)
       const dataUrl = await toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
       const a = document.createElement('a');
       a.download = `${flow.l3Number}-${flow.l3Name}.png`;
       a.href = dataUrl;
       a.click();
     } catch (e) {
-      console.error('匯出失敗', e);
+      console.error('PNG 匯出失敗', e);
+    }
+  }
+
+  async function handleExportVsdx() {
+    try {
+      await exportVsdx(flow);
+    } catch (e) {
+      console.error('VSDX 匯出失敗', e);
     }
   }
 
   return (
     <div className="flex flex-col gap-3 w-full">
       {showExport && (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm text-gray-600 font-medium">
             {flow.l3Number} {flow.l3Name}
           </span>
-          <button onClick={handleExport}
-            className="ml-auto px-4 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-900 transition-colors">
-            ↓ 匯出完整 PNG
-          </button>
+          <div className="ml-auto flex gap-2">
+            <button onClick={handleExport}
+              className="px-4 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-900 transition-colors">
+              ↓ 匯出 PNG
+            </button>
+            <button onClick={handleExportVsdx}
+              className="px-4 py-1.5 text-sm bg-indigo-700 text-white rounded hover:bg-indigo-900 transition-colors">
+              ↓ 匯出 .vsdx
+            </button>
+          </div>
         </div>
       )}
 
@@ -298,8 +326,8 @@ export default function DiagramRenderer({ flow, showExport = true }) {
             const pos = positions[task.id];
             const num = l4Numbers[task.id];
             if (!pos) return null;
-            if (task.type === 'start') return <StartShape key={task.id} pos={pos} l4Number={num} />;
-            if (task.type === 'end') return <EndShape key={task.id} pos={pos} l4Number={num} />;
+            if (task.type === 'start') return <StartShape key={task.id} pos={pos} l4Number={num} task={task} />;
+            if (task.type === 'end') return <EndShape key={task.id} pos={pos} l4Number={num} task={task} />;
             if (task.type === 'gateway') return <GatewayShape key={task.id} task={task} pos={pos} l4Number={num} />;
             return <TaskShape key={task.id} task={task} pos={pos} l4Number={num} />;
           })}
