@@ -589,9 +589,9 @@ function Step4({ data }) {
 // ── Validation ───────────────────────────────────────────────────
 function validate(step, data) {
   if (step === 0) {
-    if (!data.l3Number.trim()) return 'L3 流程編號為必填';
+    if (!data.l3Number.trim()) return 'L3 活動編號為必填';
     if (!/^\d+(\.\d+)*$/.test(data.l3Number.trim())) return 'L3 編號格式錯誤（範例：1.1.1）';
-    if (!data.l3Name.trim()) return 'L3 流程名稱為必填';
+    if (!data.l3Name.trim()) return 'L3 活動名稱為必填';
     return null;
   }
 
@@ -607,13 +607,16 @@ function validate(step, data) {
       if (t.type === 'start' || t.type === 'end') return true;
       return t.name.trim();
     });
+    const validTaskIds = new Set(active.map(t => t.id));
 
-    if (!active.some(t => t.type === 'start')) return '必須設定至少一個「開始事件」，並為其選擇角色';
-    if (!active.some(t => t.type === 'end'))   return '必須設定至少一個「結束事件」，並為其選擇角色';
+    // ── 1. 必須有開始和結束 ──────────────────────────────────────
+    if (!active.some(t => t.type === 'start')) return '必須設定至少一個「開始事件」並為其選擇角色';
+    if (!active.some(t => t.type === 'end'))   return '必須設定至少一個「結束事件」並為其選擇角色';
 
+    // ── 2. 名稱與判斷框條件檢查 ─────────────────────────────────
     for (const t of active) {
       if (t.type !== 'start' && t.type !== 'end' && !t.name.trim()) {
-        return `任務「${t.type === 'gateway' ? '（網關）' : ''}」缺少名稱，請填入或移除該欄位`;
+        return `有元件缺少名稱，請填入或移除該欄位`;
       }
       if (t.type === 'gateway') {
         if (!t.conditions?.length) return `判斷框「${t.name || '（未命名）'}」必須至少設定一個條件`;
@@ -623,6 +626,39 @@ function validate(step, data) {
         }
       }
     }
+
+    // ── 3. 出口連接：每個非結束元件必須有至少一個有效下一步 ─────
+    for (const t of active) {
+      if (t.type === 'end') continue;
+      if (t.type === 'gateway') continue; // 已由條件檢查覆蓋
+      const validNext = (t.nextTaskIds || []).filter(id => id && validTaskIds.has(id));
+      if (!validNext.length) {
+        const name = t.name?.trim() || `（${t.type === 'start' ? '開始事件' : '元件'}）`;
+        return `「${name}」未設定下一步，請在「下一步 →」欄位選擇連接目標`;
+      }
+    }
+
+    // ── 4. 入口連接：每個非開始元件必須被至少一個元件指向 ───────
+    const incomingSet = new Set();
+    active.forEach(t => {
+      if (t.type === 'gateway') {
+        (t.conditions || []).forEach(c => {
+          if (c.nextTaskId && validTaskIds.has(c.nextTaskId)) incomingSet.add(c.nextTaskId);
+        });
+      } else {
+        (t.nextTaskIds || []).forEach(id => {
+          if (id && validTaskIds.has(id)) incomingSet.add(id);
+        });
+      }
+    });
+    for (const t of active) {
+      if (t.type === 'start') continue;
+      if (!incomingSet.has(t.id)) {
+        const name = t.name?.trim() || `（${t.type === 'end' ? '結束事件' : '元件'}）`;
+        return `「${name}」沒有任何元件指向它，請確認流程連接完整`;
+      }
+    }
+
     return null;
   }
 

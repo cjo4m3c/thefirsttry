@@ -26,7 +26,7 @@ const SIDE = {
 };
 
 export function exportDrawio(flow) {
-  const { positions, connections, l4Numbers, svgWidth, svgHeight } = computeLayout(flow);
+  const { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights } = computeLayout(flow);
 
   // Cells are stored as plain objects, serialised at the end
   const cells = [];
@@ -45,20 +45,21 @@ export function exportDrawio(flow) {
   // ── Title bar ──────────────────────────────────────────────────
   rect(0, 0, svgWidth, TITLE_H,
     `text;strokeColor=none;fillColor=${COLORS.TITLE_BG};fontColor=#ffffff;fontSize=14;fontStyle=1;align=center;verticalAlign=middle;html=1;`,
-    `${flow.l3Number} ${flow.l3Name} — 業務流程泳道圖`);
+    `${flow.l3Number} ${flow.l3Name} — 業務活動泳道圖`);
 
-  // ── Lane backgrounds & headers ─────────────────────────────────
+  // ── Lane backgrounds & headers (dynamic heights) ───────────────
   flow.roles.forEach((role, i) => {
-    const laneY = TITLE_H + i * LANE_H;
+    const laneY = laneTopY[i];
+    const laneH = laneHeights[i];
     const headerBg = role.type === 'external' ? COLORS.EXTERNAL_BG : COLORS.INTERNAL_BG;
     const laneBg = i % 2 === 0 ? COLORS.LANE_ODD : COLORS.LANE_EVEN;
 
     // Full-width lane background
-    rect(0, laneY, svgWidth, LANE_H,
+    rect(0, laneY, svgWidth, laneH,
       `strokeColor=${COLORS.LANE_BORDER};fillColor=${laneBg};html=1;`);
 
     // Header strip with role name (rotated)
-    rect(0, laneY, LANE_HEADER_W, LANE_H,
+    rect(0, laneY, LANE_HEADER_W, laneH,
       `text;strokeColor=${headerBg};fillColor=${headerBg};fontColor=#ffffff;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;html=1;rotation=-90;`,
       role.name);
   });

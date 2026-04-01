@@ -239,7 +239,7 @@ export default function DiagramRenderer({ flow, showExport = true }) {
     );
   }
 
-  const { positions, connections, l4Numbers, svgWidth, svgHeight } = computeLayout(flow);
+  const { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights } = computeLayout(flow);
 
   async function handleExport() {
     if (!exportRef.current) return;
@@ -304,21 +304,22 @@ export default function DiagramRenderer({ flow, showExport = true }) {
           {/* Lane headers and bodies */}
           {flow.roles.map((role, i) => {
             const headerBg = role.type === 'external' ? COLORS.EXTERNAL_BG : COLORS.INTERNAL_BG;
-            const laneY = TITLE_H + i * LANE_H;
+            const laneY = laneTopY[i];
+            const laneH = laneHeights[i];
             const laneBg = i % 2 === 0 ? COLORS.LANE_ODD : COLORS.LANE_EVEN;
             return (
               <g key={role.id}>
                 {/* Lane body */}
-                <rect x={LANE_HEADER_W} y={laneY} width={svgWidth - LANE_HEADER_W} height={LANE_H}
+                <rect x={LANE_HEADER_W} y={laneY} width={svgWidth - LANE_HEADER_W} height={laneH}
                   fill={laneBg} />
                 {/* Header */}
-                <rect x={0} y={laneY} width={LANE_HEADER_W} height={LANE_H} fill={headerBg} />
-                {/* Role name (rotated or wrapped) */}
+                <rect x={0} y={laneY} width={LANE_HEADER_W} height={laneH} fill={headerBg} />
+                {/* Role name — centered in the header (uses dynamic lane height) */}
                 {wrapText(role.name, 5).map((line, li) => {
                   const lineH = 16;
                   const total = (wrapText(role.name, 5).length - 1) * lineH;
                   return (
-                    <text key={li} x={LANE_HEADER_W / 2} y={laneY + LANE_H / 2 - total / 2 + li * lineH}
+                    <text key={li} x={LANE_HEADER_W / 2} y={laneY + laneH / 2 - total / 2 + li * lineH}
                       textAnchor="middle" dominantBaseline="middle"
                       fill={COLORS.HEADER_TEXT} fontSize={13} fontWeight="bold"
                       fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
@@ -327,7 +328,7 @@ export default function DiagramRenderer({ flow, showExport = true }) {
                   );
                 })}
                 {/* Lane bottom border */}
-                <line x1={0} y1={laneY + LANE_H} x2={svgWidth} y2={laneY + LANE_H}
+                <line x1={0} y1={laneY + laneH} x2={svgWidth} y2={laneY + laneH}
                   stroke={COLORS.LANE_BORDER} strokeWidth={1} />
               </g>
             );
