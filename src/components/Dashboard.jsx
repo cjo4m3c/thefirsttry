@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import HelpPanel from './HelpPanel.jsx';
+import ChangelogPanel from './ChangelogPanel.jsx';
 
 const SORT_OPTIONS = [
   { value: 'number-asc',  label: 'L3 編號 ↑' },
@@ -41,9 +42,10 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete }) {
     <div className="min-h-screen" style={{ background: '#F3F4F6' }}>
       {/* Top bar */}
       <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: '#4A5240', color: 'white' }}>
-        <span className="text-lg font-bold tracking-wide">業務活動管理系統</span>
+        <span className="text-lg font-bold tracking-wide">DoReMiSo</span>
         <span className="text-xs opacity-60">BPM Flow Designer</span>
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
+          <ChangelogPanel />
           <HelpPanel />
         </div>
       </header>

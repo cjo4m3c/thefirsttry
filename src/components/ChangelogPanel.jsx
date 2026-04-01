@@ -1,0 +1,205 @@
+import { useState } from 'react';
+
+/**
+ * ChangelogPanel — 版本更新紀錄
+ *
+ * MAINTENANCE GUIDE:
+ * 每次功能更新後，在 CHANGELOG 陣列最前面新增一筆記錄（newest first）。
+ * 格式：{ date: 'YYYY-MM-DD', title: '簡短標題', items: ['...', '...'] }
+ */
+
+const CHANGELOG = [
+  {
+    date: '2026-04-01',
+    title: '系統更名、匯出修正與版本紀錄',
+    items: [
+      '系統名稱由「業務活動管理系統」改為「DoReMiSo」',
+      '新增版本更新紀錄面板（本頁），方便日後查閱歷史修改',
+      '修正 .drawio 匯出亂碼：L4 編號與任務名稱改以「-」連接（原 &#xa; 被 XML 跳脫後顯示為字面文字）',
+      '修正 .drawio 匯出泳道角色名稱顯示為直式問題：移除 rotation=-90，改為橫向顯示',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: '連接線路由與標籤修正',
+    items: [
+      '修正判斷框→上方泳道相鄰任務（top→left）路由：改為 L 形單次轉折，避免連接線穿過目標任務框',
+      '修正連接線標籤位置：所有連接線的標籤移至路徑第二段中點，不再蓋住箭頭尖端',
+      '解決「箭頭跳過中間節點」視覺問題（標籤蓋住箭頭導致使用者誤判路由終點）',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: '排序功能',
+    items: [
+      '首頁 L3 活動列表新增排序下拉選單',
+      '支援依 L3 編號升冪/降冪、依更新日期最新/最舊排序',
+      '預設依 L3 編號升冪排序，支援數字自然排序（1 < 2 < 10）',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: '規則說明面板',
+    items: [
+      '首頁標題列新增「規則說明」按鈕，點擊開啟 Modal',
+      '說明內容涵蓋：層級架構（L1–L5）、流程圖元件定義、驗證規則、連線規則、判斷框路由規則、匯出格式',
+      '規則以資料常數定義，方便未來同步更新',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: '驗證規則與動態泳道高度',
+    items: [
+      '新增流程驗證：必須有開始事件、必須有結束事件',
+      '新增連通性驗證：每個非開始節點必須被至少一條連線指向（孤立節點無法通過）',
+      '新增完整性驗證：非結束、非判斷框節點必須設定至少一個有效下一步',
+      '泳道高度動態調整：同角色多條下方繞行連線以 slot 制排列，避免連接線重疊',
+      '下方繞行連線按跨欄距排序（長距離排最外側），泳道自動擴展',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: 'Draw.io 匯出修正',
+    items: [
+      '修正 .drawio 檔案無法開啟（顯示「非繪圖文件」）問題',
+      '加入 mxfile → diagram 包裝層（現代版 Draw.io 必要結構）',
+      '修正 XML 屬性跳脫：使用 html=0 搭配純文字換行，避免 HTML 標籤跳脫問題',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: 'L4 主要功能批次更新',
+    items: [
+      '術語修正：L1 業務領域、L2 價值流、L3 活動、L4 任務、L5 步驟',
+      '首頁卡片新增「檢視/下載」快速預覽，不需進入編輯精靈',
+      '新增 FlowViewer 獨立檢視頁面',
+      '圖例移除「消息流」，新增「L3 活動（關聯）」',
+      '新增 L3 活動元件（雙框矩形，Call Activity 樣式）',
+      '支援並行任務：一個節點可設定多個下一步（nextTaskIds[]）',
+      '相容舊格式：自動將 nextTaskId 字串遷移至 nextTaskIds 陣列',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: '匯出格式：從 VSDX 改為 Draw.io',
+    items: [
+      '評估 VSDX 格式因 Visio XML schema 嚴格要求難以實作，改採 Draw.io XML 格式',
+      '匯出檔案副檔名改為 .drawio，可用 diagrams.net 或 VS Code 擴充套件開啟編輯',
+      '保留 PNG 匯出功能',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: '判斷框路由、全寬預覽、PNG 匯出',
+    items: [
+      '判斷框智慧路由：依 dr/dc（列差/欄差）自動決定出口/入口方向（6 種路由情境）',
+      '圖表預覽改為全寬顯示並支援橫向捲動',
+      'PNG 匯出以完整 SVG 為基礎（高解析度，pixelRatio=2）',
+    ],
+  },
+  {
+    date: '2026-04-01',
+    title: 'L4 使用體驗：拖曳排序、下一步設定、驗證',
+    items: [
+      '精靈中的 L4 任務列表支援拖曳排序（自動更新 nextTaskIds 為順序排列）',
+      '每個任務可明確設定下一個任務',
+      '新增開始/結束事件基本驗證',
+    ],
+  },
+  {
+    date: '2026-03-31',
+    title: '重建應用程式：精靈表單、泳道渲染、Dashboard',
+    items: [
+      '以 React + Vite + Tailwind CSS 重建整個應用',
+      '新增四步驟精靈：L3 活動資訊 → 泳道角色 → L4 任務 → 圖表預覽',
+      '泳道圖以 SVG 渲染，節點依角色分配泳道',
+      '資料以 localStorage（bpm_flows_v1）持久化',
+      '首頁 Dashboard 支援新增、編輯、刪除 L3 活動',
+      '設定 GitHub Actions 自動部署至 GitHub Pages',
+    ],
+  },
+  {
+    date: '2026-03-30',
+    title: '初始版本',
+    items: [
+      '建立泳道圖產生器 Web App 專案（React + Vite）',
+      '提供免安裝的獨立 HTML 版本（可直接用瀏覽器開啟）',
+    ],
+  },
+];
+
+function Section({ entry, isFirst }) {
+  const [open, setOpen] = useState(isFirst);
+  return (
+    <div className="border-b border-gray-100 last:border-0">
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+        onClick={() => setOpen(o => !o)}>
+        <span className="text-xs font-mono text-gray-400 flex-shrink-0 w-24">{entry.date}</span>
+        <span className="flex-1 text-sm font-medium text-gray-800">{entry.title}</span>
+        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <ul className="px-4 pb-3 space-y-1 ml-24">
+          {entry.items.map((item, i) => (
+            <li key={i} className="text-xs text-gray-600 flex gap-2">
+              <span className="text-gray-300 flex-shrink-0 mt-0.5">•</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default function ChangelogPanel() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm hover:bg-gray-100 transition-colors"
+        title="查看版本更新紀錄">
+        更新紀錄
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">版本更新紀錄</h2>
+                <p className="text-xs text-gray-400 mt-0.5">最新更新排列在最上方，點選標題可展開/收合明細</p>
+              </div>
+              <button onClick={() => setOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none px-2">
+                ×
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="overflow-y-auto flex-1">
+              {CHANGELOG.map((entry, i) => (
+                <Section key={i} entry={entry} isFirst={i === 0} />
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setOpen(false)}
+                className="px-5 py-2 rounded-lg text-white text-sm font-medium"
+                style={{ background: '#4A5240' }}>
+                關閉
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
