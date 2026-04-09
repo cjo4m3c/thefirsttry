@@ -23,11 +23,15 @@ export default function App() {
 
   function handleCancel() { setView('dashboard'); }
 
-  function handleImportExcel(flow) {
-    saveFlow(flow);
+  function handleImportExcel(flows) {
+    flows.forEach(f => saveFlow(f));
     refreshFlows();
-    setActiveFlowId(flow.id);
-    setView('view');
+    if (flows.length === 1) {
+      setActiveFlowId(flows[0].id);
+      setView('view');
+    } else {
+      setView('dashboard');
+    }
   }
 
   const activeFlow = activeFlowId ? flows.find(f => f.id === activeFlowId) ?? null : null;

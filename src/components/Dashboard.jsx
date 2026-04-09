@@ -29,6 +29,7 @@ function sortFlows(flows, sortKey) {
 export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onImportExcel }) {
   const [sortKey, setSortKey] = useState('number-asc');
   const [importError, setImportError] = useState('');
+  const [importSuccess, setImportSuccess] = useState('');
   const fileInputRef = useRef(null);
 
   const sortedFlows = useMemo(() => sortFlows(flows, sortKey), [flows, sortKey]);
@@ -44,15 +45,18 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Reset input so the same file can be re-selected
     e.target.value = '';
     setImportError('');
+    setImportSuccess('');
 
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const flow = parseExcelToFlow(ev.target.result);
-        onImportExcel(flow);
+        const flows = parseExcelToFlow(ev.target.result);
+        if (flows.length > 1) {
+          setImportSuccess(`成功匯入 ${flows.length} 個 L3 活動：${flows.map(f => f.l3Number).join('、')}`);
+        }
+        onImportExcel(flows);
       } catch (err) {
         setImportError(err.message ?? '解析 Excel 時發生未知錯誤');
       }
@@ -126,12 +130,34 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
           </div>
         )}
 
+        {/* Import success banner (multi-L3 only) */}
+        {importSuccess && (
+          <div className="mb-4 p-3 rounded-lg bg-teal-50 border border-teal-200 text-sm text-teal-800 flex items-start gap-2">
+            <span className="flex-shrink-0">✓</span>
+            <span>{importSuccess}</span>
+            <button onClick={() => setImportSuccess('')} className="ml-auto text-teal-400 hover:text-teal-600 font-bold">×</button>
+          </div>
+        )}
+
         {/* Excel format hint */}
-        <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-800">
-          <strong>Excel 上傳格式：</strong>
-          首列為標題列，欄位依序為：L3 活動編號、L3 活動名稱、L4 任務編號、L4 任務名稱、任務重點說明、任務重要輸入、
-          <strong>任務負責角色</strong>、任務產出成品、<strong>任務關聯說明</strong>（例：序列流向 5.1.1.3）、參考資料來源文件名稱。
-          上傳後自動產生泳道圖並儲存。
+        <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-800 space-y-1">
+          <div>
+            <strong>Excel 上傳格式（支援單檔多個 L3）：</strong>
+            首列為標題列，欄位依序為：L3 活動編號、L3 活動名稱、L4 任務編號、L4 任務名稱、任務重點說明、任務重要輸入、
+            <strong>任務負責角色</strong>（第 7 欄）、任務產出成品、<strong>任務關聯說明</strong>（第 9 欄）、參考資料來源文件名稱。
+          </div>
+          <div>
+            <strong>任務關聯說明支援的標記：</strong>
+            <span className="ml-1">序列流向 5.1.1.3</span>
+            <span className="mx-1 text-green-500">·</span>
+            <span>流程開始</span>
+            <span className="mx-1 text-green-500">·</span>
+            <span>流程結束</span>
+            <span className="mx-1 text-green-500">·</span>
+            <span>條件分支至 5.1.1.3、5.1.1.5</span>
+            <span className="mx-1 text-green-500">·</span>
+            <span>條件合併來自多個分支</span>
+          </div>
         </div>
 
         {/* Flow list */}
