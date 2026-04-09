@@ -23,6 +23,13 @@ export default function App() {
 
   function handleCancel() { setView('dashboard'); }
 
+  function handleImportExcel(flow) {
+    saveFlow(flow);
+    refreshFlows();
+    setActiveFlowId(flow.id);
+    setView('view');
+  }
+
   const activeFlow = activeFlowId ? flows.find(f => f.id === activeFlowId) ?? null : null;
 
   if (view === 'wizard') {
@@ -46,6 +53,7 @@ export default function App() {
       onEdit={handleEdit}
       onView={handleView}
       onDelete={handleDelete}
+      onImportExcel={handleImportExcel}
     />
   );
 }

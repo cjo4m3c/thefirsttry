@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import HelpPanel from './HelpPanel.jsx';
 import ChangelogPanel from './ChangelogPanel.jsx';
+import { parseExcelToFlow } from '../utils/excelImport.js';
 
 const SORT_OPTIONS = [
   { value: 'number-asc',  label: 'L3 編號 ↑' },
@@ -25,8 +26,10 @@ function sortFlows(flows, sortKey) {
   }
 }
 
-export default function Dashboard({ flows, onNew, onEdit, onView, onDelete }) {
+export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onImportExcel }) {
   const [sortKey, setSortKey] = useState('number-asc');
+  const [importError, setImportError] = useState('');
+  const fileInputRef = useRef(null);
 
   const sortedFlows = useMemo(() => sortFlows(flows, sortKey), [flows, sortKey]);
 
@@ -36,6 +39,26 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete }) {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit',
     });
+  }
+
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+    setImportError('');
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const flow = parseExcelToFlow(ev.target.result);
+        onImportExcel(flow);
+      } catch (err) {
+        setImportError(err.message ?? '解析 Excel 時發生未知錯誤');
+      }
+    };
+    reader.onerror = () => setImportError('讀取檔案失敗，請重試');
+    reader.readAsArrayBuffer(file);
   }
 
   return (
@@ -66,21 +89,56 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete }) {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <button
+              onClick={() => { setImportError(''); fileInputRef.current?.click(); }}
+              className="px-4 py-2 rounded-lg font-medium text-sm shadow transition-colors border"
+              style={{ background: '#16982B', color: 'white', borderColor: '#16982B' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#0f7020'}
+              onMouseLeave={e => e.currentTarget.style.background = '#16982B'}>
+              上傳 Excel
+            </button>
+
             <button onClick={onNew}
               className="px-5 py-2 rounded-lg text-white font-medium shadow transition-colors"
               style={{ background: '#2A52BE' }}
-              onMouseEnter={e => e.target.style.background = '#1a3a9e'}
-              onMouseLeave={e => e.target.style.background = '#2A52BE'}>
+              onMouseEnter={e => e.currentTarget.style.background = '#1a3a9e'}
+              onMouseLeave={e => e.currentTarget.style.background = '#2A52BE'}>
               + 新增 L3 活動
             </button>
           </div>
+        </div>
+
+        {/* Import error banner */}
+        {importError && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 flex items-start gap-2">
+            <span className="flex-shrink-0 font-bold">!</span>
+            <span>{importError}</span>
+            <button onClick={() => setImportError('')} className="ml-auto text-red-400 hover:text-red-600 font-bold">×</button>
+          </div>
+        )}
+
+        {/* Excel format hint */}
+        <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-800">
+          <strong>Excel 上傳格式：</strong>
+          首列為標題列，欄位依序為：L3 活動編號、L3 活動名稱、L4 任務編號、L4 任務名稱、任務重點說明、任務重要輸入、
+          <strong>任務負責角色</strong>、任務產出成品、<strong>任務關聯說明</strong>（例：序列流向 5.1.1.3）、參考資料來源文件名稱。
+          上傳後自動產生泳道圖並儲存。
         </div>
 
         {/* Flow list */}
         {sortedFlows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <div className="text-5xl mb-4">📋</div>
-            <p className="text-lg">尚無活動，點選右上角「新增 L3 活動」開始</p>
+            <p className="text-lg">尚無活動，點選右上角「新增 L3 活動」或「上傳 Excel」開始</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
