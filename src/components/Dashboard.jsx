@@ -79,7 +79,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
     <div className="min-h-screen" style={{ background: '#F3F4F6' }}>
       {/* Top bar */}
       <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: '#4A5240', color: 'white' }}>
-        <span className="text-lg font-bold tracking-wide">DoReMiSo</span>
+        <span className="text-lg font-bold tracking-wide">FlowSprite</span>
         <span className="text-xs opacity-60">BPM Flow Designer</span>
         <div className="ml-auto flex gap-2">
           <ChangelogPanel />
@@ -237,7 +237,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
         {/* Future expansion note */}
         <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
           <strong>系統層級架構：</strong>
-          L1 業務領域 → L2 價值流 → L3 活動（泳道圖）→ L4 任務 → L5 步驟
+          L1 業務領域 → L2 價値流 → L3 活動（泳道圖）→ L4 任務 → L5 步驟
           <br />
           <span className="opacity-70">目前支援 L3 活動 / L4 任務泳道圖，L5 步驟功能將陸續新增</span>
         </div>
