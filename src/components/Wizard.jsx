@@ -3,21 +3,49 @@ import { generateId } from '../utils/storage.js';
 import DiagramRenderer from './DiagramRenderer.jsx';
 
 // ── Constants ────────────────────────────────────────────────────
-const TASK_TYPES = [
+const CONNECTION_TYPES = [
+  { value: 'sequence',          label: '序列流向' },
+  { value: 'conditional-branch',label: '條件分支' },
+  { value: 'parallel-branch',   label: '並行分支' },
+  { value: 'parallel-merge',    label: '並行合併' },
+  { value: 'conditional-merge', label: '條件合併' },
+  { value: 'start',             label: '流程開始' },
+  { value: 'end',               label: '流程結束' },
+  { value: 'breakpoint',        label: '流程斷點' },
+  { value: 'subprocess',        label: '子流程調用' },
+  { value: 'loop-return',       label: '迴圈返回' },
+];
+
+const SHAPE_TYPES = [
   { value: 'task',        label: 'L4 任務' },
-  { value: 'start',       label: '開始事件' },
-  { value: 'end',         label: '結束事件' },
-  { value: 'interaction', label: '互動（外部關係人）' },
-  { value: 'gateway',     label: '判斷框' },
+  { value: 'interaction', label: '外部互動' },
   { value: 'l3activity',  label: 'L3 活動（關聯）' },
 ];
 
-const TYPE_BADGE = {
-  start:       { label: '開始', bg: '#D1FAE5', text: '#065F46' },
-  end:         { label: '結束', bg: '#FEE2E2', text: '#991B1B' },
-  gateway:     { label: '判斷', bg: '#FEF3C7', text: '#92400E' },
-  interaction: { label: '互動', bg: '#E5E7EB', text: '#374151' },
-  l3activity:  { label: 'L3', bg: '#EFF6FF', text: '#1D4ED8' },
+const CONN_BADGE = {
+  'sequence':           { label: '',    bg: '#E5E7EB', text: '#374151' },
+  'subprocess':         { label: '子流', bg: '#EDE9FE', text: '#5B21B6' },
+  'conditional-branch': { label: 'XOR', bg: '#FEF3C7', text: '#92400E' },
+  'parallel-branch':    { label: 'AND', bg: '#D1FAE5', text: '#065F46' },
+  'parallel-merge':     { label: '⊕',  bg: '#D1FAE5', text: '#065F46' },
+  'conditional-merge':  { label: '◇↘', bg: '#FEF3C7', text: '#92400E' },
+  'start':              { label: '開始', bg: '#D1FAE5', text: '#065F46' },
+  'end':                { label: '結束', bg: '#FEE2E2', text: '#991B1B' },
+  'breakpoint':         { label: '斷點', bg: '#FEE2E2', text: '#991B1B' },
+  'loop-return':        { label: '↺',  bg: '#EDE9FE', text: '#5B21B6' },
+};
+
+const CONN_ROW_BG = {
+  'sequence':           '#FAFAFA',
+  'subprocess':         '#FAF5FF',
+  'conditional-branch': '#FFFBEB',
+  'parallel-branch':    '#F0FDF4',
+  'parallel-merge':     '#F0FDF4',
+  'conditional-merge':  '#FFFBEB',
+  'start':              '#F0FDF4',
+  'end':                '#FFF1F2',
+  'breakpoint':         '#FFF1F2',
+  'loop-return':        '#F5F3FF',
 };
 
 // ── Factories ────────────────────────────────────────────────────
@@ -26,80 +54,135 @@ function makeRole() {
 }
 
 function makeTask(overrides = {}) {
-  return { id: generateId(), roleId: '', name: '', type: 'task', conditions: [], nextTaskIds: [], ...overrides };
+  return {
+    id: generateId(), roleId: '', name: '',
+    connectionType: 'sequence', shapeType: 'task',
+    type: 'task', gatewayType: 'xor',
+    conditions: [], nextTaskIds: [''],
+    subprocessName: '', breakpointReason: '',
+    ...overrides,
+  };
 }
 
-function makeCondition() {
-  return { id: generateId(), label: '', nextTaskId: '' };
+function makeCondition(label = '') {
+  return { id: generateId(), label, nextTaskId: '' };
 }
 
-/**
- * Ensure every non-end/non-gateway task has at least one nextTaskIds slot,
- * pre-filling with the sequential next task if currently empty.
- * Tasks that already have an explicit (non-empty) nextTaskIds[0] are left unchanged.
- */
+/** Infer connectionType from legacy task data (for existing saved flows) */
+function normalizeTask(task) {
+  if (task.connectionType) return task;
+  let connectionType = 'sequence';
+  let shapeType = 'task';
+  if (task.type === 'start') { connectionType = 'start'; }
+  else if (task.type === 'end') { connectionType = 'end'; }
+  else if (task.type === 'interaction') { connectionType = 'sequence'; shapeType = 'interaction'; }
+  else if (task.type === 'l3activity')  { connectionType = 'sequence'; shapeType = 'l3activity'; }
+  else if (task.type === 'gateway') {
+    const conds = task.conditions || [];
+    if (task.gatewayType === 'and') {
+      connectionType = conds.length <= 1 ? 'parallel-merge' : 'parallel-branch';
+    } else {
+      const isLoop = conds.some(c => c.label === '若未通過' || c.label === '若通過');
+      connectionType = isLoop ? 'loop-return' : conds.length <= 1 ? 'conditional-merge' : 'conditional-branch';
+    }
+  } else if (task.type === 'task') {
+    if ((task.nextTaskIds || []).filter(Boolean).length > 1) connectionType = 'parallel-branch';
+    else if (task.subprocessName || task.flowAnnotation?.includes('調用子流程')) connectionType = 'subprocess';
+  }
+  // migrate parallel-branch from multi-nextTaskIds task
+  let conditions = task.conditions || [];
+  let nextTaskIds = task.nextTaskIds || [];
+  if (connectionType === 'parallel-branch' && task.type === 'task' && nextTaskIds.filter(Boolean).length > 1) {
+    conditions = nextTaskIds.filter(Boolean).map(id => ({ id: generateId(), label: '', nextTaskId: id }));
+    nextTaskIds = [];
+  }
+  return { ...task, connectionType, shapeType, conditions, nextTaskIds,
+    subprocessName: task.subprocessName || '', breakpointReason: task.breakpointReason || '' };
+}
+
+/** Apply a new connectionType, resetting connections appropriately */
+function applyConnectionType(task, newCT) {
+  const st = task.shapeType || 'task';
+  const typeMap = {
+    sequence: st, subprocess: 'task', start: 'start', end: 'end', breakpoint: 'end',
+    'conditional-branch': 'gateway', 'parallel-branch': 'gateway',
+    'parallel-merge': 'gateway', 'conditional-merge': 'gateway', 'loop-return': 'gateway',
+  };
+  const gwMap = {
+    'conditional-branch': 'xor', 'conditional-merge': 'xor', 'loop-return': 'xor',
+    'parallel-branch': 'and', 'parallel-merge': 'and',
+  };
+  let conditions = [], nextTaskIds = [];
+  if (newCT === 'sequence' || newCT === 'start' || newCT === 'subprocess') {
+    nextTaskIds = (task.nextTaskIds || []).filter(Boolean).length ? task.nextTaskIds.filter(Boolean) : [''];
+  } else if (newCT === 'conditional-branch') {
+    conditions = task.conditions?.length ? task.conditions : [makeCondition()];
+  } else if (newCT === 'parallel-branch') {
+    conditions = task.conditions?.length ? task.conditions : [makeCondition()];
+  } else if (newCT === 'parallel-merge' || newCT === 'conditional-merge') {
+    conditions = task.conditions?.length ? [task.conditions[0]] : [makeCondition()];
+  } else if (newCT === 'loop-return') {
+    const ex = task.conditions || [];
+    conditions = [
+      { id: ex[0]?.id || generateId(), label: '若未通過', nextTaskId: ex[0]?.nextTaskId || '' },
+      { id: ex[1]?.id || generateId(), label: '若通過',   nextTaskId: ex[1]?.nextTaskId || '' },
+    ];
+  }
+  return { ...task, connectionType: newCT, shapeType: st,
+    type: typeMap[newCT] || 'task', gatewayType: gwMap[newCT] || task.gatewayType || 'xor',
+    conditions, nextTaskIds };
+}
+
 function applySequentialDefaults(tasks) {
   return tasks.map((t, i) => {
-    if (t.type === 'end' || t.type === 'gateway') return t;
-    const hasExplicitNext = t.nextTaskIds?.length && t.nextTaskIds[0];
-    if (hasExplicitNext) return t;
+    const ct = t.connectionType || 'sequence';
+    if (['end','breakpoint','conditional-branch','parallel-branch',
+         'parallel-merge','conditional-merge','loop-return'].includes(ct)) return t;
+    const hasNext = t.nextTaskIds?.some(Boolean);
+    if (hasNext) return t;
     return { ...t, nextTaskIds: tasks[i + 1] ? [tasks[i + 1].id] : [] };
   });
 }
 
 function initFormData(flow) {
   if (flow) {
-    // Step 1: migrate legacy nextTaskId string → nextTaskIds[]
     const migrated = (flow.tasks || []).map(t => {
-      if (t.nextTaskIds?.length) return t;
-      const ids = t.nextTaskId ? [t.nextTaskId] : [];
-      return { ...t, nextTaskIds: ids };
+      const withIds = t.nextTaskIds?.length ? t : { ...t, nextTaskIds: t.nextTaskId ? [t.nextTaskId] : [] };
+      return normalizeTask(withIds);
     });
-    // Step 2: auto-fill empty nextTaskIds with sequential next
-    const tasks = applySequentialDefaults(migrated);
-    return { ...flow, tasks };
+    return { ...flow, tasks: applySequentialDefaults(migrated) };
   }
-
-  // New flow: 8 default slots, first is start event
   const tasks = Array.from({ length: 8 }, (_, i) =>
-    makeTask({ type: i === 0 ? 'start' : 'task' })
+    makeTask({ connectionType: i === 0 ? 'start' : 'sequence', type: i === 0 ? 'start' : 'task' })
   );
-  // Set sequential nextTaskIds defaults
   tasks.forEach((t, i) => { t.nextTaskIds = tasks[i + 1] ? [tasks[i + 1].id] : []; });
-
-  return {
-    id: generateId(),
-    l3Number: '',
-    l3Name: '',
-    roles: [makeRole(), makeRole()],
-    tasks,
-  };
+  return { id: generateId(), l3Number: '', l3Name: '', roles: [makeRole(), makeRole()], tasks };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
-// Returns display label/number for each task (used in dropdowns and row labels)
 function computeDisplayLabels(tasks, l3Number) {
   const labels = {};
   let counter = 1;
   tasks.forEach(task => {
-    if (task.type === 'task') {
-      labels[task.id] = `${l3Number || '?'}.${counter++}`;
-    } else {
-      labels[task.id] = TYPE_BADGE[task.type]?.label || task.type;
-    }
+    labels[task.id] = `${l3Number || '?'}.${counter++}`;
   });
   return labels;
 }
 
 function taskOptionLabel(task, displayLabels) {
-  const lbl = displayLabels[task.id] ?? '';
+  const ct = task.connectionType || 'sequence';
+  const num = displayLabels[task.id] ?? '';
   const name = task.name.trim();
-  if (task.type === 'start') return `【開始】${name ? ' ' + name : ''}`;
-  if (task.type === 'end')   return `【結束】${name ? ' ' + name : ''}`;
-  if (task.type === 'gateway')    return `◇ 判斷：${name || '（未命名）'}`;
-  if (task.type === 'interaction') return `□ 互動：${name || '（未命名）'}`;
-  if (task.type === 'l3activity')  return `⊞ L3活動：${name || '（未命名）'}`;
-  return `${lbl}${name ? ' ' + name : ' （未命名）'}`;
+  if (ct === 'start')             return `${num} ● 流程開始${name ? '：' + name : ''}`;
+  if (ct === 'end')               return `${num} ⊙ 流程結束`;
+  if (ct === 'breakpoint')        return `${num} ⊗ 流程斷點${name ? '：' + name : ''}`;
+  if (ct === 'conditional-branch')return `${num} ◇× XOR：${name || '（未命名）'}`;
+  if (ct === 'parallel-branch')   return `${num} ◇+ AND：${name || '（未命名）'}`;
+  if (ct === 'parallel-merge')    return `${num} ⊕ 並行合併：${name || '（未命名）'}`;
+  if (ct === 'conditional-merge') return `${num} ◇↘ 條件合併：${name || '（未命名）'}`;
+  if (ct === 'loop-return')       return `${num} ↺ 迴圈：${name || '（未命名）'}`;
+  if (ct === 'subprocess')        return `${num} ▦ 子流程：${name || '（未命名）'}`;
+  return `${num}${name ? ' ' + name : ' （未命名）'}`;
 }
 
 // ── Drag-and-drop hook ───────────────────────────────────────────
@@ -296,65 +379,184 @@ function Step2({ data, onChange }) {
 }
 
 // ── Step 3 sub-components ────────────────────────────────────────
-function ConditionRow({ cond, currentTaskId, allTasks, displayLabels, onUpdate, onRemove }) {
-  const options = allTasks.filter(t => t.id !== currentTaskId && t.roleId);
-  return (
-    <div className="flex items-center gap-2 mt-1.5 pl-2">
-      <span className="text-xs text-yellow-600">→</span>
-      <input type="text" placeholder="條件標籤（如：是、否）" value={cond.label}
-        onChange={e => onUpdate({ ...cond, label: e.target.value })}
-        className="w-24 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
-      <span className="text-xs text-gray-400">前往</span>
-      <select value={cond.nextTaskId}
-        onChange={e => onUpdate({ ...cond, nextTaskId: e.target.value })}
-        className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
-        <option value="">選擇目標任務</option>
-        {options.map(t => (
-          <option key={t.id} value={t.id}>{taskOptionLabel(t, displayLabels)}</option>
+function ConnectionSection({ task, allTasks, displayLabels, onUpdate }) {
+  const ct = task.connectionType || 'sequence';
+  const opts = allTasks.filter(t => t.id !== task.id && t.roleId);
+  const sel = 'flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400';
+  const inp = 'flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400';
+  const lbl = 'text-xs text-gray-500 w-16 flex-shrink-0';
+
+  function renderOpts() {
+    return opts.map(t => <option key={t.id} value={t.id}>{taskOptionLabel(t, displayLabels)}</option>);
+  }
+  function updCond(idx, field, val) {
+    const updated = [...(task.conditions || [])];
+    updated[idx] = { ...updated[idx], [field]: val };
+    onUpdate({ ...task, conditions: updated });
+  }
+  function remCond(idx) {
+    onUpdate({ ...task, conditions: task.conditions.filter((_, i) => i !== idx) });
+  }
+  function addCond(label = '') {
+    onUpdate({ ...task, conditions: [...(task.conditions || []), makeCondition(label)] });
+  }
+
+  if (ct === 'sequence' || ct === 'start') {
+    return (
+      <div className="flex items-center gap-2 mt-1.5">
+        <span className={lbl}>{ct === 'start' ? '流程開始 →' : '下一步 →'}</span>
+        <select value={task.nextTaskIds?.[0] || ''} className={sel}
+          onChange={e => onUpdate({ ...task, nextTaskIds: [e.target.value] })}>
+          <option value="">選擇目標任務</option>{renderOpts()}
+        </select>
+      </div>
+    );
+  }
+
+  if (ct === 'subprocess') {
+    return (
+      <div className="flex flex-col gap-1.5 mt-1.5">
+        <div className="flex items-center gap-2">
+          <span className={lbl}>子流程名稱</span>
+          <input className={inp} value={task.subprocessName || ''} placeholder="例：1.2.3 訂單確認"
+            onChange={e => onUpdate({ ...task, subprocessName: e.target.value })} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={lbl}>返回後 →</span>
+          <select value={task.nextTaskIds?.[0] || ''} className={sel}
+            onChange={e => onUpdate({ ...task, nextTaskIds: [e.target.value] })}>
+            <option value="">選擇目標任務</option>{renderOpts()}
+          </select>
+        </div>
+      </div>
+    );
+  }
+
+  if (ct === 'conditional-branch') {
+    const conds = task.conditions || [];
+    return (
+      <div className="mt-1.5">
+        {conds.map((cond, idx) => (
+          <div key={cond.id} className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-yellow-600 flex-shrink-0">◇</span>
+            <input className="w-20 flex-shrink-0 px-2 py-1 border border-yellow-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-yellow-400"
+              value={cond.label} placeholder="條件標籤"
+              onChange={e => updCond(idx, 'label', e.target.value)} />
+            <span className="text-xs text-gray-400 flex-shrink-0">→</span>
+            <select value={cond.nextTaskId} className={sel}
+              onChange={e => updCond(idx, 'nextTaskId', e.target.value)}>
+              <option value="">選擇目標任務</option>{renderOpts()}
+            </select>
+            <button onClick={() => remCond(idx)} disabled={conds.length <= 1}
+              className="text-red-400 hover:text-red-600 text-xs flex-shrink-0 disabled:opacity-20">✕</button>
+          </div>
         ))}
-      </select>
-      <button onClick={onRemove} className="text-red-400 hover:text-red-600 text-sm flex-shrink-0">✕</button>
-    </div>
-  );
+        <button onClick={() => addCond()} className="mt-1.5 text-xs text-yellow-700 hover:text-yellow-900">
+          + 新增條件分支
+        </button>
+      </div>
+    );
+  }
+
+  if (ct === 'parallel-branch') {
+    const conds = task.conditions || [];
+    return (
+      <div className="mt-1.5">
+        {conds.map((cond, idx) => (
+          <div key={cond.id} className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-green-600 flex-shrink-0">+{idx + 1}</span>
+            <select value={cond.nextTaskId} className={sel}
+              onChange={e => updCond(idx, 'nextTaskId', e.target.value)}>
+              <option value="">選擇並行目標</option>{renderOpts()}
+            </select>
+            <button onClick={() => remCond(idx)} disabled={conds.length <= 1}
+              className="text-red-400 hover:text-red-600 text-xs flex-shrink-0 disabled:opacity-20">✕</button>
+          </div>
+        ))}
+        <button onClick={() => addCond('')} className="mt-1.5 text-xs text-green-700 hover:text-green-900">
+          + 新增並行目標
+        </button>
+      </div>
+    );
+  }
+
+  if (ct === 'parallel-merge' || ct === 'conditional-merge') {
+    const mergeType = ct === 'parallel-merge' ? '並行' : '條件';
+    const c0 = task.conditions?.[0];
+    return (
+      <div className="mt-1.5">
+        <div className="flex items-center gap-2">
+          <span className={lbl}>合併後 →</span>
+          <select value={c0?.nextTaskId || ''} className={sel}
+            onChange={e => onUpdate({ ...task, conditions: [{ id: c0?.id || generateId(), label: '', nextTaskId: e.target.value }] })}>
+            <option value="">選擇目標任務</option>{renderOpts()}
+          </select>
+        </div>
+        <p className="text-xs text-gray-400 mt-1 pl-1">ℹ 驗證時將確認有多個{mergeType}來源指向此元件</p>
+      </div>
+    );
+  }
+
+  if (ct === 'loop-return') {
+    const conds = task.conditions?.length >= 2 ? task.conditions : [
+      { id: generateId(), label: '若未通過', nextTaskId: '' },
+      { id: generateId(), label: '若通過',   nextTaskId: '' },
+    ];
+    return (
+      <div className="flex flex-col gap-1.5 mt-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 flex-shrink-0">條件判斷說明</span>
+          <input className={inp} value={task.loopDescription || ''}
+            placeholder="說明判斷條件（選填）"
+            onChange={e => onUpdate({ ...task, loopDescription: e.target.value })} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-red-500 w-16 flex-shrink-0">若未通過 ↺</span>
+          <select value={conds[0]?.nextTaskId || ''} className={sel}
+            onChange={e => {
+              const updated = [...conds];
+              updated[0] = { ...updated[0], nextTaskId: e.target.value };
+              onUpdate({ ...task, conditions: updated });
+            }}>
+            <option value="">選擇返回目標</option>{renderOpts()}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-green-600 w-16 flex-shrink-0">若通過 →</span>
+          <select value={conds[1]?.nextTaskId || ''} className={sel}
+            onChange={e => {
+              const updated = [...conds];
+              updated[1] = { ...updated[1], nextTaskId: e.target.value };
+              onUpdate({ ...task, conditions: updated });
+            }}>
+            <option value="">選擇繼續目標</option>{renderOpts()}
+          </select>
+        </div>
+      </div>
+    );
+  }
+
+  if (ct === 'breakpoint') {
+    return (
+      <div className="flex items-center gap-2 mt-1.5">
+        <span className={lbl}>斷點說明</span>
+        <input className={inp} value={task.breakpointReason || ''}
+          placeholder="說明斷點原因（選填）"
+          onChange={e => onUpdate({ ...task, breakpointReason: e.target.value })} />
+      </div>
+    );
+  }
+
+  return null; // 'end'
 }
 
-function TaskRow({ task, rowIndex, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove, dragHandlers, isDragging, isOver }) {
-  const isGateway = task.type === 'gateway';
-  const isEnd = task.type === 'end';
-  const isStart = task.type === 'start';
-  const nameOptional = isStart || isEnd;
-  const showNextTask = !isGateway && !isEnd;
-  const badge = TYPE_BADGE[task.type];
-  const displayLabel = displayLabels[task.id];
-  const validRoleIds = new Set(roles.filter(r => r.name).map(r => r.id));
-
-  function handleTypeChange(newType) {
-    const updates = { type: newType };
-    if (newType !== 'gateway') updates.conditions = [];
-    if (newType === 'end') updates.nextTaskIds = [];
-    onUpdate({ ...task, ...updates });
-  }
-
-  function addCondition() {
-    onUpdate({ ...task, conditions: [...(task.conditions || []), makeCondition()] });
-  }
-
-  function updateNextId(idx, val) {
-    const updated = [...(task.nextTaskIds || [])];
-    updated[idx] = val;
-    onUpdate({ ...task, nextTaskIds: updated });
-  }
-
-  function removeNextId(idx) {
-    onUpdate({ ...task, nextTaskIds: (task.nextTaskIds || []).filter((_, i) => i !== idx) });
-  }
-
-  function addParallelNext() {
-    onUpdate({ ...task, nextTaskIds: [...(task.nextTaskIds || []), ''] });
-  }
-
-  // Available tasks for "next task" dropdown (exclude self, include all with roleId)
-  const nextOptions = allTasks.filter(t => t.id !== task.id && t.roleId && validRoleIds.has(t.roleId));
+function TaskRow({ task, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove, dragHandlers, isDragging, isOver }) {
+  const ct = task.connectionType || 'sequence';
+  const badge = CONN_BADGE[ct];
+  const num = displayLabels[task.id];
+  const rowBg = CONN_ROW_BG[ct] || '#FAFAFA';
+  const nameOptional = ct === 'start' || ct === 'end' || ct === 'breakpoint';
+  const showShape = ct === 'sequence' || ct === 'subprocess';
 
   return (
     <div
@@ -362,101 +564,63 @@ function TaskRow({ task, rowIndex, roles, allTasks, displayLabels, onUpdate, onR
       className={`rounded-lg border overflow-hidden transition-all select-none
         ${isDragging ? 'opacity-40 scale-95' : ''}
         ${isOver ? 'border-t-2 border-blue-400' : 'border-gray-200'}`}
-      style={{ background: isGateway ? '#FFFBEB' : isStart ? '#F0FDF4' : isEnd ? '#FFF1F2' : '#FAFAFA' }}>
+      style={{ background: rowBg }}>
 
       {/* Main row */}
       <div className="flex items-center gap-2 p-2 min-w-0">
         <DragHandle />
 
-        {/* Left label: L4 number or type badge */}
-        <div className="w-16 flex-shrink-0 flex items-center">
-          {badge ? (
-            <span className="px-1.5 py-0.5 rounded text-xs font-bold"
-              style={{ background: badge.bg, color: badge.text }}>
-              {badge.label}
-            </span>
+        {/* Badge / L4 number */}
+        <div className="w-14 flex-shrink-0 flex items-center">
+          {ct === 'sequence' && num ? (
+            <span className="text-xs font-mono text-gray-500 font-semibold">{num}</span>
           ) : (
-            <span className="text-xs font-mono text-gray-500 font-semibold">{displayLabel}</span>
+            <span className="px-1.5 py-0.5 rounded text-xs font-bold whitespace-nowrap"
+              style={{ background: badge.bg, color: badge.text }}>
+              {badge.label || num}
+            </span>
           )}
         </div>
 
-        {/* Role dropdown */}
-        <select value={task.roleId}
-          onChange={e => onUpdate({ ...task, roleId: e.target.value })}
-          className="w-28 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
-          <option value="">選擇角色 *</option>
-          {roles.filter(r => r.name).map(r => (
-            <option key={r.id} value={r.id}>{r.name}</option>
-          ))}
+        {/* Role */}
+        <select value={task.roleId} onChange={e => onUpdate({ ...task, roleId: e.target.value })}
+          className="w-24 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+          <option value="">角色 *</option>
+          {roles.filter(r => r.name).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
 
-        {/* Task name */}
-        <input type="text"
-          placeholder={nameOptional ? '事件名稱（選填）' : '任務名稱 *'}
-          value={task.name}
-          onChange={e => onUpdate({ ...task, name: e.target.value })}
+        {/* Name */}
+        <input type="text" placeholder={nameOptional ? '名稱（選填）' : '任務名稱 *'}
+          value={task.name} onChange={e => onUpdate({ ...task, name: e.target.value })}
           className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
 
-        {/* Type dropdown */}
-        <select value={task.type}
-          onChange={e => handleTypeChange(e.target.value)}
+        {/* Connection type */}
+        <select value={ct} onChange={e => onUpdate(applyConnectionType(task, e.target.value))}
           className="w-28 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
-          {TASK_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {CONNECTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
 
-        {/* Next task — always show ≥1 slot; extra slots = parallel targets */}
-        {showNextTask ? (
-          <div className="w-40 flex-shrink-0 flex flex-col gap-1">
-            {/* Always show at least one slot, even when nextTaskIds is empty */}
-            {(task.nextTaskIds?.length ? task.nextTaskIds : ['']).map((nid, idx) => (
-              <div key={idx} className="flex items-center gap-1">
-                <select value={nid}
-                  onChange={e => updateNextId(idx, e.target.value)}
-                  className="flex-1 min-w-0 px-1.5 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
-                  <option value="">{idx === 0 ? '→ 下一步' : `→ 並行 ${idx + 1}`}</option>
-                  {nextOptions.map(t => (
-                    <option key={t.id} value={t.id}>{taskOptionLabel(t, displayLabels)}</option>
-                  ))}
-                </select>
-                {idx > 0 && (
-                  <button onClick={() => removeNextId(idx)}
-                    className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">✕</button>
-                )}
-              </div>
-            ))}
-            <button onClick={addParallelNext}
-              className="text-left text-xs text-blue-500 hover:text-blue-700 leading-none">
-              + 新增並行任務
-            </button>
-          </div>
-        ) : (
-          <div className="w-40 flex-shrink-0" />
-        )}
+        {/* Shape type (only for sequence/subprocess) */}
+        {showShape ? (
+          <select value={task.shapeType || 'task'}
+            onChange={e => {
+              const st = e.target.value;
+              onUpdate({ ...task, shapeType: st, type: st });
+            }}
+            className="w-24 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+            {SHAPE_TYPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        ) : <div className="w-24 flex-shrink-0" />}
 
         {/* Remove */}
         <button onClick={onRemove} disabled={!canRemove}
           className="w-6 flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-sm">✕</button>
       </div>
 
-      {/* Gateway conditions */}
-      {isGateway && (
-        <div className="px-3 pb-3 bg-yellow-50 border-t border-yellow-100">
-          <div className="text-xs font-semibold text-yellow-700 mt-2 mb-1">網關條件：</div>
-          {(task.conditions || []).map(cond => (
-            <ConditionRow key={cond.id} cond={cond} currentTaskId={task.id}
-              allTasks={allTasks} displayLabels={displayLabels}
-              onUpdate={updated => onUpdate({ ...task, conditions: task.conditions.map(c => c.id === cond.id ? updated : c) })}
-              onRemove={() => onUpdate({ ...task, conditions: task.conditions.filter(c => c.id !== cond.id) })} />
-          ))}
-          <button onClick={addCondition}
-            className="mt-2 px-3 py-1 text-xs border border-dashed border-yellow-400 text-yellow-700 rounded hover:bg-yellow-100 transition-colors">
-            + 新增條件
-          </button>
-          {!(task.conditions?.length) && (
-            <p className="text-xs text-yellow-600 mt-1 opacity-70">請至少加入一個條件，否則流程無法繼續</p>
-          )}
-        </div>
-      )}
+      {/* Connection config section */}
+      <div className="px-3 pb-2.5">
+        <ConnectionSection task={task} allTasks={allTasks} displayLabels={displayLabels} onUpdate={onUpdate} />
+      </div>
     </div>
   );
 }
@@ -495,15 +659,15 @@ function Step3({ data, onChange }) {
     onChange({ tasks: data.tasks.filter(t => t.id !== id) });
   }
 
-  const hasStart = data.tasks.some(t => t.type === 'start' && t.roleId);
-  const hasEnd   = data.tasks.some(t => t.type === 'end'   && t.roleId);
+  const hasStart = data.tasks.some(t => (t.connectionType === 'start' || t.type === 'start') && t.roleId);
+  const hasEnd   = data.tasks.some(t => (t.connectionType === 'end' || t.connectionType === 'breakpoint' || t.type === 'end') && t.roleId);
 
   return (
     <div className="w-full max-w-5xl mx-auto">
       <h2 className="text-xl font-bold text-gray-800 mb-1">L4 任務輸入</h2>
       <p className="text-sm text-gray-500 mb-1">依序填入每個步驟，可拖曳左側圓點調整順序</p>
       <p className="text-xs text-gray-400 mb-4">
-        只有「任務」類型才會帶有 L4 編號；開始／結束事件的名稱為選填
+        使用「流程設定」欄位選擇 BPMN 連接方式，系統會自動套用對應圖形與連線邏輯
       </p>
 
       {/* Status badges */}
@@ -519,11 +683,11 @@ function Step3({ data, onChange }) {
       {/* Column headers */}
       <div className="flex items-center gap-2 px-2 mb-1.5 text-xs font-semibold text-gray-400">
         <span className="w-5 flex-shrink-0" />
-        <span className="w-16 flex-shrink-0">編號/類型</span>
-        <span className="w-28 flex-shrink-0">角色 *</span>
-        <span className="flex-1">任務名稱</span>
-        <span className="w-28 flex-shrink-0">類型</span>
-        <span className="w-40 flex-shrink-0">下一步 →</span>
+        <span className="w-14 flex-shrink-0">編號</span>
+        <span className="w-24 flex-shrink-0">角色 *</span>
+        <span className="flex-1">元件名稱</span>
+        <span className="w-28 flex-shrink-0">流程設定</span>
+        <span className="w-24 flex-shrink-0">圖形樣式</span>
         <span className="w-6 flex-shrink-0" />
       </div>
 
@@ -552,11 +716,11 @@ function Step3({ data, onChange }) {
       </button>
 
       <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-        <strong>提示：</strong>
-        「下一步」欄位設定此任務完成後要連接哪個步驟，系統已帶入預設值。
-        點選「+ 並行」可新增多個並行的下一步目標，代表後續步驟同時進行。
-        判斷框改用「條件」控制分支。
-        空白欄位（無角色且無名稱）在產生圖表時自動忽略。
+        <strong>流程設定說明：</strong>
+        序列流向＝單一下一步；條件分支＝XOR 閘道，依條件分流；並行分支＝AND 閘道，同時啟動多個路徑；
+        並行合併／條件合併＝多路徑收束，驗證時會確認有足夠來源；迴圈返回＝通過則繼續、未通過則返回；
+        子流程調用＝調用子流程後返回繼續；流程斷點＝非完整流程的截止點（下一步選填）。
+        空白欄位（無角色）在產生圖表時自動忽略。
       </div>
     </div>
   );
@@ -570,7 +734,8 @@ function Step4({ data }) {
 
     const validTasks = data.tasks.filter(t => {
       if (!t.roleId || !validRoleIds.has(t.roleId)) return false;
-      if (t.type === 'start' || t.type === 'end') return true; // name optional
+      const ct2 = t.connectionType || (t.type === 'start' ? 'start' : t.type === 'end' ? 'end' : 'sequence');
+      if (ct2 === 'start' || ct2 === 'end' || ct2 === 'breakpoint') return true;
       return t.name.trim();
     });
     const validTaskIds = new Set(validTasks.map(t => t.id));
@@ -578,9 +743,11 @@ function Step4({ data }) {
     const tasks = validTasks.map(t => ({
       ...t,
       nextTaskIds: (t.nextTaskIds || []).filter(id => id && validTaskIds.has(id)),
-      conditions: (t.conditions || []).filter(c =>
-        c.label.trim() && c.nextTaskId && validTaskIds.has(c.nextTaskId)
-      ),
+      conditions: (t.conditions || []).filter(c => {
+        const ct3 = t.connectionType;
+        const needLabel = ct3 === 'conditional-branch';
+        return (needLabel ? c.label.trim() : true) && c.nextTaskId && validTaskIds.has(c.nextTaskId);
+      }),
     }));
 
     return { ...data, roles: validRoles, tasks };
@@ -621,58 +788,90 @@ function validate(step, data) {
     const validRoleIds = new Set(data.roles.filter(r => r.name.trim()).map(r => r.id));
     const active = data.tasks.filter(t => {
       if (!t.roleId || !validRoleIds.has(t.roleId)) return false;
-      if (t.type === 'start' || t.type === 'end') return true;
+      const ct = t.connectionType || 'sequence';
+      if (ct === 'start' || ct === 'end' || ct === 'breakpoint') return true;
       return t.name.trim();
     });
     const validTaskIds = new Set(active.map(t => t.id));
 
     // ── 1. 必須有開始和結束 ──────────────────────────────────────
-    if (!active.some(t => t.type === 'start')) return '必須設定至少一個「開始事件」並為其選擇角色';
-    if (!active.some(t => t.type === 'end'))   return '必須設定至少一個「結束事件」並為其選擇角色';
+    if (!active.some(t => t.connectionType === 'start' || t.type === 'start'))
+      return '必須設定至少一個「流程開始」並為其選擇角色';
+    if (!active.some(t => ['end','breakpoint'].includes(t.connectionType) || t.type === 'end'))
+      return '必須設定至少一個「流程結束」或「流程斷點」並為其選擇角色';
 
-    // ── 2. 名稱與判斷框條件檢查 ─────────────────────────────────
+    // ── 2. 各連接類型的必填欄位 ─────────────────────────────────
     for (const t of active) {
-      if (t.type !== 'start' && t.type !== 'end' && !t.name.trim()) {
-        return `有元件缺少名稱，請填入或移除該欄位`;
-      }
-      if (t.type === 'gateway') {
-        if (!t.conditions?.length) return `判斷框「${t.name || '（未命名）'}」必須至少設定一個條件`;
+      const ct = t.connectionType || 'sequence';
+      const n = t.name || '（未命名）';
+      if (ct !== 'start' && ct !== 'end' && ct !== 'breakpoint' && !t.name.trim())
+        return '有元件缺少名稱，請填入或移除該欄位';
+
+      if (ct === 'sequence' || ct === 'start') {
+        if (!(t.nextTaskIds || []).some(id => id && validTaskIds.has(id)))
+          return `「${n}」的下一步尚未設定`;
+      } else if (ct === 'subprocess') {
+        if (!t.subprocessName?.trim()) return `「${n}」的子流程名稱為必填`;
+        if (!(t.nextTaskIds || []).some(id => id && validTaskIds.has(id)))
+          return `「${n}」的返回後下一步尚未設定`;
+      } else if (ct === 'conditional-branch') {
+        if (!t.conditions?.length) return `「${n}」必須至少設定一個條件分支`;
         for (const c of t.conditions) {
-          if (!c.label.trim())  return `判斷框「${t.name}」有條件缺少標籤`;
-          if (!c.nextTaskId)    return `判斷框「${t.name}」有條件未選擇目標任務`;
+          if (!c.label.trim()) return `「${n}」有條件缺少標籤`;
+          if (!c.nextTaskId || !validTaskIds.has(c.nextTaskId)) return `「${n}」有條件未選擇目標任務`;
         }
+      } else if (ct === 'parallel-branch') {
+        if (!t.conditions?.length) return `「${n}」必須至少設定一個並行目標`;
+        for (const c of t.conditions) {
+          if (!c.nextTaskId || !validTaskIds.has(c.nextTaskId)) return `「${n}」有並行目標未選擇`;
+        }
+      } else if (ct === 'parallel-merge' || ct === 'conditional-merge') {
+        const c0 = t.conditions?.[0];
+        if (!c0?.nextTaskId || !validTaskIds.has(c0.nextTaskId))
+          return `「${n}」的合併後下一步尚未設定`;
+      } else if (ct === 'loop-return') {
+        const c0 = t.conditions?.[0], c1 = t.conditions?.[1];
+        if (!c0?.nextTaskId || !validTaskIds.has(c0.nextTaskId)) return `「${n}」的「若未通過」目標未設定`;
+        if (!c1?.nextTaskId || !validTaskIds.has(c1.nextTaskId)) return `「${n}」的「若通過」目標未設定`;
       }
     }
 
-    // ── 3. 出口連接：每個非結束元件必須有至少一個有效下一步 ─────
-    for (const t of active) {
-      if (t.type === 'end') continue;
-      if (t.type === 'gateway') continue; // 已由條件檢查覆蓋
-      const validNext = (t.nextTaskIds || []).filter(id => id && validTaskIds.has(id));
-      if (!validNext.length) {
-        const name = t.name?.trim() || `（${t.type === 'start' ? '開始事件' : '元件'}）`;
-        return `「${name}」未設定下一步，請在「下一步 →」欄位選擇連接目標`;
-      }
-    }
-
-    // ── 4. 入口連接：每個非開始元件必須被至少一個元件指向 ───────
-    const incomingSet = new Set();
+    // ── 3. 並行合併 / 條件合併：驗證有多個來源 ──────────────────
+    const incomingCount = {};
+    const condIncoming = {};
     active.forEach(t => {
-      if (t.type === 'gateway') {
-        (t.conditions || []).forEach(c => {
-          if (c.nextTaskId && validTaskIds.has(c.nextTaskId)) incomingSet.add(c.nextTaskId);
-        });
-      } else {
-        (t.nextTaskIds || []).forEach(id => {
-          if (id && validTaskIds.has(id)) incomingSet.add(id);
-        });
-      }
+      const ct = t.connectionType || 'sequence';
+      const outs = ['conditional-branch','parallel-branch','parallel-merge','conditional-merge','loop-return'].includes(ct)
+        ? (t.conditions || []).map(c => c.nextTaskId).filter(Boolean)
+        : (t.nextTaskIds || []).filter(Boolean);
+      outs.forEach(id => {
+        if (validTaskIds.has(id)) {
+          incomingCount[id] = (incomingCount[id] || 0) + 1;
+          if (ct === 'conditional-branch') condIncoming[id] = (condIncoming[id] || 0) + 1;
+        }
+      });
     });
     for (const t of active) {
-      if (t.type === 'start') continue;
+      const ct = t.connectionType || 'sequence';
+      const n = t.name || '（未命名）';
+      if (ct === 'parallel-merge') {
+        const cnt = incomingCount[t.id] || 0;
+        if (cnt < 2) return `「${n}」設定為並行合併，但目前只有 ${cnt} 個來源指向它（需 2 個以上）`;
+      }
+      if (ct === 'conditional-merge') {
+        const cnt = condIncoming[t.id] || 0;
+        if (cnt < 2) return `「${n}」設定為條件合併，但只有 ${cnt} 個條件分支指向它（需 2 個以上）`;
+      }
+    }
+
+    // ── 4. 每個非開始元件必須被至少一個元件指向 ─────────────────
+    const incomingSet = new Set(Object.keys(incomingCount));
+    for (const t of active) {
+      const ct = t.connectionType || 'sequence';
+      if (ct === 'start') continue;
       if (!incomingSet.has(t.id)) {
-        const name = t.name?.trim() || `（${t.type === 'end' ? '結束事件' : '元件'}）`;
-        return `「${name}」沒有任何元件指向它，請確認流程連接完整`;
+        const n = t.name?.trim() || `（${ct === 'end' || ct === 'breakpoint' ? '結束' : '元件'}）`;
+        return `「${n}」沒有任何元件指向它，請確認流程連接完整`;
       }
     }
 
