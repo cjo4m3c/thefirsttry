@@ -11,6 +11,16 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-09',
+    title: '系統更名為 FlowSprite',
+    items: [
+      '系統名稱由「DoReMiSo」更名為「FlowSprite」',
+      '網頁標題改為「FlowSprite — BPM Flow Designer」',
+      '左上角品牌名稱與 package.json 同步更新為 flowsprite',
+      '規則說明（HelpPanel）同步更新，反映 BPMN 10 種連接類型與三種閘道的最新規則',
+    ],
+  },
+  {
+    date: '2026-04-09',
     title: 'L4 任務輸入：10 種 BPMN 流程設定類型 + L3 活動書端圖形',
     items: [
       '「類型」與「下一步」欄位合併為統一的「流程設定」下拉選單，共 10 種 BPMN 連接類型',

@@ -79,7 +79,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
     <div className="min-h-screen" style={{ background: '#F3F4F6' }}>
       {/* Top bar */}
       <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: '#4A5240', color: 'white' }}>
-        <span className="text-lg font-bold tracking-wide">DoReMiSo</span>
+        <span className="text-lg font-bold tracking-wide">FlowSprite</span>
         <span className="text-xs opacity-60">BPM Flow Designer</span>
         <div className="ml-auto flex gap-2">
           <ChangelogPanel />
