@@ -87,9 +87,12 @@ export function exportDrawio(flow) {
 
     } else if (task.type === 'gateway') {
       const d = DIAMOND_SIZE * 2;
+      const gType = task.gatewayType || 'xor';
+      const symMap = { xor: '×', and: '+', or: '○' };
+      const gwLabel = `${symMap[gType] || '×'}\n${task.name || ''}`;
       cellId = rect(pos.cx - DIAMOND_SIZE, pos.cy - DIAMOND_SIZE, d, d,
         `rhombus;whiteSpace=wrap;html=0;fillColor=${COLORS.GATEWAY_FILL};strokeColor=${COLORS.GATEWAY_STROKE};strokeWidth=1.5;fontSize=10;align=center;verticalAlign=middle;`,
-        task.name || '');
+        gwLabel);
 
     } else if (task.type === 'l3activity') {
       // Double-border via Draw.io's built-in "double" style

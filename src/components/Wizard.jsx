@@ -26,7 +26,7 @@ function makeRole() {
 }
 
 function makeTask(overrides = {}) {
-  return { id: generateId(), roleId: '', name: '', type: 'task', conditions: [], nextTaskIds: [], ...overrides };
+  return { id: generateId(), roleId: '', name: '', type: 'task', gatewayType: 'xor', conditions: [], nextTaskIds: [], ...overrides };
 }
 
 function makeCondition() {
@@ -96,7 +96,10 @@ function taskOptionLabel(task, displayLabels) {
   const name = task.name.trim();
   if (task.type === 'start') return `【開始】${name ? ' ' + name : ''}`;
   if (task.type === 'end')   return `【結束】${name ? ' ' + name : ''}`;
-  if (task.type === 'gateway')    return `◇ 判斷：${name || '（未命名）'}`;
+  if (task.type === 'gateway') {
+    const gLabel = task.gatewayType === 'and' ? '並行' : task.gatewayType === 'or' ? '包容' : '排他';
+    return `◇ ${gLabel}閘道：${name || '（未命名）'}`;
+  }
   if (task.type === 'interaction') return `□ 互動：${name || '（未命名）'}`;
   if (task.type === 'l3activity')  return `⊞ L3活動：${name || '（未命名）'}`;
   return `${lbl}${name ? ' ' + name : ' （未命名）'}`;
@@ -331,6 +334,7 @@ function TaskRow({ task, rowIndex, roles, allTasks, displayLabels, onUpdate, onR
   function handleTypeChange(newType) {
     const updates = { type: newType };
     if (newType !== 'gateway') updates.conditions = [];
+    if (newType === 'gateway' && !task.gatewayType) updates.gatewayType = 'xor';
     if (newType === 'end') updates.nextTaskIds = [];
     onUpdate({ ...task, ...updates });
   }
@@ -441,7 +445,19 @@ function TaskRow({ task, rowIndex, roles, allTasks, displayLabels, onUpdate, onR
       {/* Gateway conditions */}
       {isGateway && (
         <div className="px-3 pb-3 bg-yellow-50 border-t border-yellow-100">
-          <div className="text-xs font-semibold text-yellow-700 mt-2 mb-1">網關條件：</div>
+          <div className="flex items-center gap-3 mt-2 mb-2">
+            <span className="text-xs font-semibold text-yellow-700">閘道類型：</span>
+            <select value={task.gatewayType || 'xor'}
+              onChange={e => onUpdate({ ...task, gatewayType: e.target.value })}
+              className="px-2 py-1 border border-yellow-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-yellow-400 bg-white">
+              <option value="xor">排他閘道 (XOR) — 擇一分支</option>
+              <option value="and">並行閘道 (AND) — 同時分支</option>
+              <option value="or">包容閘道 (OR) — 條件包容</option>
+            </select>
+          </div>
+          <div className="text-xs font-semibold text-yellow-700 mb-1">
+            {(task.gatewayType || 'xor') === 'and' ? '並行分支目標：' : '網關條件：'}
+          </div>
           {(task.conditions || []).map(cond => (
             <ConditionRow key={cond.id} cond={cond} currentTaskId={task.id}
               allTasks={allTasks} displayLabels={displayLabels}
@@ -450,10 +466,10 @@ function TaskRow({ task, rowIndex, roles, allTasks, displayLabels, onUpdate, onR
           ))}
           <button onClick={addCondition}
             className="mt-2 px-3 py-1 text-xs border border-dashed border-yellow-400 text-yellow-700 rounded hover:bg-yellow-100 transition-colors">
-            + 新增條件
+            + {(task.gatewayType || 'xor') === 'and' ? '新增並行目標' : '新增條件'}
           </button>
           {!(task.conditions?.length) && (
-            <p className="text-xs text-yellow-600 mt-1 opacity-70">請至少加入一個條件，否則流程無法繼續</p>
+            <p className="text-xs text-yellow-600 mt-1 opacity-70">請至少加入一個目標/條件，否則流程無法繼續</p>
           )}
         </div>
       )}
@@ -636,10 +652,12 @@ function validate(step, data) {
         return `有元件缺少名稱，請填入或移除該欄位`;
       }
       if (t.type === 'gateway') {
-        if (!t.conditions?.length) return `判斷框「${t.name || '（未命名）'}」必須至少設定一個條件`;
+        const gName = t.name || '（未命名）';
+        if (!t.conditions?.length) return `閘道「${gName}」必須至少設定一個條件/分支目標`;
+        const isAnd = (t.gatewayType || 'xor') === 'and';
         for (const c of t.conditions) {
-          if (!c.label.trim())  return `判斷框「${t.name}」有條件缺少標籤`;
-          if (!c.nextTaskId)    return `判斷框「${t.name}」有條件未選擇目標任務`;
+          if (!isAnd && !c.label.trim()) return `閘道「${t.name}」有條件缺少標籤（AND 並行閘道不需要標籤）`;
+          if (!c.nextTaskId) return `閘道「${t.name}」有條件/分支目標未選擇任務`;
         }
       }
     }

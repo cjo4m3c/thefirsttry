@@ -1,70 +1,109 @@
 import * as XLSX from 'xlsx';
 import { generateId } from './storage.js';
 
-// Column indices (0-based) for the expected Excel format
-const COL_L3_NUMBER = 0;  // L3 活動編號
-const COL_L3_NAME   = 1;  // L3 活動名稱
-const COL_L4_NUMBER = 2;  // L4 任務編號
-const COL_L4_NAME   = 3;  // L4 任務名稱
-// COL_L4_DESC     = 4   // 任務重點說明
-// COL_L4_INPUT    = 5   // 任務重要輸入
-const COL_L4_ROLE   = 6;  // 任務負責角色
-// COL_L4_OUTPUT   = 7   // 任務產出成品
-const COL_L4_FLOW   = 8;  // 任務關聯說明（BPMN Sequence Flow）
-// COL_L4_REF      = 9   // 參考資料來源文件名稱
+// Column indices (0-based)
+const COL_L3_NUMBER = 0;
+const COL_L3_NAME   = 1;
+const COL_L4_NUMBER = 2;
+const COL_L4_NAME   = 3;
+const COL_L4_ROLE   = 6;
+const COL_L4_FLOW   = 8;
 
-/**
- * Convert L3 number from `1-1-1` format to `1.1.1`.
- */
 function normalizeL3Number(raw) {
   return String(raw ?? '').trim().replace(/-/g, '.');
 }
 
 /**
- * Parse 任務關聯說明 text into structured annotations.
+ * Parse 任務關聯說明 text into structured routing annotations.
  *
  * Supported keywords:
- *   流程開始           → isStart: true  (start event connects to this task)
- *   流程結束           → isEnd: true    (this task connects to end event)
- *   序列流向 X.X.X.X   → nextTaskNumbers (direct sequential connections)
- *   條件分支至 X, Y    → branchToNumbers (gateway: multiple outgoing conditions)
- *   條件合併來自多個分支 → isMerge: true  (informational only; no outgoing change)
+ *   流程開始，序列流向 X          → isStart, nextTaskNumbers
+ *   流程結束                       → isEnd
+ *   【流程斷點：...】               → isEnd (breakpoint)
+ *   序列流向 X                     → nextTaskNumbers
+ *   條件分支至 X（條件A）、Y（條件B）→ branchToNumbers / branchLabels  [XOR gateway]
+ *   並行分支至 X、Y、Z             → parallelToNumbers                 [AND gateway]
+ *   並行合併來自 X、Y，序列流向 Z  → parallelMergeNextNums             [AND join]
+ *   條件合併來自多個分支，序列流向 Z→ condMergeNextNums                [XOR/OR join]
+ *   條件判斷：若未通過則返回 X，若通過則序列流向 Y → loopConditions    [XOR loop]
+ *   調用子流程 A，返回後序列流向 X → nextTaskNumbers (return leg only) [treated as task]
  */
 function parseFlowAnnotations(flowText) {
   const text = String(flowText ?? '');
 
-  // Sequential targets: 序列流向 X.X.X.X (multiple matches allowed)
-  const nextTaskNumbers = [...text.matchAll(/序列流向\s*([\d.]+)/g)]
-    .map(m => m[1].trim());
+  // ── 序列流向 (also covers 返回後序列流向) ──────────────────────────────────
+  const nextTaskNumbers = [
+    ...[...text.matchAll(/序列流向\s*([\d.]+)/g)].map(m => m[1].trim()),
+    ...[...text.matchAll(/返回後序列流向\s*([\d.]+)/g)].map(m => m[1].trim()),
+  ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
 
-  // Branch targets: 條件分支至 X.X.X.X[,、 Y.Y.Y.Y ...]
-  let branchToNumbers = [];
-  const branchMatch = text.match(/條件分支至\s*([\d.,、\s]+)/);
-  if (branchMatch) {
-    branchToNumbers = branchMatch[1]
-      .split(/[,、\s]+/)
-      .map(s => s.trim())
-      .filter(s => /^[\d.]+$/.test(s));
+  // ── 條件分支至 X（條件A）、Y（條件B） ────────────────────────────────────
+  const branchToNumbers = [];
+  const branchLabels    = [];
+  const branchSection = text.match(/條件分支至\s*([^\n]+)/);
+  if (branchSection) {
+    branchSection[1].split(/[,、]/).forEach(entry => {
+      const numM   = entry.trim().match(/^([\d.]+)/);
+      const lblM   = entry.match(/[（(]([^）)]+)[）)]/);
+      if (numM) {
+        branchToNumbers.push(numM[1]);
+        branchLabels.push(lblM ? lblM[1].trim() : '');
+      }
+    });
+  }
+
+  // ── 並行分支至 X、Y、Z ────────────────────────────────────────────────────
+  let parallelToNumbers = [];
+  const parallelForkM = text.match(/並行分支至\s*([\d.,、\s]+)/);
+  if (parallelForkM) {
+    parallelToNumbers = parallelForkM[1]
+      .split(/[,、\s]+/).map(s => s.trim()).filter(s => /^[\d.]+$/.test(s));
+  }
+
+  // ── 並行合併來自 ...，序列流向 Z ──────────────────────────────────────────
+  let parallelMergeNextNums = [];
+  const parallelMergeM = text.match(/並行合併來自[^，,\n]*[，,]\s*序列流向\s*([\d.]+)/);
+  if (parallelMergeM) parallelMergeNextNums = [parallelMergeM[1].trim()];
+
+  // ── 條件合併來自多個分支，序列流向 Z ─────────────────────────────────────
+  let condMergeNextNums = [];
+  const condMergeM = text.match(/條件合併來自多個分支[^，,\n]*[，,]\s*序列流向\s*([\d.]+)/);
+  if (condMergeM) condMergeNextNums = [condMergeM[1].trim()];
+
+  // ── 條件判斷：若未通過則返回 X，若通過則序列流向 Y ───────────────────────
+  const loopConditions = [];
+  const loopM = text.match(/若未通過則返回\s*([\d.]+)[^若]*若通過則序列流向\s*([\d.]+)/);
+  if (loopM) {
+    loopConditions.push({ label: '若未通過', nextNum: loopM[1].trim() });
+    loopConditions.push({ label: '若通過',   nextNum: loopM[2].trim() });
   }
 
   return {
-    isStart:        /流程開始/.test(text),
-    isEnd:          /流程結束/.test(text),
-    isMerge:        /條件合併/.test(text),
+    isStart:             /流程開始/.test(text),
+    isEnd:               /流程結束/.test(text) || /【流程斷點/.test(text),
     nextTaskNumbers,
-    branchToNumbers,
+    branchToNumbers,    // XOR gateway fork targets
+    branchLabels,       // XOR condition labels (parallel array)
+    parallelToNumbers,  // AND gateway fork targets
+    parallelMergeNextNums, // AND join: outgoing target
+    condMergeNextNums,  // XOR/OR join: outgoing target
+    loopConditions,     // XOR loop conditions [{label, nextNum}]
   };
 }
 
-/**
- * Build one flow object from a group of rows sharing the same L3.
- */
+/** Determine gateway type from annotation. Returns null if not a gateway. */
+function detectGatewayType(ann) {
+  if (ann.parallelToNumbers.length > 0 || ann.parallelMergeNextNums.length > 0) return 'and';
+  if (ann.branchToNumbers.length > 0 || ann.loopConditions.length > 0 || ann.condMergeNextNums.length > 0) return 'xor';
+  return null;
+}
+
 function buildFlow(rows) {
   const firstRow = rows[0];
   const l3Number = normalizeL3Number(firstRow[COL_L3_NUMBER]);
   const l3Name   = String(firstRow[COL_L3_NAME] ?? '').trim();
 
-  // ── Roles: unique, in order of first appearance ───────────────────────────
+  // ── Roles ─────────────────────────────────────────────────────────────────
   const roleNameToId = {};
   const roles = [];
   rows.forEach(row => {
@@ -75,11 +114,9 @@ function buildFlow(rows) {
       roles.push({ id, name, type: 'internal' });
     }
   });
-  if (roles.length === 0) {
-    throw new Error(`L3「${l3Name}」：找不到任務負責角色資料（第 7 欄）`);
-  }
+  if (roles.length === 0) throw new Error(`L3「${l3Name}」：找不到任務負責角色資料（第 7 欄）`);
 
-  // ── First pass: create task stubs ─────────────────────────────────────────
+  // ── First pass: stubs ─────────────────────────────────────────────────────
   const taskByNumber = {};
   const taskList     = [];
   const annotationOf = {};
@@ -92,15 +129,17 @@ function buildFlow(rows) {
     const flowText = String(row[COL_L4_FLOW]   ?? '');
 
     const ann = parseFlowAnnotations(flowText);
-    const isGateway = ann.branchToNumbers.length > 0;
+    const gType = detectGatewayType(ann);
+    const isGateway = gType !== null;
 
     const task = {
       id: generateId(),
       name: l4Name || l4Num,
       type: isGateway ? 'gateway' : 'task',
       roleId,
-      ...(isGateway ? { conditions: [] } : { nextTaskIds: [] }),
-      // Preserve original L4 number and metadata fields from Excel
+      ...(isGateway
+        ? { gatewayType: gType, conditions: [] }
+        : { nextTaskIds: [] }),
       l4Number:       l4Num,
       description:    String(row[4] ?? '').trim(),
       inputItems:     String(row[5] ?? '').trim(),
@@ -114,119 +153,90 @@ function buildFlow(rows) {
     annotationOf[task.id] = ann;
   });
 
-  // ── Second pass: resolve outgoing connections ──────────────────────────────
+  // ── Second pass: resolve outgoing connections ─────────────────────────────
   taskList.forEach(task => {
     const ann = annotationOf[task.id];
 
     if (task.type === 'gateway') {
-      // 條件分支至 → conditions
       const seen = new Set();
-      const addCondition = (toId) => {
+      const addCond = (toId, label = '') => {
         if (!toId || seen.has(toId)) return;
         seen.add(toId);
-        task.conditions.push({ id: generateId(), label: '', nextTaskId: toId });
+        task.conditions.push({ id: generateId(), label, nextTaskId: toId });
       };
-      ann.branchToNumbers.forEach(n => addCondition(taskByNumber[n]?.id));
-      // Additional 序列流向 on a gateway row also become conditions
-      ann.nextTaskNumbers.forEach(n => addCondition(taskByNumber[n]?.id));
+
+      if (task.gatewayType === 'and') {
+        // AND fork
+        ann.parallelToNumbers.forEach(n => addCond(taskByNumber[n]?.id));
+        // AND join → single outgoing
+        ann.parallelMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
+      } else {
+        // XOR: explicit condition branches with labels
+        ann.branchToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.branchLabels[i] || ''));
+        // XOR loop conditions
+        ann.loopConditions.forEach(lc => addCond(taskByNumber[lc.nextNum]?.id, lc.label));
+        // XOR/OR merge join → single outgoing
+        ann.condMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
+      }
+      // Any 序列流向 on the same row become extra conditions
+      ann.nextTaskNumbers.forEach(n => addCond(taskByNumber[n]?.id));
+
     } else {
-      task.nextTaskIds = ann.nextTaskNumbers
-        .map(n => taskByNumber[n]?.id)
-        .filter(Boolean);
+      task.nextTaskIds = ann.nextTaskNumbers.map(n => taskByNumber[n]?.id).filter(Boolean);
     }
   });
 
   // ── Start event ───────────────────────────────────────────────────────────
-  // Tasks explicitly marked 流程開始 are the start-event targets.
-  // Fall back to the first task in the list if none are marked.
   const startTargets = taskList.filter(t => annotationOf[t.id].isStart);
   if (startTargets.length === 0 && taskList[0]) startTargets.push(taskList[0]);
 
   const startTask = {
-    id: generateId(),
-    name: '開始',
-    type: 'start',
+    id: generateId(), name: '開始', type: 'start',
     roleId: startTargets[0]?.roleId ?? roles[0].id,
     nextTaskIds: startTargets.map(t => t.id),
   };
 
   // ── End event ─────────────────────────────────────────────────────────────
   const endTask = {
-    id: generateId(),
-    name: '結束',
-    type: 'end',
+    id: generateId(), name: '結束', type: 'end',
     roleId: taskList[taskList.length - 1]?.roleId ?? roles[0].id,
     nextTaskIds: [],
   };
 
-  // Connect to end: tasks marked 流程結束, or tasks with no outgoing connections
+  // Connect tasks with no outgoing (or isEnd annotation) to end
   taskList.forEach(task => {
     const ann = annotationOf[task.id];
-
     if (task.type === 'gateway') {
-      if (ann.isEnd) {
-        task.conditions.push({ id: generateId(), label: '', nextTaskId: endTask.id });
-      }
-      // Gateways with zero conditions and no isEnd also get an end connection
-      if (task.conditions.length === 0) {
-        task.conditions.push({ id: generateId(), label: '', nextTaskId: endTask.id });
-      }
+      if (ann.isEnd) task.conditions.push({ id: generateId(), label: '', nextTaskId: endTask.id });
+      if (task.conditions.length === 0) task.conditions.push({ id: generateId(), label: '', nextTaskId: endTask.id });
     } else {
-      const hasOutgoing = task.nextTaskIds.length > 0;
-      if (ann.isEnd || !hasOutgoing) {
-        if (!task.nextTaskIds.includes(endTask.id)) {
-          task.nextTaskIds.push(endTask.id);
-        }
+      if (ann.isEnd || task.nextTaskIds.length === 0) {
+        if (!task.nextTaskIds.includes(endTask.id)) task.nextTaskIds.push(endTask.id);
       }
     }
   });
 
-  // ── Assemble ──────────────────────────────────────────────────────────────
   return {
-    id: generateId(),
-    l3Number,
-    l3Name,
-    roles,
+    id: generateId(), l3Number, l3Name, roles,
     tasks: [startTask, ...taskList, endTask],
   };
 }
 
-/**
- * Parse an Excel ArrayBuffer and return an array of flow objects
- * (one per distinct L3 活動編號 found in the sheet).
- *
- * Rows where L3 活動編號 is blank inherit the value from the nearest
- * preceding row that had one, supporting the common spreadsheet convention
- * of only filling the first row of a merged-cell group.
- */
 export function parseExcelToFlow(arrayBuffer) {
   const workbook  = XLSX.read(arrayBuffer, { type: 'array' });
-  const sheetName = workbook.SheetNames[0];
-  const sheet     = workbook.Sheets[sheetName];
+  const sheet     = workbook.Sheets[workbook.SheetNames[0]];
   const allRows   = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-  // Skip header row; keep only rows that have an L4 task number
-  const dataRows = allRows.slice(1).filter(row =>
-    String(row[COL_L4_NUMBER] ?? '').trim()
-  );
+  const dataRows = allRows.slice(1).filter(row => String(row[COL_L4_NUMBER] ?? '').trim());
+  if (dataRows.length === 0) throw new Error('找不到有效的 L4 任務資料（請確認欄位順序正確，且 Excel 首列為標題列）');
 
-  if (dataRows.length === 0) {
-    throw new Error('找不到有效的 L4 任務資料（請確認欄位順序正確，且 Excel 首列為標題列）');
-  }
-
-  // ── Group rows by L3 number ───────────────────────────────────────────────
-  // Carry forward L3 number + name when blank (merged-cell pattern).
   const groups = [];
-  let currentKey  = '';
-  let currentName = '';
-  let currentGroup = [];
+  let currentKey = '', currentName = '', currentGroup = [];
 
   dataRows.forEach(rawRow => {
-    const row = [...rawRow]; // shallow copy so we can patch inherited cells
+    const row   = [...rawRow];
     const l3Raw = String(row[COL_L3_NUMBER] ?? '').trim();
-
     if (l3Raw) {
-      // New L3 group
       if (l3Raw !== currentKey) {
         if (currentGroup.length > 0) groups.push(currentGroup);
         currentGroup = [];
@@ -234,18 +244,13 @@ export function parseExcelToFlow(arrayBuffer) {
         currentName  = String(row[COL_L3_NAME] ?? '').trim();
       }
     } else {
-      // Inherit L3 info from current group
       row[COL_L3_NUMBER] = currentKey;
       row[COL_L3_NAME]   = currentName;
     }
-
     if (currentKey) currentGroup.push(row);
   });
   if (currentGroup.length > 0) groups.push(currentGroup);
-
-  if (groups.length === 0) {
-    throw new Error('無法識別 L3 活動編號（第 1 欄）');
-  }
+  if (groups.length === 0) throw new Error('無法識別 L3 活動編號（第 1 欄）');
 
   return groups.map(buildFlow);
 }

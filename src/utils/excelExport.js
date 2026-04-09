@@ -75,7 +75,23 @@ export function generateFlowAnnotation(task, tasks, l4Map) {
   if (task.type === 'gateway') {
     const conds = task.conditions || [];
     const isMergeNode = (incomingCount[task.id] || 0) > 1 && conds.length <= 1;
+    const gType = task.gatewayType || 'xor';
 
+    const outNums = conds.map(c => {
+      if (!c.nextTaskId || !taskById[c.nextTaskId]) return null;
+      return l4Map[c.nextTaskId] || null;
+    }).filter(Boolean);
+
+    if (gType === 'and') {
+      // AND join: single outgoing
+      if (isMergeNode && outNums.length === 1) {
+        return `並行合併來自多個分支，序列流向 ${outNums[0]}`;
+      }
+      // AND fork: parallel branches
+      return outNums.length ? `並行分支至 ${outNums.join('、')}` : '';
+    }
+
+    // XOR / OR gateway
     const outParts = conds.map(c => {
       if (!c.nextTaskId || !taskById[c.nextTaskId]) return null;
       if (taskById[c.nextTaskId].type === 'end') {

@@ -114,11 +114,37 @@ function GatewayShape({ task, pos, l4Number }) {
   const { cx, cy } = pos;
   const d = DIAMOND_SIZE;
   const pts = `${cx},${cy - d} ${cx + d},${cy} ${cx},${cy + d} ${cx - d},${cy}`;
+  const gType = task.gatewayType || 'xor';
+  const sym = d * 0.42; // symbol half-size
+
+  let symbol = null;
+  if (gType === 'xor') {
+    // X cross
+    symbol = (
+      <g>
+        <line x1={cx - sym} y1={cy - sym} x2={cx + sym} y2={cy + sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={2} />
+        <line x1={cx + sym} y1={cy - sym} x2={cx - sym} y2={cy + sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={2} />
+      </g>
+    );
+  } else if (gType === 'and') {
+    // + cross
+    symbol = (
+      <g>
+        <line x1={cx} y1={cy - sym} x2={cx} y2={cy + sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={2} />
+        <line x1={cx - sym} y1={cy} x2={cx + sym} y2={cy} stroke={COLORS.GATEWAY_STROKE} strokeWidth={2} />
+      </g>
+    );
+  } else {
+    // OR: circle
+    symbol = <circle cx={cx} cy={cy} r={sym * 0.9} fill="none" stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.5} />;
+  }
+
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={cy - d} />
       <polygon points={pts} fill={COLORS.GATEWAY_FILL} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.2} />
-      <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={5} lineH={13} fontSize={10.5} />
+      {symbol}
+      <SvgLabel text={task.name} cx={cx} cy={cy + d + 10} maxChars={6} lineH={13} fontSize={10.5} />
     </>
   );
 }
@@ -172,13 +198,15 @@ function ConnectionArrow({ conn, positions }) {
 
 function LegendSection() {
   const items = [
-    { shape: 'start',      label: '活動起點' },
-    { shape: 'end',        label: '活動終點' },
-    { shape: 'task',       label: 'L4 任務' },
-    { shape: 'interaction',label: '外部關係人互動' },
-    { shape: 'gateway',    label: '判斷框' },
-    { shape: 'l3activity', label: 'L3 活動（關聯）' },
-    { shape: 'arrow',      label: '順序流' },
+    { shape: 'start',       label: '活動起點' },
+    { shape: 'end',         label: '活動終點' },
+    { shape: 'task',        label: 'L4 任務' },
+    { shape: 'interaction', label: '外部關係人互動' },
+    { shape: 'gateway-xor', label: '排他閘道 (XOR)' },
+    { shape: 'gateway-and', label: '並行閘道 (AND)' },
+    { shape: 'gateway-or',  label: '包容閘道 (OR)' },
+    { shape: 'l3activity',  label: 'L3 活動（關聯）' },
+    { shape: 'arrow',       label: '順序流' },
   ];
 
   return (
@@ -211,9 +239,34 @@ function LegendIcon({ type }) {
   if (type === 'interaction') return (
     <svg width={s} height={s}><rect x={3} y={8} width={30} height={20} fill={COLORS.INTERACTION_FILL} stroke={COLORS.TASK_STROKE} strokeWidth={1.2} rx={2} /></svg>
   );
-  if (type === 'gateway') return (
-    <svg width={s} height={s}><polygon points={`${c},4 ${s-4},${c} ${c},${s-4} 4,${c}`} fill={COLORS.GATEWAY_FILL} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.2} /></svg>
-  );
+  if (type === 'gateway-xor') {
+    const sym = 6;
+    return (
+      <svg width={s} height={s}>
+        <polygon points={`${c},4 ${s-4},${c} ${c},${s-4} 4,${c}`} fill={COLORS.GATEWAY_FILL} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.2} />
+        <line x1={c-sym} y1={c-sym} x2={c+sym} y2={c+sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.8} />
+        <line x1={c+sym} y1={c-sym} x2={c-sym} y2={c+sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.8} />
+      </svg>
+    );
+  }
+  if (type === 'gateway-and') {
+    const sym = 6;
+    return (
+      <svg width={s} height={s}>
+        <polygon points={`${c},4 ${s-4},${c} ${c},${s-4} 4,${c}`} fill={COLORS.GATEWAY_FILL} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.2} />
+        <line x1={c} y1={c-sym} x2={c} y2={c+sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.8} />
+        <line x1={c-sym} y1={c} x2={c+sym} y2={c} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.8} />
+      </svg>
+    );
+  }
+  if (type === 'gateway-or') {
+    return (
+      <svg width={s} height={s}>
+        <polygon points={`${c},4 ${s-4},${c} ${c},${s-4} 4,${c}`} fill={COLORS.GATEWAY_FILL} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.2} />
+        <circle cx={c} cy={c} r={6} fill="none" stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.5} />
+      </svg>
+    );
+  }
   if (type === 'l3activity') return (
     <svg width={s} height={s}>
       <rect x={3} y={6} width={30} height={22} fill={COLORS.L3_ACTIVITY_FILL} stroke={COLORS.L3_ACTIVITY_STROKE} strokeWidth={1.5} />
