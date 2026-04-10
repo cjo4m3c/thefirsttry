@@ -13,7 +13,7 @@ export default function App() {
 
   function handleNew() { setActiveFlowId(null); setView('wizard'); }
 
-  function handleEdit(id) { setActiveFlowId(id); setView('wizard'); }
+  function handleEdit(id) { setActiveFlowId(id); setView('view'); }
 
   function handleView(id) { setActiveFlowId(id); setView('view'); }
 
