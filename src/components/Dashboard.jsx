@@ -1,7 +1,10 @@
 import { useState, useMemo, useRef } from 'react';
 import HelpPanel from './HelpPanel.jsx';
 import ChangelogPanel from './ChangelogPanel.jsx';
+import DiagramRenderer from './DiagramRenderer.jsx';
 import { parseExcelToFlow } from '../utils/excelImport.js';
+import { exportDrawio } from '../utils/drawioExport.js';
+import { exportFlowToExcel } from '../utils/excelExport.js';
 
 const SORT_OPTIONS = [
   { value: 'number-asc',  label: 'L3 編號 ↑' },
@@ -30,6 +33,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
   const [sortKey, setSortKey] = useState('number-asc');
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
+  const [pendingPngFlow, setPendingPngFlow] = useState(null);
   const fileInputRef = useRef(null);
 
   const sortedFlows = useMemo(() => sortFlows(flows, sortKey), [flows, sortKey]);
@@ -98,7 +102,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">L3 活動管理</h1>
-            <p className="text-sm text-gray-500 mt-1">管理所有 L3 活動，點選「檢視」可直接預覽 L4 泳道圖</p>
+            <p className="text-sm text-gray-500 mt-1">管理所有 L3 活動，點選「編輯」可直接編輯 L4 泳道圖</p>
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -219,21 +223,33 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-1.5 pt-1 border-t border-gray-100">
-                  <button onClick={() => onView(flow.id)}
-                    className="flex-1 py-1.5 text-sm rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50 transition-colors font-medium">
-                    檢視 / 下載
-                  </button>
-                  <button onClick={() => onEdit(flow.id)}
-                    className="flex-1 py-1.5 text-sm rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors font-medium">
-                    編輯
-                  </button>
-                  <button onClick={() => {
-                    if (window.confirm(`確定要刪除「${flow.l3Name}」嗎？`)) onDelete(flow.id);
-                  }}
-                    className="px-3 py-1.5 text-sm rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
-                    刪除
-                  </button>
+                <div className="flex flex-col gap-1.5 pt-1 border-t border-gray-100">
+                  <div className="flex gap-1.5">
+                    <button onClick={() => onEdit(flow.id)}
+                      className="flex-1 py-1.5 text-sm rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors font-medium">
+                      編輯
+                    </button>
+                    <button onClick={() => {
+                      if (window.confirm(`確定要刪除「${flow.l3Name}」嗎？`)) onDelete(flow.id);
+                    }}
+                      className="px-3 py-1.5 text-sm rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+                      刪除
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => setPendingPngFlow(flow)}
+                      className="flex-1 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors">
+                      ↓ PNG
+                    </button>
+                    <button onClick={() => exportDrawio(flow)}
+                      className="flex-1 py-1.5 text-xs rounded border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors">
+                      ↓ draw.io
+                    </button>
+                    <button onClick={() => exportFlowToExcel(flow)}
+                      className="flex-1 py-1.5 text-xs rounded border border-green-200 text-green-600 hover:bg-green-50 transition-colors">
+                      ↓ Excel
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -248,6 +264,18 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
           <span className="opacity-70">目前支援 L3 活動 / L4 任務泳道圖，L5 步驟功能將陸續新增</span>
         </div>
       </main>
+
+      {/* Hidden off-screen renderer for PNG export */}
+      {pendingPngFlow && (
+        <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
+          <DiagramRenderer
+            flow={pendingPngFlow}
+            showExport={false}
+            autoExportPng={true}
+            onExportDone={() => setPendingPngFlow(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }
