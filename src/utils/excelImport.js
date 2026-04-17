@@ -10,7 +10,7 @@ const COL_L4_ROLE   = 6;
 const COL_L4_FLOW   = 8;
 
 function normalizeL3Number(raw) {
-  return String(raw ?? '').trim().replace(/-/g, '.');
+  return String(raw ?? '').trim().replace(/\./g, '-');
 }
 
 /**
@@ -33,8 +33,8 @@ function parseFlowAnnotations(flowText) {
 
   // ── 序列流向 (also covers 返回後序列流向) ──────────────────────────────────────
   const nextTaskNumbers = [
-    ...[...text.matchAll(/序列流向\s*([\d.]+)/g)].map(m => m[1].trim()),
-    ...[...text.matchAll(/返回後序列流向\s*([\d.]+)/g)].map(m => m[1].trim()),
+    ...[...text.matchAll(/序列流向\s*([\d.-]+)/g)].map(m => m[1].trim()),
+    ...[...text.matchAll(/返回後序列流向\s*([\d.-]+)/g)].map(m => m[1].trim()),
   ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
 
   // ── 條件分支至 X（條件A）、Y（條件B） ────────────────────────────────────
@@ -43,7 +43,7 @@ function parseFlowAnnotations(flowText) {
   const branchSection = text.match(/條件分支至\s*([^\n]+)/);
   if (branchSection) {
     branchSection[1].split(/[,、]/).forEach(entry => {
-      const numM   = entry.trim().match(/^([\d.]+)/);
+      const numM   = entry.trim().match(/^([\d.-]+)/);
       const lblM   = entry.match(/[（(]([^）)]+)[）)]/);
       if (numM) {
         branchToNumbers.push(numM[1]);
@@ -57,22 +57,22 @@ function parseFlowAnnotations(flowText) {
   const parallelForkM = text.match(/並行分支至\s*([\d.,、\s]+)/);
   if (parallelForkM) {
     parallelToNumbers = parallelForkM[1]
-      .split(/[,、\s]+/).map(s => s.trim()).filter(s => /^[\d.]+$/.test(s));
+      .split(/[,、\s]+/).map(s => s.trim()).filter(s => /^[\d.-]+$/.test(s) && s !== '-');
   }
 
   // ── 並行合併來自 ...，序列流向 Z ───────────────────────────────────────
   let parallelMergeNextNums = [];
-  const parallelMergeM = text.match(/並行合併來自[^，,\n]*[，,]\s*序列流向\s*([\d.]+)/);
+  const parallelMergeM = text.match(/並行合併來自[^，,\n]*[，,]\s*序列流向\s*([\d.-]+)/);
   if (parallelMergeM) parallelMergeNextNums = [parallelMergeM[1].trim()];
 
   // ── 條件合併來自多個分支，序列流向 Z ─────────────────────────────────
   let condMergeNextNums = [];
-  const condMergeM = text.match(/條件合併來自多個分支[^，,\n]*[，,]\s*序列流向\s*([\d.]+)/);
+  const condMergeM = text.match(/條件合併來自多個分支[^，,\n]*[，,]\s*序列流向\s*([\d.-]+)/);
   if (condMergeM) condMergeNextNums = [condMergeM[1].trim()];
 
   // ── 條件判斷：若未通過則返回 X，若通過則序列流向 Y ─────────────────────
   const loopConditions = [];
-  const loopM = text.match(/若未通過則返回\s*([\d.]+)[^若]*若通過則序列流向\s*([\d.]+)/);
+  const loopM = text.match(/若未通過則返回\s*([\d.-]+)[^若]*若通過則序列流向\s*([\d.-]+)/);
   if (loopM) {
     loopConditions.push({ label: '若未通過', nextNum: loopM[1].trim() });
     loopConditions.push({ label: '若通過',   nextNum: loopM[2].trim() });
@@ -166,19 +166,13 @@ function buildFlow(rows) {
       };
 
       if (task.gatewayType === 'and') {
-        // AND fork
         ann.parallelToNumbers.forEach(n => addCond(taskByNumber[n]?.id));
-        // AND join → single outgoing
         ann.parallelMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
       } else {
-        // XOR: explicit condition branches with labels
         ann.branchToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.branchLabels[i] || ''));
-        // XOR loop conditions
         ann.loopConditions.forEach(lc => addCond(taskByNumber[lc.nextNum]?.id, lc.label));
-        // XOR/OR merge join → single outgoing
         ann.condMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
       }
-      // Any 序列流向 on the same row become extra conditions
       ann.nextTaskNumbers.forEach(n => addCond(taskByNumber[n]?.id));
 
     } else {
@@ -203,7 +197,6 @@ function buildFlow(rows) {
     nextTaskIds: [],
   };
 
-  // Connect tasks with no outgoing (or isEnd annotation) to end
   taskList.forEach(task => {
     const ann = annotationOf[task.id];
     if (task.type === 'gateway') {

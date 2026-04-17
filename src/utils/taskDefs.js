@@ -153,12 +153,12 @@ export function applySequentialDefaults(tasks) {
 }
 
 // ── Display helpers ───────────────────────────────────────────────
-/** Compute display labels (e.g. "1.1.1.1") for each task */
+/** Compute display labels (e.g. "1-1-1-1") for each task */
 export function computeDisplayLabels(tasks, l3Number) {
   const labels = {};
   let counter = 1;
   tasks.forEach(task => {
-    labels[task.id] = `${l3Number || '?'}.${counter++}`;
+    labels[task.id] = `${l3Number || '?'}-${counter++}`;
   });
   return labels;
 }
