@@ -42,7 +42,6 @@ function getGatewayExitEntry(fromPos, toPos) {
     return { exitSide: 'top', entrySide: 'top' };
   }
   if (dr > 0) {
-    // Fix issue 3: all rightward downward connections use simple L-path (BOTTOM→LEFT)
     if (dc >= 1) return { exitSide: 'bottom', entrySide: 'left' };
     return { exitSide: 'bottom', entrySide: 'bottom' };
   }
@@ -50,26 +49,18 @@ function getGatewayExitEntry(fromPos, toPos) {
   return { exitSide: 'bottom', entrySide: 'bottom' };
 }
 
-/**
- * Graph-based column assignment (Fix issue 1: parallel task alignment).
- *
- * Uses topological sort on FORWARD connections only (backward gateway conditions
- * are excluded to avoid cycles).  Parallel targets (multiple nextTaskIds from the
- * same source) all receive column = source_col + 1, so they appear side-by-side
- * in their respective lanes.
- */
 function computeColumnMap(tasks) {
   const taskIdSet = new Set(tasks.map(t => t.id));
   const arrayIdxOf = {};
   tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
 
-  const fwdNext = {};   // taskId → [successorId, ...]
+  const fwdNext = {};
   const inDeg   = {};
   tasks.forEach(t => { fwdNext[t.id] = []; inDeg[t.id] = 0; });
 
   const addEdge = (fromId, toId) => {
     if (!toId || !taskIdSet.has(toId)) return;
-    if (arrayIdxOf[toId] <= arrayIdxOf[fromId]) return; // skip backward / self
+    if (arrayIdxOf[toId] <= arrayIdxOf[fromId]) return;
     fwdNext[fromId].push(toId);
     inDeg[toId]++;
   };
@@ -79,14 +70,13 @@ function computeColumnMap(tasks) {
       (task.conditions || []).forEach(c => addEdge(task.id, c.nextTaskId));
     } else if (task.type !== 'end') {
       (task.nextTaskIds || []).forEach(nid => addEdge(task.id, nid));
-      if (task.nextTaskId) addEdge(task.id, task.nextTaskId); // legacy
+      if (task.nextTaskId) addEdge(task.id, task.nextTaskId);
     }
   });
 
   const colOf = {};
   tasks.forEach(t => { colOf[t.id] = 0; });
 
-  // Kahn's algorithm + longest-path column computation
   const queue = tasks.filter(t => inDeg[t.id] === 0).map(t => t.id);
   const rem = { ...inDeg };
   const processed = new Set();
@@ -100,7 +90,6 @@ function computeColumnMap(tasks) {
     });
   }
 
-  // Fallback for tasks not reached by forward processing (cycles / isolated nodes)
   tasks.forEach((t, i) => { if (!processed.has(t.id)) colOf[t.id] = i; });
 
   return colOf;
@@ -109,25 +98,16 @@ function computeColumnMap(tasks) {
 export function computeLayout(flow) {
   const { roles, tasks, l3Number } = flow;
 
-  // ── 1. Role index map ─────────────────────────────────────────
   const roleIndexMap = {};
   roles.forEach((r, i) => { roleIndexMap[r.id] = i; });
 
-  // ── 2. Row lookups ────────────────────────────────────────────
   const taskRowOf = {};
   tasks.forEach(task => { taskRowOf[task.id] = roleIndexMap[task.roleId] ?? 0; });
 
-  // ── 3. Graph-based column assignment (parallel = same col) ────
   const colOf = computeColumnMap(tasks);
   const taskColOf = {};
   tasks.forEach(task => { taskColOf[task.id] = colOf[task.id]; });
 
-  // ── 4. Pre-compute per-gateway condition routing ──────────────
-  // Computes exit/entry sides for every gateway condition, with exit-side
-  // deduplication so that two conditions of the same gateway that would both
-  // use the same exit side are given different sides (Fix issue 2).
-  //
-  // Key: `${taskId}::${condId}`  Value: {exitSide, entrySide}
   const condRouting = new Map();
   tasks.forEach(task => {
     if (task.type !== 'gateway' || !task.conditions?.length) return;
@@ -139,7 +119,6 @@ export function computeLayout(flow) {
       let { exitSide, entrySide } = getGatewayExitEntry(
         { row: fr, col: fc }, { row: tr, col: tc }
       );
-      // If this exit side is already taken, flip to the opposite vertical side
       if (usedExits.has(exitSide)) {
         if (exitSide === 'bottom') { exitSide = 'top';    entrySide = 'top';    }
         else if (exitSide === 'top') { exitSide = 'bottom'; entrySide = 'bottom'; }
@@ -149,7 +128,6 @@ export function computeLayout(flow) {
     });
   });
 
-  // ── 5. Count bottom-routing slots needed per lane ─────────────
   const bottomConnsByRow = roles.map(() => []);
   tasks.forEach(task => {
     if (task.type !== 'gateway') return;
@@ -175,17 +153,14 @@ export function computeLayout(flow) {
 
   bottomConnsByRow.forEach(arr => arr.sort((a, b) => b.span - a.span));
 
-  // ── 6. Per-lane heights ───────────────────────────────────────
   const laneHeights = roles.map((_, row) => {
     return Math.max(BASE_LANE_H, minLaneH(bottomConnsByRow[row].length));
   });
 
-  // ── 7. Cumulative lane top Y ──────────────────────────────────
   const laneTopY = [];
   let y = TITLE_H;
   roles.forEach((_, row) => { laneTopY.push(y); y += laneHeights[row]; });
 
-  // ── 8. Slot-based laneBottomY for bottom→bottom connections ───
   const bottomYMap = {};
   bottomConnsByRow.forEach((arr, row) => {
     arr.forEach((conn, slotIdx) => {
@@ -194,7 +169,6 @@ export function computeLayout(flow) {
     });
   });
 
-  // ── 9. Node positions ─────────────────────────────────────────
   const positions = {};
   const l4Numbers = {};
   let taskCounter = 1;
@@ -214,10 +188,9 @@ export function computeLayout(flow) {
       top:    { x: cx,      y: cy - hy },
     };
 
-    l4Numbers[task.id] = task.type === 'task' ? `${l3Number}.${taskCounter++}` : null;
+    l4Numbers[task.id] = task.type === 'task' ? `${l3Number}-${taskCounter++}` : null;
   });
 
-  // ── 10. Build connections ──────────────────────────────────────
   const connections = [];
   const taskIdSet = new Set(tasks.map(t => t.id));
 
@@ -254,7 +227,6 @@ export function computeLayout(flow) {
     }
   });
 
-  // ── 11. SVG dimensions ────────────────────────────────────────
   const maxCol    = Math.max(...Object.values(colOf));
   const totalH    = laneTopY[roles.length - 1] + laneHeights[roles.length - 1];
   const svgWidth  = LANE_HEADER_W + (maxCol + 1) * COL_W + LAYOUT.PADDING_RIGHT;
@@ -263,11 +235,6 @@ export function computeLayout(flow) {
   return { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights };
 }
 
-/**
- * Returns [x,y] waypoints for a 90°-only arrow path.
- * exitSide / entrySide: 'top' | 'right' | 'bottom' | 'left'
- * laneBottomY: pre-computed routing Y for bottom→bottom paths
- */
 export function routeArrow(fromPos, toPos, exitSide, entrySide, laneBottomY) {
   const sx = fromPos[exitSide].x;
   const sy = fromPos[exitSide].y;
@@ -278,36 +245,29 @@ export function routeArrow(fromPos, toPos, exitSide, entrySide, laneBottomY) {
   if (Math.abs(sy - ty) < 1) return [[sx, sy], [tx, ty]];
   if (Math.abs(sx - tx) < 1) return [[sx, sy], [tx, ty]];
 
-  // ── bottom → bottom: slotted corridor below lower lane ───────
   if (exitSide === 'bottom' && entrySide === 'bottom') {
     const routeY = laneBottomY ?? (Math.max(sy, ty) + 24);
     return [[sx, sy], [sx, routeY], [tx, routeY], [tx, ty]];
   }
 
-  // ── top → top: corridor above higher node ────────────────────
   if (exitSide === 'top' && entrySide === 'top') {
     const corridorY = Math.min(sy, ty) - 24;
     return [[sx, sy], [sx, corridorY], [tx, corridorY], [tx, ty]];
   }
 
-  // ── top → left / top → *: 1-bend L-path ─────────────────────
   if (exitSide === 'top') {
     return [[sx, sy], [sx, ty], [tx, ty]];
   }
 
-  // ── bottom → left: 1-bend L-path (fix issue 3) ───────────────
-  // Covers both adjacent (dc=1) and skip/multi-lane (dc>1) downward connections.
   if (exitSide === 'bottom' && entrySide === 'left') {
     return [[sx, sy], [sx, ty], [tx, ty]];
   }
 
-  // ── right → left: sequential forward ─────────────────────────
   if (exitSide === 'right' && sx < tx) {
     const midX = (sx + tx) / 2;
     return [[sx, sy], [midX, sy], [midX, ty], [tx, ty]];
   }
 
-  // ── backward sequential: route above title bar ────────────────
   const topY = TITLE_H - 22;
   return [[sx, sy], [sx + 18, sy], [sx + 18, topY], [tx - 18, topY], [tx - 18, ty], [tx, ty]];
 }

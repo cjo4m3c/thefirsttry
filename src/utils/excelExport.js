@@ -18,41 +18,31 @@ export const EXCEL_HEADERS = [
 ];
 
 const COL_WIDTHS = [
-  { wch: 14 }, // L3 編號
-  { wch: 24 }, // L3 名稱
-  { wch: 14 }, // L4 編號
-  { wch: 24 }, // L4 名稱
-  { wch: 30 }, // 重點說明
-  { wch: 25 }, // 重要輸入
-  { wch: 14 }, // 負責角色
-  { wch: 25 }, // 產出成品
-  { wch: 36 }, // 關聯說明
-  { wch: 25 }, // 參考資料
+  { wch: 14 },
+  { wch: 24 },
+  { wch: 14 },
+  { wch: 24 },
+  { wch: 30 },
+  { wch: 25 },
+  { wch: 14 },
+  { wch: 25 },
+  { wch: 36 },
+  { wch: 25 },
 ];
 
-/**
- * Build a map from task ID → L4 task number.
- * Uses stored task.l4Number (from import) when available,
- * otherwise assigns sequential numbers to ALL tasks (including start/end/gateway).
- */
 export function buildTableL4Map(l3Number, tasks) {
   const map = {};
   let counter = 1;
   tasks.forEach(task => {
-    map[task.id] = task.l4Number || `${l3Number}.${counter++}`;
+    map[task.id] = task.l4Number || `${l3Number}-${counter++}`;
   });
   return map;
 }
 
-/**
- * Auto-generate 任務關聯說明 text from a task's outgoing connections.
- * Returns a human-readable annotation string.
- */
 export function generateFlowAnnotation(task, tasks, l4Map) {
   const taskById = {};
   tasks.forEach(t => { taskById[t.id] = t; });
 
-  // Count incoming connections per task (to detect merge nodes)
   const incomingCount = {};
   tasks.forEach(t => {
     const outs = t.type === 'gateway'
@@ -110,15 +100,12 @@ export function generateFlowAnnotation(task, tasks, l4Map) {
     }).filter(Boolean);
 
     if (gType === 'and') {
-      // AND join: single outgoing
       if (isMergeNode && outNums.length === 1) {
         return `並行合併來自多個分支，序列流向 ${outNums[0]}`;
       }
-      // AND fork: parallel branches
       return outNums.length ? `並行分支至 ${outNums.join('、')}` : '';
     }
 
-    // XOR / OR gateway
     const outParts = conds.map(c => {
       if (!c.nextTaskId || !taskById[c.nextTaskId]) return null;
       if (taskById[c.nextTaskId].type === 'end') {
@@ -135,7 +122,6 @@ export function generateFlowAnnotation(task, tasks, l4Map) {
     return outParts.length ? `條件分支至 ${outParts.join('、')}` : '';
   }
 
-  // Regular task / interaction / l3activity
   const nexts = (task.nextTaskIds || []).filter(id => taskById[id]);
   if (nexts.length === 0) return '';
 
@@ -147,7 +133,6 @@ export function generateFlowAnnotation(task, tasks, l4Map) {
     return num ? `序列流向 ${num}` : '';
   }
 
-  // Multiple outgoing (parallel)
   const parts = nexts.map(id => {
     if (taskById[id].type === 'end') return '流程結束';
     return l4Map[id];
@@ -155,10 +140,6 @@ export function generateFlowAnnotation(task, tasks, l4Map) {
   return parts.length ? `並行分支至 ${parts.join('、')}` : '';
 }
 
-/**
- * Build the 2D array of rows (no header) for the Excel sheet.
- * Uses the task's stored metadata fields when available.
- */
 export function buildExcelRows(flow) {
   const { l3Number, l3Name, roles, tasks } = flow;
   const roleById = {};
@@ -183,9 +164,6 @@ export function buildExcelRows(flow) {
   });
 }
 
-/**
- * Download the flow as an Excel file (.xlsx).
- */
 export function exportFlowToExcel(flow) {
   const rows = buildExcelRows(flow);
   const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS, ...rows]);
