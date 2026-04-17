@@ -10,6 +10,17 @@ import { useState } from 'react';
 
 const CHANGELOG = [
   {
+    date: '2026-04-17',
+    title: 'L3/L4 編號格式統一：改為「-」分隔',
+    items: [
+      'L3 編號格式由點分隔（1.1.1）改為橫線分隔（1-1-1），與 Excel 匯入格式一致',
+      'L4 任務編號由「L3編號.序號」改為「L3編號-序號」，例如 1-1-1-1',
+      'Wizard 精靈：L3 編號輸入驗證與 placeholder 同步更新；仍相容舊點分隔格式（自動接受）',
+      'Excel 匯入：若原始資料使用點分隔，系統會自動正規化為橫線分隔',
+      'HelpPanel 規則說明同步更新範例',
+    ],
+  },
+  {
     date: '2026-04-10',
     title: '首頁下載按鈕整合：直接下載 PNG / draw.io / Excel',
     items: [
