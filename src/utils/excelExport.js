@@ -39,7 +39,8 @@ export function buildTableL4Map(l3Number, tasks) {
   const map = {};
   let counter = 1;
   tasks.forEach(task => {
-    map[task.id] = task.l4Number || `${l3Number}.${counter++}`;
+    const stored = task.l4Number ? String(task.l4Number).replace(/\./g, '-') : null;
+    map[task.id] = stored || `${l3Number}-${counter++}`;
   });
   return map;
 }
