@@ -9,7 +9,20 @@ import { useState } from 'react';
  */
 
 const CHANGELOG = [
-    {
+      {
+    date: '2026-04-21',
+    title: '批量操作 + UI 動態強化 + Excel 欄位檢核',
+    items: [
+      '首頁新增批量選取：每張活動卡片左上 checkbox，選取後浮出工具列（已選數 / 全選 / 取消）',
+      '批量下載：可勾選 PNG / drawio / Excel 任意組合；PNG 依佇列渲染並顯示「X / N」進度',
+      '批量刪除：紅色按鈕，彈出確認視窗列出前 10 筆名稱，確認後一次刪除並清空選取',
+      '流程圖元件 hover 效果：滑到任務 / 網關 / 起訖點顯示藍色邊框 + 淡藍底，方便指認目前討論元件',
+      'Logo 動態設計：hover 時旋轉 + 跳躍 + 藍色光暈（spin+bounce+glow）',
+      'Logo 智慧反應：儲存成功揮手、Excel 匯入成功閃黃光、刪除活動短暫暗下',
+      'Excel 匯入欄位檢核：上傳時先驗證 L3 / L4 編號格式（`1-1-1` / `1-1-1-1`，相容點分隔），不合則列出所有錯誤列供修正',
+      '檢核 regex 集中定義於 `src/utils/taskDefs.js`（L3_NUMBER_PATTERN / L4_NUMBER_PATTERN），未來編號規則變更只需更新此處',
+    ],
+  },{
     date: '2026-04-20',
     title: 'L3/L4 編號修復 + 清理孤兒程式碼',
     items: [
