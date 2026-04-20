@@ -22,3 +22,22 @@ body {
 svg text {
   font-family: 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans TC', sans-serif;
 }
+
+/* Logo hover: spin + bounce + glow combo ("歡迎、開心、我在發光") */
+.logo-happy {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.logo-happy:hover {
+  animation: logo-spin-bounce 0.8s ease-out;
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 2px rgba(147, 197, 253, 0.7),
+    0 0 14px 4px rgba(59, 130, 246, 0.6);
+}
+@keyframes logo-spin-bounce {
+  0%   { transform: translateY(0)    scale(1.08) rotate(0deg); }
+  30%  { transform: translateY(-8px) scale(1.18) rotate(120deg); }
+  60%  { transform: translateY(-4px) scale(1.20) rotate(240deg); }
+  90%  { transform: translateY(-1px) scale(1.12) rotate(350deg); }
+  100% { transform: translateY(0)    scale(1.08) rotate(360deg); }
+}

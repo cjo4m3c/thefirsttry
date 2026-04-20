@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { toPng } from 'html-to-image';
 import { computeLayout, routeArrow } from '../diagram/layout.js';
 import { LAYOUT, COLORS } from '../diagram/constants.js';
@@ -6,6 +6,9 @@ import { exportDrawio } from '../utils/drawioExport.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H, TITLE_H, NODE_W, NODE_H, DIAMOND_SIZE, CIRCLE_R } = LAYOUT;
 const L3_INSET = 4; // inner border inset for L3 Activity shape
+
+const HOVER_STROKE = '#2563EB'; // Tailwind blue-600
+const HOVER_TINT   = '#DBEAFE'; // Tailwind blue-100
 
 function wrapText(text, maxChars) {
   if (!text) return [];
@@ -62,101 +65,114 @@ function EventLabel({ cx, y, name, desc }) {
   );
 }
 
-function StartShape({ pos, l4Number, task }) {
+function StartShape({ pos, l4Number, task, isHovered }) {
   const { cx, cy } = pos;
+  const stroke = isHovered ? HOVER_STROKE : COLORS.START_STROKE;
+  const strokeW = isHovered ? 3 : 2;
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
-      <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.START_FILL} stroke={COLORS.START_STROKE} strokeWidth={2} />
+      <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.START_FILL} stroke={stroke} strokeWidth={strokeW} />
       <EventLabel cx={cx} y={cy + CIRCLE_R + 13} name={task.name} desc={task.description} />
     </>
   );
 }
 
-function EndShape({ pos, l4Number, task }) {
+function EndShape({ pos, l4Number, task, isHovered }) {
   const { cx, cy } = pos;
   const desc = task.connectionType === 'breakpoint' && task.breakpointReason
     ? `【斷點：${task.breakpointReason}】`
     : task.description;
+  const stroke = isHovered ? HOVER_STROKE : COLORS.END_FILL;
+  const strokeW = isHovered ? 3 : 2;
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
-      <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.END_FILL} stroke={COLORS.END_FILL} strokeWidth={2} />
+      <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.END_FILL} stroke={stroke} strokeWidth={strokeW} />
       <EventLabel cx={cx} y={cy + CIRCLE_R + 13} name={task.name} desc={desc} />
     </>
   );
 }
 
-function TaskShape({ task, pos, l4Number }) {
+function TaskShape({ task, pos, l4Number, isHovered }) {
   const { cx, cy } = pos;
   const x = cx - NODE_W / 2;
   const y = cy - NODE_H / 2;
-  const fill = task.type === 'interaction' ? COLORS.INTERACTION_FILL : COLORS.TASK_FILL;
+  const baseFill = task.type === 'interaction' ? COLORS.INTERACTION_FILL : COLORS.TASK_FILL;
+  const fill = isHovered ? HOVER_TINT : baseFill;
+  const stroke = isHovered ? HOVER_STROKE : COLORS.TASK_STROKE;
+  const strokeW = isHovered ? 2.5 : 1.2;
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={y} />
       <rect x={x} y={y} width={NODE_W} height={NODE_H}
-        fill={fill} stroke={COLORS.TASK_STROKE} strokeWidth={1.2} rx={3} />
+        fill={fill} stroke={stroke} strokeWidth={strokeW} rx={3} />
       <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={7} lineH={14} />
     </>
   );
 }
 
-function L3ActivityShape({ task, pos, l4Number }) {
+function L3ActivityShape({ task, pos, l4Number, isHovered }) {
   const { cx, cy } = pos;
   const x = cx - NODE_W / 2;
   const y = cy - NODE_H / 2;
   const barW = 10; // bookend bar width
+  const fill = isHovered ? HOVER_TINT : COLORS.L3_ACTIVITY_FILL;
+  const stroke = isHovered ? HOVER_STROKE : COLORS.L3_ACTIVITY_STROKE;
+  const strokeW = isHovered ? 2.5 : 1.5;
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={y} />
       {/* Main rectangle */}
       <rect x={x} y={y} width={NODE_W} height={NODE_H}
-        fill={COLORS.L3_ACTIVITY_FILL} stroke={COLORS.L3_ACTIVITY_STROKE} strokeWidth={1.5} rx={0} />
+        fill={fill} stroke={stroke} strokeWidth={strokeW} rx={0} />
       {/* Left bookend bar */}
       <line x1={x + barW} y1={y} x2={x + barW} y2={y + NODE_H}
-        stroke={COLORS.L3_ACTIVITY_STROKE} strokeWidth={1} />
+        stroke={stroke} strokeWidth={1} />
       {/* Right bookend bar */}
       <line x1={x + NODE_W - barW} y1={y} x2={x + NODE_W - barW} y2={y + NODE_H}
-        stroke={COLORS.L3_ACTIVITY_STROKE} strokeWidth={1} />
+        stroke={stroke} strokeWidth={1} />
       <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={7} lineH={14} />
     </>
   );
 }
 
-function GatewayShape({ task, pos, l4Number }) {
+function GatewayShape({ task, pos, l4Number, isHovered }) {
   const { cx, cy } = pos;
   const d = DIAMOND_SIZE;
   const pts = `${cx},${cy - d} ${cx + d},${cy} ${cx},${cy + d} ${cx - d},${cy}`;
   const gType = task.gatewayType || 'xor';
   const sym = d * 0.42; // symbol half-size
+  const fill = isHovered ? HOVER_TINT : COLORS.GATEWAY_FILL;
+  const stroke = isHovered ? HOVER_STROKE : COLORS.GATEWAY_STROKE;
+  const strokeW = isHovered ? 2.5 : 1.2;
 
   let symbol = null;
   if (gType === 'xor') {
     // X cross
     symbol = (
       <g>
-        <line x1={cx - sym} y1={cy - sym} x2={cx + sym} y2={cy + sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={2} />
-        <line x1={cx + sym} y1={cy - sym} x2={cx - sym} y2={cy + sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={2} />
+        <line x1={cx - sym} y1={cy - sym} x2={cx + sym} y2={cy + sym} stroke={stroke} strokeWidth={2} />
+        <line x1={cx + sym} y1={cy - sym} x2={cx - sym} y2={cy + sym} stroke={stroke} strokeWidth={2} />
       </g>
     );
   } else if (gType === 'and') {
     // + cross
     symbol = (
       <g>
-        <line x1={cx} y1={cy - sym} x2={cx} y2={cy + sym} stroke={COLORS.GATEWAY_STROKE} strokeWidth={2} />
-        <line x1={cx - sym} y1={cy} x2={cx + sym} y2={cy} stroke={COLORS.GATEWAY_STROKE} strokeWidth={2} />
+        <line x1={cx} y1={cy - sym} x2={cx} y2={cy + sym} stroke={stroke} strokeWidth={2} />
+        <line x1={cx - sym} y1={cy} x2={cx + sym} y2={cy} stroke={stroke} strokeWidth={2} />
       </g>
     );
   } else {
     // OR: circle
-    symbol = <circle cx={cx} cy={cy} r={sym * 0.9} fill="none" stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.5} />;
+    symbol = <circle cx={cx} cy={cy} r={sym * 0.9} fill="none" stroke={stroke} strokeWidth={1.5} />;
   }
 
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={cy - d} />
-      <polygon points={pts} fill={COLORS.GATEWAY_FILL} stroke={COLORS.GATEWAY_STROKE} strokeWidth={1.2} />
+      <polygon points={pts} fill={fill} stroke={stroke} strokeWidth={strokeW} />
       {symbol}
       <SvgLabel text={task.name} cx={cx} cy={cy + d + 10} maxChars={6} lineH={13} fontSize={10.5} />
     </>
@@ -296,6 +312,7 @@ function LegendIcon({ type }) {
 
 export default function DiagramRenderer({ flow, showExport = true, autoExportPng = false, onExportDone = null }) {
   const exportRef = useRef(null);
+  const [hoveredId, setHoveredId] = useState(null);
 
   useEffect(() => {
     if (!autoExportPng || !exportRef.current) return;
@@ -415,11 +432,22 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
             const pos = positions[task.id];
             const num = l4Numbers[task.id];
             if (!pos) return null;
-            if (task.type === 'start') return <StartShape key={task.id} pos={pos} l4Number={num} task={task} />;
-            if (task.type === 'end') return <EndShape key={task.id} pos={pos} l4Number={num} task={task} />;
-            if (task.type === 'gateway') return <GatewayShape key={task.id} task={task} pos={pos} l4Number={num} />;
-            if (task.type === 'l3activity') return <L3ActivityShape key={task.id} task={task} pos={pos} l4Number={num} />;
-            return <TaskShape key={task.id} task={task} pos={pos} l4Number={num} />;
+            const isHovered = hoveredId === task.id;
+            const props = { pos, l4Number: num, task, isHovered };
+            let shape;
+            if (task.type === 'start')           shape = <StartShape {...props} />;
+            else if (task.type === 'end')        shape = <EndShape {...props} />;
+            else if (task.type === 'gateway')    shape = <GatewayShape {...props} />;
+            else if (task.type === 'l3activity') shape = <L3ActivityShape {...props} />;
+            else                                  shape = <TaskShape {...props} />;
+            return (
+              <g key={task.id}
+                onMouseEnter={() => setHoveredId(task.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                style={{ cursor: 'pointer' }}>
+                {shape}
+              </g>
+            );
           })}
         </svg>
         </div>

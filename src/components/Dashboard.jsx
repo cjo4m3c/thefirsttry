@@ -86,7 +86,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
         <img
           src={`${import.meta.env.BASE_URL}logo.png`}
           alt="FlowSprite Logo"
-          className="h-9 w-9 rounded-full object-cover flex-shrink-0"
+          className="h-9 w-9 rounded-full object-cover flex-shrink-0 logo-happy"
           onError={e => { e.currentTarget.style.display = 'none'; }}
         />
         <span className="text-lg font-bold tracking-wide">FlowSprite</span>
@@ -259,7 +259,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
         {/* Future expansion note */}
         <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
           <strong>系統層級架構：</strong>
-          L1 業務領域 → L2 價値流 → L3 活動（泳道圖）→ L4 任務 → L5 步驟
+          L1 業務領域 → L2 價值流 → L3 活動（泳道圖）→ L4 任務 → L5 步驟
           <br />
           <span className="opacity-70">目前支援 L3 活動 / L4 任務泳道圖，L5 步驟功能將陸續新增</span>
         </div>
