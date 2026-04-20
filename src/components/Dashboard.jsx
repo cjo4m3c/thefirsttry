@@ -89,6 +89,17 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
     });
   }
 
+  function handleBulkDelete() {
+    const selected = sortedFlows.filter(f => selectedIds.has(f.id));
+    if (selected.length === 0) return;
+    const preview = selected.slice(0, 10).map(f => `• ${f.l3Number} ${f.l3Name}`).join('\n');
+    const more = selected.length > 10 ? `\n… 另外 ${selected.length - 10} 個` : '';
+    if (!window.confirm(`確定要刪除以下 ${selected.length} 個活動嗎？此動作無法復原。\n\n${preview}${more}`)) return;
+    selected.forEach(f => onDelete(f.id));
+    setLogoReaction('dim');
+    setSelectedIds(new Set());
+  }
+
   function fmtDateTime(iso) {
     if (!iso) return '';
     return new Date(iso).toLocaleString('zh-TW', {
@@ -211,7 +222,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
           </div>
         )}
 
-        {/* Bulk download toolbar (appears when any selected) */}
+        {/* Bulk toolbar (appears when any selected) */}
         {selectedIds.size > 0 && (
           <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-300 flex items-center gap-3 flex-wrap">
             <span className="text-sm font-medium text-blue-800">已選 {selectedIds.size} / {sortedFlows.length} 個活動</span>
@@ -229,9 +240,17 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
                 {fmt.toUpperCase()}
               </label>
             ))}
+            <button onClick={handleBulkDelete}
+              disabled={pngQueue.length > 0}
+              className="ml-auto px-3 py-1.5 text-sm rounded font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ borderColor: '#DC2626', color: '#DC2626', background: 'white' }}
+              onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.background = '#FEE2E2'; } }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'white'; }}>
+              批量刪除
+            </button>
             <button onClick={handleBulkDownload}
               disabled={pngQueue.length > 0 || !(bulkFormats.png || bulkFormats.drawio || bulkFormats.excel)}
-              className="ml-auto px-4 py-1.5 text-sm rounded font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-1.5 text-sm rounded font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: '#2A52BE' }}
               onMouseEnter={e => !e.currentTarget.disabled && (e.currentTarget.style.background = '#1a3a9e')}
               onMouseLeave={e => (e.currentTarget.style.background = '#2A52BE')}>
@@ -285,7 +304,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
                   <input type="checkbox" checked={selectedIds.has(flow.id)}
                     onChange={() => toggleSelected(flow.id)}
                     className="mt-0.5 w-4 h-4 flex-shrink-0 cursor-pointer"
-                    title="勾選以批量下載" />
+                    title="勾選以批量下載 / 刪除" />
                   <span className="px-2 py-0.5 rounded text-xs font-bold text-white flex-shrink-0"
                     style={{ background: '#2A52BE' }}>
                     {flow.l3Number}
