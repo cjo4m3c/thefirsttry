@@ -35,6 +35,10 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
   const [importSuccess, setImportSuccess] = useState('');
   const [pendingPngFlow, setPendingPngFlow] = useState(null);
   const [logoReaction, setLogoReaction] = useState(null); // 'flash' | 'dim' | null
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkFormats, setBulkFormats] = useState({ png: true, drawio: true, excel: true });
+  const [pngQueue, setPngQueue] = useState([]); // flows awaiting PNG render
+  const [pngTotal, setPngTotal] = useState(0);
   const fileInputRef = useRef(null);
 
   const sortedFlows = useMemo(() => sortFlows(flows, sortKey), [flows, sortKey]);
@@ -46,9 +50,43 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
     return () => clearTimeout(timer);
   }, [logoReaction]);
 
+  function toggleSelected(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() { setSelectedIds(new Set(sortedFlows.map(f => f.id))); }
+  function clearSelected() { setSelectedIds(new Set()); }
+
+  function handleBulkDownload() {
+    const selected = sortedFlows.filter(f => selectedIds.has(f.id));
+    if (selected.length === 0) return;
+    const { png, drawio, excel } = bulkFormats;
+    if (!png && !drawio && !excel) return;
+
+    // drawio + excel: synchronous with staggered timers to avoid browser dedup
+    selected.forEach((flow, i) => {
+      if (drawio) setTimeout(() => exportDrawio(flow),       i * 220);
+      if (excel)  setTimeout(() => exportFlowToExcel(flow),  i * 220 + 110);
+    });
+
+    // PNG: queue async rendering (one at a time via hidden renderer)
+    if (png) {
+      setPngQueue(selected);
+      setPngTotal(selected.length);
+    }
+  }
+
   function handleDelete(id) {
     setLogoReaction('dim');
     onDelete(id);
+    setSelectedIds(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev); next.delete(id); return next;
+    });
   }
 
   function fmtDateTime(iso) {
@@ -173,6 +211,43 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
           </div>
         )}
 
+        {/* Bulk download toolbar (appears when any selected) */}
+        {selectedIds.size > 0 && (
+          <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-300 flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-blue-800">已選 {selectedIds.size} / {sortedFlows.length} 個活動</span>
+            <button onClick={selectAll}
+              className="text-xs px-2 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-100">全選</button>
+            <button onClick={clearSelected}
+              className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-100">取消選取</button>
+            <span className="mx-2 text-gray-300">|</span>
+            <span className="text-xs text-blue-700">格式：</span>
+            {['png', 'drawio', 'excel'].map(fmt => (
+              <label key={fmt} className="flex items-center gap-1 text-xs text-blue-800 cursor-pointer select-none">
+                <input type="checkbox" checked={bulkFormats[fmt]}
+                  onChange={e => setBulkFormats(f => ({ ...f, [fmt]: e.target.checked }))}
+                  className="w-3.5 h-3.5" />
+                {fmt.toUpperCase()}
+              </label>
+            ))}
+            <button onClick={handleBulkDownload}
+              disabled={pngQueue.length > 0 || !(bulkFormats.png || bulkFormats.drawio || bulkFormats.excel)}
+              className="ml-auto px-4 py-1.5 text-sm rounded font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: '#2A52BE' }}
+              onMouseEnter={e => !e.currentTarget.disabled && (e.currentTarget.style.background = '#1a3a9e')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#2A52BE')}>
+              批量下載
+            </button>
+          </div>
+        )}
+
+        {/* PNG batch progress */}
+        {pngQueue.length > 0 && (
+          <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-300 text-sm text-yellow-800 flex items-center gap-2">
+            <span className="animate-spin inline-block w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full" />
+            正在產生 PNG {pngTotal - pngQueue.length + 1} / {pngTotal}（{pngQueue[0]?.l3Number} {pngQueue[0]?.l3Name}）
+          </div>
+        )}
+
         {/* Excel format hint */}
         <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-800 space-y-1">
           <div>
@@ -207,6 +282,10 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
                 className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col gap-3">
                 {/* Header */}
                 <div className="flex items-start gap-2">
+                  <input type="checkbox" checked={selectedIds.has(flow.id)}
+                    onChange={() => toggleSelected(flow.id)}
+                    className="mt-0.5 w-4 h-4 flex-shrink-0 cursor-pointer"
+                    title="勾選以批量下載" />
                   <span className="px-2 py-0.5 rounded text-xs font-bold text-white flex-shrink-0"
                     style={{ background: '#2A52BE' }}>
                     {flow.l3Number}
@@ -279,7 +358,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
         </div>
       </main>
 
-      {/* Hidden off-screen renderer for PNG export */}
+      {/* Hidden off-screen renderer for single-flow PNG export */}
       {pendingPngFlow && (
         <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
           <DiagramRenderer
@@ -287,6 +366,21 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
             showExport={false}
             autoExportPng={true}
             onExportDone={() => setPendingPngFlow(null)}
+          />
+        </div>
+      )}
+
+      {/* Hidden off-screen renderer for bulk PNG queue (one flow at a time) */}
+      {pngQueue.length > 0 && (
+        <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
+          <DiagramRenderer
+            key={pngQueue[0].id}
+            flow={pngQueue[0]}
+            showExport={false}
+            autoExportPng={true}
+            onExportDone={() => {
+              setPngQueue(q => q.slice(1));
+            }}
           />
         </div>
       )}
