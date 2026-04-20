@@ -31,13 +31,13 @@ function normalizeL3Number(raw) {
 function parseFlowAnnotations(flowText) {
   const text = String(flowText ?? '');
 
-  // ── 序列流向 (also covers 返回後序列流向) ──────────────────────────────────────
+  // ── 序列流向 (also covers 返回後序列流向) ─────────────────────────────
   const nextTaskNumbers = [
     ...[...text.matchAll(/序列流向\s*([\d.-]+)/g)].map(m => m[1].trim()),
     ...[...text.matchAll(/返回後序列流向\s*([\d.-]+)/g)].map(m => m[1].trim()),
   ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
 
-  // ── 條件分支至 X（條件A）、Y（條件B） ────────────────────────────────────
+  // ── 條件分支至 X（條件A）、Y（條件B） ────────────────────────
   const branchToNumbers = [];
   const branchLabels    = [];
   const branchSection = text.match(/條件分支至\s*([^\n]+)/);
@@ -52,7 +52,7 @@ function parseFlowAnnotations(flowText) {
     });
   }
 
-  // ── 並行分支至 X、Y、Z ───────────────────────────────────────────────
+  // ── 並行分支至 X、Y、Z ─────────────────────────────────────
   let parallelToNumbers = [];
   const parallelForkM = text.match(/並行分支至\s*([\d.,、\s]+)/);
   if (parallelForkM) {
@@ -60,17 +60,17 @@ function parseFlowAnnotations(flowText) {
       .split(/[,、\s]+/).map(s => s.trim()).filter(s => /^[\d.-]+$/.test(s) && s !== '-');
   }
 
-  // ── 並行合併來自 ...，序列流向 Z ───────────────────────────────────────
+  // ── 並行合併來自 ...，序列流向 Z ───────────────────────────
   let parallelMergeNextNums = [];
   const parallelMergeM = text.match(/並行合併來自[^，,\n]*[，,]\s*序列流向\s*([\d.-]+)/);
   if (parallelMergeM) parallelMergeNextNums = [parallelMergeM[1].trim()];
 
-  // ── 條件合併來自多個分支，序列流向 Z ─────────────────────────────────
+  // ── 條件合併來自多個分支，序列流向 Z ─────────────────────────
   let condMergeNextNums = [];
   const condMergeM = text.match(/條件合併來自多個分支[^，,\n]*[，,]\s*序列流向\s*([\d.-]+)/);
   if (condMergeM) condMergeNextNums = [condMergeM[1].trim()];
 
-  // ── 條件判斷：若未通過則返回 X，若通過則序列流向 Y ─────────────────────
+  // ── 條件判斷：若未通過則返回 X，若通過則序列流向 Y ─────────────
   const loopConditions = [];
   const loopM = text.match(/若未通過則返回\s*([\d.-]+)[^若]*若通過則序列流向\s*([\d.-]+)/);
   if (loopM) {
@@ -103,7 +103,7 @@ function buildFlow(rows) {
   const l3Number = normalizeL3Number(firstRow[COL_L3_NUMBER]);
   const l3Name   = String(firstRow[COL_L3_NAME] ?? '').trim();
 
-  // ── Roles ───────────────────────────────────────────────────────────────────
+  // ── Roles ───────────────────────────────────────────────────
   const roleNameToId = {};
   const roles = [];
   rows.forEach(row => {
@@ -116,7 +116,7 @@ function buildFlow(rows) {
   });
   if (roles.length === 0) throw new Error(`L3「${l3Name}」：找不到任務負責角色資料（第 7 欄）`);
 
-  // ── First pass: stubs ───────────────────────────────────────────────
+  // ── First pass: stubs ──────────────────────────────────────
   const taskByNumber = {};
   const taskList     = [];
   const annotationOf = {};
@@ -131,15 +131,25 @@ function buildFlow(rows) {
     const ann = parseFlowAnnotations(flowText);
     const gType = detectGatewayType(ann);
     const isGateway = gType !== null;
+    const isStartEvent = /開始事件/.test(l4Name);
+    const isEndEvent   = /結束事件/.test(l4Name);
+
+    let taskType;
+    if (isStartEvent)      taskType = 'start';
+    else if (isEndEvent)   taskType = 'end';
+    else if (isGateway)    taskType = 'gateway';
+    else                   taskType = 'task';
 
     const task = {
       id: generateId(),
       name: l4Name || l4Num,
-      type: isGateway ? 'gateway' : 'task',
+      type: taskType,
       roleId,
-      ...(isGateway
+      ...(taskType === 'gateway'
         ? { gatewayType: gType, conditions: [] }
         : { nextTaskIds: [] }),
+      ...(taskType === 'start' ? { connectionType: 'start' } : {}),
+      ...(taskType === 'end'   ? { connectionType: 'end'   } : {}),
       l4Number:       l4Num,
       description:    String(row[4] ?? '').trim(),
       inputItems:     String(row[5] ?? '').trim(),
@@ -153,7 +163,7 @@ function buildFlow(rows) {
     annotationOf[task.id] = ann;
   });
 
-  // ── Second pass: resolve outgoing connections ──────────────────────────────
+  // ── Second pass: resolve outgoing connections ────────────────────────────
   taskList.forEach(task => {
     const ann = annotationOf[task.id];
 
@@ -175,43 +185,62 @@ function buildFlow(rows) {
       }
       ann.nextTaskNumbers.forEach(n => addCond(taskByNumber[n]?.id));
 
-    } else {
+    } else if (task.type !== 'end') {
       task.nextTaskIds = ann.nextTaskNumbers.map(n => taskByNumber[n]?.id).filter(Boolean);
     }
   });
 
-  // ── Start event ─────────────────────────────────────────────────────────
-  const startTargets = taskList.filter(t => annotationOf[t.id].isStart);
-  if (startTargets.length === 0 && taskList[0]) startTargets.push(taskList[0]);
+  // ── Start / End event handling ─────────────────────────────────────
+  // If the Excel has rows explicitly marked "開始事件"/"結束事件", use them as the
+  // start/end node directly. Otherwise fall back to auto-creating synthetic nodes.
+  const explicitStart = taskList.find(t => t.type === 'start');
+  const explicitEnd   = taskList.find(t => t.type === 'end');
 
-  const startTask = {
-    id: generateId(), name: '開始', type: 'start',
-    roleId: startTargets[0]?.roleId ?? roles[0].id,
-    nextTaskIds: startTargets.map(t => t.id),
-  };
+  let syntheticStart = null;
+  if (!explicitStart) {
+    const startTargets = taskList.filter(t => annotationOf[t.id].isStart);
+    if (startTargets.length === 0 && taskList[0]) startTargets.push(taskList[0]);
+    syntheticStart = {
+      id: generateId(), name: '開始', type: 'start', connectionType: 'start',
+      roleId: startTargets[0]?.roleId ?? roles[0].id,
+      nextTaskIds: startTargets.map(t => t.id),
+    };
+  }
 
-  // ── End event ────────────────────────────────────────────────────────────
-  const endTask = {
-    id: generateId(), name: '結束', type: 'end',
-    roleId: taskList[taskList.length - 1]?.roleId ?? roles[0].id,
-    nextTaskIds: [],
-  };
+  let syntheticEnd = null;
+  if (!explicitEnd) {
+    syntheticEnd = {
+      id: generateId(), name: '結束', type: 'end', connectionType: 'end',
+      roleId: taskList[taskList.length - 1]?.roleId ?? roles[0].id,
+      nextTaskIds: [],
+    };
+  }
 
-  taskList.forEach(task => {
-    const ann = annotationOf[task.id];
-    if (task.type === 'gateway') {
-      if (ann.isEnd) task.conditions.push({ id: generateId(), label: '', nextTaskId: endTask.id });
-      if (task.conditions.length === 0) task.conditions.push({ id: generateId(), label: '', nextTaskId: endTask.id });
-    } else {
-      if (ann.isEnd || task.nextTaskIds.length === 0) {
-        if (!task.nextTaskIds.includes(endTask.id)) task.nextTaskIds.push(endTask.id);
+  // Connect dangling tasks: only add edges to synthetic end if it exists
+  const endFallbackId = syntheticEnd?.id ?? explicitEnd?.id ?? null;
+  if (endFallbackId) {
+    taskList.forEach(task => {
+      if (task.id === endFallbackId) return;
+      const ann = annotationOf[task.id];
+      if (task.type === 'gateway') {
+        if (ann.isEnd) task.conditions.push({ id: generateId(), label: '', nextTaskId: endFallbackId });
+        if (task.conditions.length === 0) task.conditions.push({ id: generateId(), label: '', nextTaskId: endFallbackId });
+      } else if (task.type !== 'end' && task.type !== 'start') {
+        if (ann.isEnd || task.nextTaskIds.length === 0) {
+          if (!task.nextTaskIds.includes(endFallbackId)) task.nextTaskIds.push(endFallbackId);
+        }
       }
-    }
-  });
+    });
+  }
+
+  const finalTasks = [];
+  if (syntheticStart) finalTasks.push(syntheticStart);
+  finalTasks.push(...taskList);
+  if (syntheticEnd) finalTasks.push(syntheticEnd);
 
   return {
     id: generateId(), l3Number, l3Name, roles,
-    tasks: [startTask, ...taskList, endTask],
+    tasks: finalTasks,
   };
 }
 
