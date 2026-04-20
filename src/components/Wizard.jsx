@@ -154,7 +154,7 @@ function Step2({ data, onChange }) {
 
   function addRole() { onChange({ roles: [...data.roles, makeRole()] }); }
   function removeRole(id) {
-    if (data.roles.length <= 2) return;
+    if (data.roles.length <= 1) return;
     onChange({ roles: data.roles.filter(r => r.id !== id) });
   }
   function updateRole(id, field, val) {
@@ -164,7 +164,7 @@ function Step2({ data, onChange }) {
   return (
     <div className="max-w-xl mx-auto">
       <h2 className="text-xl font-bold text-gray-800 mb-1">泳道角色設定</h2>
-      <p className="text-sm text-gray-500 mb-2">設定流程中的參與角色（至少 2 個）</p>
+      <p className="text-sm text-gray-500 mb-2">設定流程中的參與角色（至少 1 個）</p>
       <p className="text-xs text-gray-400 mb-5 flex items-center gap-1">
         <span className="text-gray-400">⠿</span> 可用滑鼠拖曳左側圓點改變泳道順序（由上到下）
       </p>
@@ -189,7 +189,7 @@ function Step2({ data, onChange }) {
               <option value="internal">內部角色</option>
               <option value="external">外部角色</option>
             </select>
-            <button onClick={() => removeRole(role.id)} disabled={data.roles.length <= 2}
+            <button onClick={() => removeRole(role.id)} disabled={data.roles.length <= 1}
               className="text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-lg leading-none">✕</button>
           </div>
         ))}
@@ -376,7 +376,7 @@ function validate(step, data) {
   }
   if (step >= 1) {
     const namedRoles = data.roles.filter(r => r.name.trim());
-    if (namedRoles.length < 2) errs.push('至少需要 2 個已命名的角色');
+    if (namedRoles.length < 1) errs.push('至少需要 1 個已命名的角色');
   }
   if (step >= 2) {
     const tasks = data.tasks;
