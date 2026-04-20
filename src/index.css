@@ -41,3 +41,26 @@ svg text {
   90%  { transform: translateY(-1px) scale(1.12) rotate(350deg); }
   100% { transform: translateY(0)    scale(1.08) rotate(360deg); }
 }
+
+/* Logo reactions (triggered by app events: save / import / delete) */
+@keyframes logo-wave {
+  0%, 100% { transform: rotate(0deg); }
+  20%      { transform: rotate(-14deg); }
+  40%      { transform: rotate(14deg); }
+  60%      { transform: rotate(-10deg); }
+  80%      { transform: rotate(8deg); }
+}
+.logo-wave { animation: logo-wave 0.7s ease-in-out; }
+
+@keyframes logo-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 240, 150, 0);        filter: brightness(1); }
+  30%  { box-shadow: 0 0 22px 8px rgba(255, 240, 150, 0.95); filter: brightness(1.6); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 240, 150, 0);        filter: brightness(1); }
+}
+.logo-flash { animation: logo-flash 0.6s ease-out; }
+
+@keyframes logo-dim {
+  0%, 100% { filter: brightness(1)   saturate(1);   transform: translateY(0)  rotate(0deg); }
+  50%      { filter: brightness(0.4) saturate(0.3); transform: translateY(3px) rotate(-6deg); }
+}
+.logo-dim { animation: logo-dim 0.8s ease-in-out; }
