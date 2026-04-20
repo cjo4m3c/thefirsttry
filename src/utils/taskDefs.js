@@ -4,7 +4,15 @@
  */
 import { generateId } from './storage.js';
 
-// ── Constants ─────────────────────────────────────────────────────
+// ── L3 / L4 number format (single source of truth) ──────────────────
+// Current spec: L3 = 3 segments (d-d-d), L4 = 4 segments (d-d-d-d).
+// Both `.` (legacy) and `-` (current) separators accepted for backward compat
+// with existing data; new data should use `-`. If numbering rules change,
+// update BOTH patterns here + any example strings in Wizard/HelpPanel.
+export const L3_NUMBER_PATTERN = /^\d+[.-]\d+[.-]\d+$/;
+export const L4_NUMBER_PATTERN = /^\d+[.-]\d+[.-]\d+[.-]\d+$/;
+
+// ── Constants ────────────────────────────────────────────
 export const CONNECTION_TYPES = [
   { value: 'sequence',           label: '序列流向' },
   { value: 'conditional-branch', label: '條件分支' },
@@ -50,7 +58,7 @@ export const CONN_ROW_BG = {
   'loop-return':        '#F5F3FF',
 };
 
-// ── Factories ─────────────────────────────────────────────────────
+// ── Factories ────────────────────────────────────────────
 export function makeRole() {
   return { id: generateId(), name: '', type: 'internal' };
 }
@@ -70,7 +78,7 @@ export function makeCondition(label = '') {
   return { id: generateId(), label, nextTaskId: '' };
 }
 
-// ── Task normalization ────────────────────────────────────────────
+// ── Task normalization ────────────────────────────────────
 /** Infer connectionType from legacy task data (for existing saved flows) */
 export function normalizeTask(task) {
   if (task.connectionType) return task;
@@ -152,7 +160,7 @@ export function applySequentialDefaults(tasks) {
   });
 }
 
-// ── Display helpers ───────────────────────────────────────────────
+// ── Display helpers ────────────────────────────────────
 /** Compute display labels (e.g. "1-1-1-1") for each task */
 export function computeDisplayLabels(tasks, l3Number) {
   const labels = {};
