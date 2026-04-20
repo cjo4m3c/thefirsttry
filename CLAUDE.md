@@ -75,7 +75,24 @@
 - 定期輸出進度摘要，保留關鍵 commit SHA 與待辦狀態
 - 若切換環境（如 sandbox 重置），以 remote 分支為真實來源
 
-## 8. 已清理的孤兒檔案（勿再建立）
+## 8. 功能完成檢查表（每次合併 PR 前必跑）
+
+每次完成一個功能、準備合併到 `main` 前，依序確認：
+
+1. **Changelog 條目**：`src/components/ChangelogPanel.jsx` 最前面新增今天日期的記錄（格式見規則 4）
+2. **CLAUDE.md 同步**：若本次變動涉及下列規則範圍，更新對應章節：
+   - 改動編號格式 / regex → 規則 3（同步調整 regex 常數）
+   - 新增/刪除檔案 → 規則 9（孤兒檔案清單）
+   - 更改工作流程 / push 方式 → 規則 1 / 2
+3. **程式碼品質**：本次變動是否引入了新的孤兒檔案？package.json 是否有新的未使用 deps？若有，列入 TODO 或當次清理
+4. **git 狀態**：`git status` working tree clean、無未 push commit
+5. **PR 流程**：用 `mcp__github__create_pull_request` 建 PR → `mcp__github__merge_pull_request` 以 **squash** 合併
+6. **本地同步**：`git fetch origin main && git reset --hard origin/main`（或切到 main 後 reset）
+7. **回報給使用者**：commit SHA、部署網址、驗證清單、可能的後續調整
+
+也可以直接叫 `/ship-feature` skill（定義於 `.claude/skills/ship-feature.md`），會按此檢查表一步步跑。
+
+## 9. 已清理的孤兒檔案（勿再建立）
 
 以下檔案已於 2026-04-20 從 repo 移除（commits 61f5ca0 → 2b27af6），功能已由其他檔案取代，請勿再新增這些名稱的檔案：
 
