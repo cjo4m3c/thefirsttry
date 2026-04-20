@@ -106,24 +106,84 @@ function computeColumnMap(tasks) {
   return colOf;
 }
 
+/**
+ * Prevent same-row same-col collisions: if two tasks in the same swimlane land
+ * at the same column (e.g. start circle + gateway both at col 0), shift the
+ * later-indexed task rightward and propagate the shift forward along the graph
+ * so the topological order is preserved. Iterates until stable.
+ */
+function resolveRowCollisions(tasks, colOf, taskRowOf) {
+  const arrayIdxOf = {};
+  tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
+
+  const taskIdSet = new Set(tasks.map(t => t.id));
+  const successors = {};
+  tasks.forEach(t => { successors[t.id] = []; });
+  tasks.forEach(task => {
+    const nexts = task.type === 'gateway'
+      ? (task.conditions || []).map(c => c.nextTaskId)
+      : [...(task.nextTaskIds || []), task.nextTaskId].filter(Boolean);
+    nexts.forEach(nid => {
+      if (!nid || !taskIdSet.has(nid)) return;
+      if (arrayIdxOf[nid] <= arrayIdxOf[task.id]) return;
+      successors[task.id].push(nid);
+    });
+  });
+
+  const MAX_ITER = tasks.length * 2 + 2;
+  for (let iter = 0; iter < MAX_ITER; iter++) {
+    const cells = {};
+    tasks.forEach(t => {
+      const key = `${taskRowOf[t.id]}::${colOf[t.id]}`;
+      (cells[key] = cells[key] || []).push(t.id);
+    });
+
+    let fixed = false;
+    Object.values(cells).forEach(ids => {
+      if (ids.length <= 1) return;
+      const sorted = ids.slice().sort((a, b) => arrayIdxOf[a] - arrayIdxOf[b]);
+      for (let i = 1; i < sorted.length; i++) {
+        const id = sorted[i];
+        colOf[id] = colOf[id] + 1;
+        const queue = [id];
+        const visited = new Set();
+        while (queue.length) {
+          const cur = queue.shift();
+          if (visited.has(cur)) continue;
+          visited.add(cur);
+          successors[cur].forEach(nid => {
+            if (colOf[nid] <= colOf[cur]) {
+              colOf[nid] = colOf[cur] + 1;
+              queue.push(nid);
+            }
+          });
+        }
+        fixed = true;
+      }
+    });
+    if (!fixed) break;
+  }
+}
+
 export function computeLayout(flow) {
   const { roles, tasks, l3Number } = flow;
 
   // ── 1. Role index map ───────────────────────────────────────────
-const roleIndexMap = {};
+  const roleIndexMap = {};
   roles.forEach((r, i) => { roleIndexMap[r.id] = i; });
 
   // ── 2. Row lookups ─────────────────────────────────────────────
-const taskRowOf = {};
+  const taskRowOf = {};
   tasks.forEach(task => { taskRowOf[task.id] = roleIndexMap[task.roleId] ?? 0; });
 
   // ── 3. Graph-based column assignment (parallel = same col) ────
-const colOf = computeColumnMap(tasks);
+  const colOf = computeColumnMap(tasks);
+  resolveRowCollisions(tasks, colOf, taskRowOf);
   const taskColOf = {};
   tasks.forEach(task => { taskColOf[task.id] = colOf[task.id]; });
 
   // ── 4. Pre-compute per-gateway condition routing ──────────────
-// Computes exit/entry sides for every gateway condition, with exit-side
+  // Computes exit/entry sides for every gateway condition, with exit-side
   // deduplication so that two conditions of the same gateway that would both
   // use the same exit side are given different sides (Fix issue 2).
   //
@@ -150,7 +210,7 @@ const colOf = computeColumnMap(tasks);
   });
 
   // ── 5. Count bottom-routing slots needed per lane ─────────────
-const bottomConnsByRow = roles.map(() => []);
+  const bottomConnsByRow = roles.map(() => []);
   tasks.forEach(task => {
     if (task.type !== 'gateway') return;
     (task.conditions || []).forEach(cond => {
@@ -176,17 +236,17 @@ const bottomConnsByRow = roles.map(() => []);
   bottomConnsByRow.forEach(arr => arr.sort((a, b) => b.span - a.span));
 
   // ── 6. Per-lane heights ─────────────────────────────────────────────
-const laneHeights = roles.map((_, row) => {
+  const laneHeights = roles.map((_, row) => {
     return Math.max(BASE_LANE_H, minLaneH(bottomConnsByRow[row].length));
   });
 
   // ── 7. Cumulative lane top Y ─────────────────────────────────────────
-const laneTopY = [];
+  const laneTopY = [];
   let y = TITLE_H;
   roles.forEach((_, row) => { laneTopY.push(y); y += laneHeights[row]; });
 
   // ── 8. Slot-based laneBottomY for bottom→bottom connections ───
-const bottomYMap = {};
+  const bottomYMap = {};
   bottomConnsByRow.forEach((arr, row) => {
     arr.forEach((conn, slotIdx) => {
       const slotY = laneTopY[row] + laneHeights[row] - ROUTE_BOTTOM_PAD - slotIdx * ROUTE_SLOT_H;
@@ -195,7 +255,7 @@ const bottomYMap = {};
   });
 
   // ── 9. Node positions ───────────────────────────────────────────────
-const positions = {};
+  const positions = {};
   const l4Numbers = {};
   let taskCounter = 1;
 
@@ -218,7 +278,7 @@ const positions = {};
   });
 
   // ── 10. Build connections ──────────────────────────────────────────
-const connections = [];
+  const connections = [];
   const taskIdSet = new Set(tasks.map(t => t.id));
 
   tasks.forEach(task => {
@@ -255,7 +315,7 @@ const connections = [];
   });
 
   // ── 11. SVG dimensions ──────────────────────────────────────────────
-const maxCol    = Math.max(...Object.values(colOf));
+  const maxCol    = Math.max(...Object.values(colOf));
   const totalH    = laneTopY[roles.length - 1] + laneHeights[roles.length - 1];
   const svgWidth  = LANE_HEADER_W + (maxCol + 1) * COL_W + LAYOUT.PADDING_RIGHT;
   const svgHeight = totalH + LAYOUT.PADDING_BOTTOM;
@@ -279,35 +339,35 @@ export function routeArrow(fromPos, toPos, exitSide, entrySide, laneBottomY) {
   if (Math.abs(sx - tx) < 1) return [[sx, sy], [tx, ty]];
 
   // ── bottom → bottom: slotted corridor below lower lane ───────
-if (exitSide === 'bottom' && entrySide === 'bottom') {
+  if (exitSide === 'bottom' && entrySide === 'bottom') {
     const routeY = laneBottomY ?? (Math.max(sy, ty) + 24);
     return [[sx, sy], [sx, routeY], [tx, routeY], [tx, ty]];
   }
 
   // ── top → top: corridor above higher node ──────────────────
-if (exitSide === 'top' && entrySide === 'top') {
+  if (exitSide === 'top' && entrySide === 'top') {
     const corridorY = Math.min(sy, ty) - 24;
     return [[sx, sy], [sx, corridorY], [tx, corridorY], [tx, ty]];
   }
 
   // ── top → left / top → *: 1-bend L-path ───────────────────
-if (exitSide === 'top') {
+  if (exitSide === 'top') {
     return [[sx, sy], [sx, ty], [tx, ty]];
   }
 
   // ── bottom → left: 1-bend L-path (fix issue 3) ──────────────
-// Covers both adjacent (dc=1) and skip/multi-lane (dc>1) downward connections.
+  // Covers both adjacent (dc=1) and skip/multi-lane (dc>1) downward connections.
   if (exitSide === 'bottom' && entrySide === 'left') {
     return [[sx, sy], [sx, ty], [tx, ty]];
   }
 
   // ── right → left: sequential forward ──────────────────────
-if (exitSide === 'right' && sx < tx) {
+  if (exitSide === 'right' && sx < tx) {
     const midX = (sx + tx) / 2;
     return [[sx, sy], [midX, sy], [midX, ty], [tx, ty]];
   }
 
   // ── backward sequential: route above title bar ────────────────
-const topY = TITLE_H - 22;
+  const topY = TITLE_H - 22;
   return [[sx, sy], [sx + 18, sy], [sx + 18, topY], [tx - 18, topY], [tx - 18, ty], [tx, ty]];
 }
