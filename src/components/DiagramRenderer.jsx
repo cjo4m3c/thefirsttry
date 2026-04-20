@@ -42,36 +42,47 @@ function L4Number({ number, cx, y }) {
   );
 }
 
-function StartShape({ pos, l4Number, task }) {
-  const { cx, cy } = pos;
+function EventLabel({ cx, y, name, desc }) {
+  const fontFamily = 'Microsoft JhengHei, PingFang TC, sans-serif';
   return (
     <>
-      <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
-      <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.START_FILL} stroke={COLORS.START_STROKE} strokeWidth={2} />
-      {task.name && (
-        <text x={cx} y={cy + CIRCLE_R + 13} textAnchor="middle" dominantBaseline="middle"
-          fontSize={10} fill={COLORS.TASK_TEXT}
-          fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
-          {task.name}
+      {name && (
+        <text x={cx} y={y} textAnchor="middle" dominantBaseline="middle"
+          fontSize={10} fill={COLORS.TASK_TEXT} fontFamily={fontFamily}>
+          {name}
+        </text>
+      )}
+      {desc && (
+        <text x={cx} y={y + 13} textAnchor="middle" dominantBaseline="middle"
+          fontSize={9} fill="#6B7280" fontFamily={fontFamily}>
+          {desc}
         </text>
       )}
     </>
   );
 }
 
-function EndShape({ pos, l4Number, task }) {
+function StartShape({ pos, l4Number, task }) {
   const { cx, cy } = pos;
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
+      <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.START_FILL} stroke={COLORS.START_STROKE} strokeWidth={2} />
+      <EventLabel cx={cx} y={cy + CIRCLE_R + 13} name={task.name} desc={task.description} />
+    </>
+  );
+}
+
+function EndShape({ pos, l4Number, task }) {
+  const { cx, cy } = pos;
+  const desc = task.connectionType === 'breakpoint' && task.breakpointReason
+    ? `【斷點：${task.breakpointReason}】`
+    : task.description;
+  return (
+    <>
+      <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
       <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.END_FILL} stroke={COLORS.END_FILL} strokeWidth={2} />
-      {task.name && (
-        <text x={cx} y={cy + CIRCLE_R + 13} textAnchor="middle" dominantBaseline="middle"
-          fontSize={10} fill={COLORS.TASK_TEXT}
-          fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
-          {task.name}
-        </text>
-      )}
+      <EventLabel cx={cx} y={cy + CIRCLE_R + 13} name={task.name} desc={desc} />
     </>
   );
 }
