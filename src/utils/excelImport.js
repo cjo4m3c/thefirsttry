@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { generateId } from './storage.js';
+import { L3_NUMBER_PATTERN, L4_NUMBER_PATTERN } from './taskDefs.js';
 
 // Column indices (0-based)
 const COL_L3_NUMBER = 0;
@@ -244,10 +245,45 @@ function buildFlow(rows) {
   };
 }
 
+/**
+ * Validate L3 / L4 number formats. Throws a detailed multi-line error if any
+ * row has a malformed number. Patterns come from taskDefs.js so the spec
+ * stays single-sourced.
+ */
+function validateNumbering(allRows) {
+  const errors = [];
+  // allRows includes header row at index 0; data starts at index 1.
+  for (let i = 1; i < allRows.length; i++) {
+    const row = allRows[i];
+    const l4 = String(row[COL_L4_NUMBER] ?? '').trim();
+    if (!l4) continue; // skip empty rows (filtered out later anyway)
+    const l3 = String(row[COL_L3_NUMBER] ?? '').trim();
+    const excelRow = i + 1; // 1-indexed
+
+    if (l3 && !L3_NUMBER_PATTERN.test(l3)) {
+      errors.push(`• 第 ${excelRow} 列 L3 編號「${l3}」格式錯誤`);
+    }
+    if (!L4_NUMBER_PATTERN.test(l4)) {
+      errors.push(`• 第 ${excelRow} 列 L4 編號「${l4}」格式錯誤`);
+    }
+  }
+  if (errors.length === 0) return;
+
+  const show = errors.slice(0, 15).join('\n');
+  const more = errors.length > 15 ? `\n… 另有 ${errors.length - 15} 筆未顯示` : '';
+  throw new Error(
+    `Excel 編號格式檢核未通過（共 ${errors.length} 筆），請修正檔案後再上傳：\n\n${show}${more}\n\n` +
+    `正確格式範例：L3「1-1-1」、L4「1-1-1-1」（系統也接受點分隔，例如 1.1.1 / 1.1.1.1）`
+  );
+}
+
 export function parseExcelToFlow(arrayBuffer) {
   const workbook  = XLSX.read(arrayBuffer, { type: 'array' });
   const sheet     = workbook.Sheets[workbook.SheetNames[0]];
   const allRows   = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+  // Validate L3 / L4 number formats BEFORE any processing
+  validateNumbering(allRows);
 
   const dataRows = allRows.slice(1).filter(row => String(row[COL_L4_NUMBER] ?? '').trim());
   if (dataRows.length === 0) throw new Error('找不到有效的 L4 任務資料（請確認欄位順序正確，且 Excel 首列為標題列）');
