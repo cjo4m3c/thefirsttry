@@ -3,6 +3,7 @@
  * Generates the standard 10-column L4 task spreadsheet.
  */
 import * as XLSX from 'xlsx';
+import { todayYmd } from './storage.js';
 
 export const EXCEL_HEADERS = [
   'L3 活動編號',
@@ -194,5 +195,5 @@ export function exportFlowToExcel(flow) {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'L4流程');
-  XLSX.writeFile(wb, `${flow.l3Number}-${flow.l3Name}.xlsx`);
+  XLSX.writeFile(wb, `${flow.l3Number}-${flow.l3Name}-${todayYmd()}.xlsx`);
 }

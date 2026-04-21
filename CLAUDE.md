@@ -26,13 +26,24 @@
 
 ## 3. L3 / L4 編號格式（核心業務規則）
 
+- **僅接受「-」分隔，不接受「.」分隔**（特殊類型才有 `_g` 後綴例外）
 - **L3 編號**：`1-1-1`（三層橫線分隔，恰好 3 段）
 - **L4 編號**：`1-1-1-1`（L3 編號 + `-` + 序號，恰好 4 段）
-- 格式驗證 regex 的**單一來源**在 `src/utils/taskDefs.js`（相容點與橫線）：
-  - `L3_NUMBER_PATTERN = /^\d+[.-]\d+[.-]\d+$/`
-  - `L4_NUMBER_PATTERN = /^\d+[.-]\d+[.-]\d+[.-]\d+$/`
-  - **編號規則若變更，只改這兩個常數**；其他檔案透過 import 引用
-- Excel 匯入：上傳前用 `validateNumbering` 逐列檢核（`excelImport.js`），不合會列出所有錯誤列；原始資料用點分隔時系統自動正規化為橫線
+- **特殊類型 L4 後綴**：
+  - 開始事件：尾碼必為 `0`（範例 `1-1-7-0`）
+  - 結束事件：尾碼必為 `99`（範例 `1-1-7-99`）
+  - 閘道（XOR / AND / OR 皆適用）：基本 L4 編號後加 `_g`（單一時），連續多個用 `_g1`、`_g2`、`_g3`…（範例 `1-1-9-5_g`、`1-1-9-5_g1`），且**前綴必為一個既有 L4 任務**（即 `1-1-9-5_g` 或 `1-1-9-5_g1` 必有對應 `1-1-9-5` 任務存在）
+- 格式驗證 regex 的**單一來源**在 `src/utils/taskDefs.js`：
+  - `L3_NUMBER_PATTERN = /^\d+-\d+-\d+$/`
+  - `L4_NUMBER_PATTERN = /^\d+-\d+-\d+-\d+(_g\d*)?$/`
+  - `L4_START_PATTERN = /^\d+-\d+-\d+-0$/`
+  - `L4_END_PATTERN = /^\d+-\d+-\d+-99$/`
+  - `L4_GATEWAY_PATTERN = /^\d+-\d+-\d+-\d+_g\d*$/`
+  - **編號規則若變更，只改這幾個常數**；其他檔案透過 import 引用
+- Excel 匯入：
+  - **Parser 保留寬鬆**（`[\d.-]+(?:_g\d*)?` 捕捉號碼，容忍點分隔避免解析斷裂）
+  - **validateNumbering 強制 dash-only**：L3/L4 基本格式 + 開始/結束 尾碼 + 閘道 `_g`/`_g\d+` 尾碼 + 閘道前綴對應檢查，不合會列出所有錯誤列
+- 舊 localStorage 資料中若有點分隔，仍會在 `storage.normalizeNumber` 載入時自動轉為橫線（資料遷移用）
 - 所有新範例、placeholder、錯誤訊息都必須使用橫線格式
 - 已套用此規則的位置：
   - `src/utils/excelImport.js`：`normalizeL3Number` (commit 4ef7d66)

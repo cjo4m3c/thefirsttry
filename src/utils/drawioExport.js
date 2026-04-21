@@ -4,6 +4,7 @@
  */
 import { computeLayout } from '../diagram/layout.js';
 import { LAYOUT, COLORS } from '../diagram/constants.js';
+import { todayYmd } from './storage.js';
 
 const { LANE_HEADER_W, LANE_H, TITLE_H, NODE_W, NODE_H, DIAMOND_SIZE, CIRCLE_R } = LAYOUT;
 
@@ -146,7 +147,7 @@ export function exportDrawio(flow) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${flow.l3Number}-${flow.l3Name}.drawio`;
+  a.download = `${flow.l3Number}-${flow.l3Name}-${todayYmd()}.drawio`;
   a.click();
   URL.revokeObjectURL(url);
 }

@@ -33,6 +33,13 @@ export default function App() {
 
   function handleDelete(id) { deleteFlow(id); refreshFlows(); }
 
+  function handleTogglePin(id) {
+    const flow = flows.find(f => f.id === id);
+    if (!flow) return;
+    saveFlow({ ...flow, pinned: !flow.pinned });
+    refreshFlows();
+  }
+
   function handleCancel() { setView('dashboard'); }
 
   /** Save edits made in FlowEditor without leaving the page. */
@@ -82,6 +89,7 @@ export default function App() {
       onView={handleView}
       onDelete={handleDelete}
       onImportExcel={handleImportExcel}
+      onTogglePin={handleTogglePin}
     />
   );
 }

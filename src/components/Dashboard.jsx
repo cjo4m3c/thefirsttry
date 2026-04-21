@@ -17,19 +17,25 @@ function sortFlows(flows, sortKey) {
   const arr = [...flows];
   switch (sortKey) {
     case 'number-asc':
-      return arr.sort((a, b) => String(a.l3Number ?? '').localeCompare(String(b.l3Number ?? ''), 'zh-TW', { numeric: true }));
+      arr.sort((a, b) => String(a.l3Number ?? '').localeCompare(String(b.l3Number ?? ''), 'zh-TW', { numeric: true }));
+      break;
     case 'number-desc':
-      return arr.sort((a, b) => String(b.l3Number ?? '').localeCompare(String(a.l3Number ?? ''), 'zh-TW', { numeric: true }));
+      arr.sort((a, b) => String(b.l3Number ?? '').localeCompare(String(a.l3Number ?? ''), 'zh-TW', { numeric: true }));
+      break;
     case 'updated-desc':
-      return arr.sort((a, b) => (b.updatedAt ?? b.createdAt ?? '').localeCompare(a.updatedAt ?? a.createdAt ?? ''));
+      arr.sort((a, b) => (b.updatedAt ?? b.createdAt ?? '').localeCompare(a.updatedAt ?? a.createdAt ?? ''));
+      break;
     case 'updated-asc':
-      return arr.sort((a, b) => (a.updatedAt ?? a.createdAt ?? '').localeCompare(b.updatedAt ?? b.createdAt ?? ''));
+      arr.sort((a, b) => (a.updatedAt ?? a.createdAt ?? '').localeCompare(b.updatedAt ?? b.createdAt ?? ''));
+      break;
     default:
-      return arr;
+      break;
   }
+  // Pinned items always come first; pinned and non-pinned each keep above sort order.
+  return [...arr.filter(f => f.pinned), ...arr.filter(f => !f.pinned)];
 }
 
-export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onImportExcel }) {
+export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onImportExcel, onTogglePin }) {
   const [sortKey, setSortKey] = useState('number-asc');
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
@@ -164,8 +170,8 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
         {/* Page title */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">L3 活動管理</h1>
-            <p className="text-sm text-gray-500 mt-1">管理所有 L3 活動，點選「編輯」可直接編輯 L4 泳道圖</p>
+            <h1 className="text-2xl font-bold text-gray-800">L3 工作流</h1>
+            <p className="text-sm text-gray-500 mt-1">管理所有 L3 工作流，點選「編輯」可直接編輯 L4 泳道圖；點星星可置頂</p>
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -305,6 +311,16 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
                     onChange={() => toggleSelected(flow.id)}
                     className="mt-0.5 w-4 h-4 flex-shrink-0 cursor-pointer"
                     title="勾選以批量下載 / 刪除" />
+                  <button onClick={() => onTogglePin(flow.id)}
+                    title={flow.pinned ? '取消置頂' : '置頂此工作流'}
+                    className="flex-shrink-0 transition-transform hover:scale-110">
+                    <svg width="18" height="18" viewBox="0 0 24 24"
+                      fill={flow.pinned ? '#FBBF24' : 'none'}
+                      stroke={flow.pinned ? '#D97706' : '#9CA3AF'} strokeWidth="2"
+                      strokeLinejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                  </button>
                   <span className="px-2 py-0.5 rounded text-xs font-bold text-white flex-shrink-0"
                     style={{ background: '#2A52BE' }}>
                     {flow.l3Number}

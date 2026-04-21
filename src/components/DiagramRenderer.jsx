@@ -3,6 +3,7 @@ import { toPng } from 'html-to-image';
 import { computeLayout, routeArrow } from '../diagram/layout.js';
 import { LAYOUT, COLORS } from '../diagram/constants.js';
 import { exportDrawio } from '../utils/drawioExport.js';
+import { todayYmd } from '../utils/storage.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H, TITLE_H, NODE_W, NODE_H, DIAMOND_SIZE, CIRCLE_R } = LAYOUT;
 const L3_INSET = 4; // inner border inset for L3 Activity shape
@@ -319,7 +320,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
     toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' })
       .then(dataUrl => {
         const a = document.createElement('a');
-        a.download = `${flow.l3Number}-${flow.l3Name}.png`;
+        a.download = `${flow.l3Number}-${flow.l3Name}-${todayYmd()}.png`;
         a.href = dataUrl;
         a.click();
       })
@@ -342,7 +343,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
     try {
       const dataUrl = await toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
       const a = document.createElement('a');
-      a.download = `${flow.l3Number}-${flow.l3Name}.png`;
+      a.download = `${flow.l3Number}-${flow.l3Name}-${todayYmd()}.png`;
       a.href = dataUrl;
       a.click();
     } catch (e) {

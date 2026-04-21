@@ -5,14 +5,25 @@
 import { generateId } from './storage.js';
 
 // ── L3 / L4 number format (single source of truth) ──────────────────
-// Current spec: L3 = 3 segments (d-d-d), L4 = 4 segments (d-d-d-d).
-// Both `.` (legacy) and `-` (current) separators accepted for backward compat
-// with existing data; new data should use `-`. If numbering rules change,
-// update BOTH patterns here + any example strings in Wizard/HelpPanel.
-export const L3_NUMBER_PATTERN = /^\d+[.-]\d+[.-]\d+$/;
-export const L4_NUMBER_PATTERN = /^\d+[.-]\d+[.-]\d+[.-]\d+$/;
+// Current spec (dash separator only):
+//   L3:                d-d-d                   (3 segments)
+//   L4 base:           d-d-d-d                 (4 segments)
+//   L4 start event:    d-d-d-0                 (suffix must be 0)
+//   L4 end event:      d-d-d-99                (suffix must be 99)
+//   L4 gateway:        d-d-d-d_g               (single gateway after a task)
+//                      d-d-d-d_g1 / _g2 / ...  (consecutive gateways)
+//                      All gateway types (XOR / AND / OR) use this notation;
+//                      prefix d-d-d-d must match an existing L4 task number.
+// Dot separators are NOT accepted in new data. Legacy localStorage data still
+// gets dot→dash migration via storage.normalizeNumber. If numbering rules
+// change, update these patterns + any example strings in Wizard / HelpPanel.
+export const L3_NUMBER_PATTERN   = /^\d+-\d+-\d+$/;
+export const L4_NUMBER_PATTERN   = /^\d+-\d+-\d+-\d+(_g\d*)?$/;
+export const L4_START_PATTERN    = /^\d+-\d+-\d+-0$/;
+export const L4_END_PATTERN      = /^\d+-\d+-\d+-99$/;
+export const L4_GATEWAY_PATTERN  = /^\d+-\d+-\d+-\d+_g\d*$/;
 
-// ── Constants ────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────
 export const CONNECTION_TYPES = [
   { value: 'sequence',           label: '序列流向' },
   { value: 'conditional-branch', label: '條件分支' },
@@ -58,7 +69,7 @@ export const CONN_ROW_BG = {
   'loop-return':        '#F5F3FF',
 };
 
-// ── Factories ────────────────────────────────────────────
+// ── Factories ─────────────────────────────────────────────────────
 export function makeRole() {
   return { id: generateId(), name: '', type: 'internal' };
 }
@@ -78,7 +89,7 @@ export function makeCondition(label = '') {
   return { id: generateId(), label, nextTaskId: '' };
 }
 
-// ── Task normalization ────────────────────────────────────
+// ── Task normalization ────────────────────────────────────────────
 /** Infer connectionType from legacy task data (for existing saved flows) */
 export function normalizeTask(task) {
   if (task.connectionType) return task;
@@ -160,7 +171,7 @@ export function applySequentialDefaults(tasks) {
   });
 }
 
-// ── Display helpers ────────────────────────────────────
+// ── Display helpers ───────────────────────────────────────────────
 /** Compute display labels (e.g. "1-1-1-1") for each task */
 export function computeDisplayLabels(tasks, l3Number) {
   const labels = {};

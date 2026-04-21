@@ -1,6 +1,9 @@
 import * as XLSX from 'xlsx';
 import { generateId } from './storage.js';
-import { L3_NUMBER_PATTERN, L4_NUMBER_PATTERN } from './taskDefs.js';
+import {
+  L3_NUMBER_PATTERN, L4_NUMBER_PATTERN,
+  L4_START_PATTERN, L4_END_PATTERN, L4_GATEWAY_PATTERN,
+} from './taskDefs.js';
 
 // Column indices (0-based)
 const COL_L3_NUMBER = 0;
@@ -34,8 +37,8 @@ function parseFlowAnnotations(flowText) {
 
   // ── 序列流向 (also covers 返回後序列流向) ─────────────────────────────
   const nextTaskNumbers = [
-    ...[...text.matchAll(/序列流向\s*([\d.-]+)/g)].map(m => m[1].trim()),
-    ...[...text.matchAll(/返回後序列流向\s*([\d.-]+)/g)].map(m => m[1].trim()),
+    ...[...text.matchAll(/序列流向\s*([\d.-]+(?:_g\d*)?)/g)].map(m => m[1].trim()),
+    ...[...text.matchAll(/返回後序列流向\s*([\d.-]+(?:_g\d*)?)/g)].map(m => m[1].trim()),
   ].filter((v, i, a) => a.indexOf(v) === i); // deduplicate
 
   // ── 條件分支至 X（條件A）、Y（條件B） ────────────────────────
@@ -44,7 +47,7 @@ function parseFlowAnnotations(flowText) {
   const branchSection = text.match(/條件分支至\s*([^\n]+)/);
   if (branchSection) {
     branchSection[1].split(/[,、]/).forEach(entry => {
-      const numM   = entry.trim().match(/^([\d.-]+)/);
+      const numM   = entry.trim().match(/^([\d.-]+(?:_g\d*)?)/);
       const lblM   = entry.match(/[（(]([^）)]+)[）)]/);
       if (numM) {
         branchToNumbers.push(numM[1]);
@@ -55,25 +58,25 @@ function parseFlowAnnotations(flowText) {
 
   // ── 並行分支至 X、Y、Z ─────────────────────────────────────
   let parallelToNumbers = [];
-  const parallelForkM = text.match(/並行分支至\s*([\d.,、\s]+)/);
+  const parallelForkM = text.match(/並行分支至\s*([\d.,、\s_g]+)/);
   if (parallelForkM) {
     parallelToNumbers = parallelForkM[1]
-      .split(/[,、\s]+/).map(s => s.trim()).filter(s => /^[\d.-]+$/.test(s) && s !== '-');
+      .split(/[,、\s]+/).map(s => s.trim()).filter(s => /^[\d.-]+(?:_g\d*)?$/.test(s) && s !== '-');
   }
 
   // ── 並行合併來自 ...，序列流向 Z ───────────────────────────
   let parallelMergeNextNums = [];
-  const parallelMergeM = text.match(/並行合併來自[^，,\n]*[，,]\s*序列流向\s*([\d.-]+)/);
+  const parallelMergeM = text.match(/並行合併來自[^，,\n]*[，,]\s*序列流向\s*([\d.-]+(?:_g\d*)?)/);
   if (parallelMergeM) parallelMergeNextNums = [parallelMergeM[1].trim()];
 
   // ── 條件合併來自多個分支，序列流向 Z ─────────────────────────
   let condMergeNextNums = [];
-  const condMergeM = text.match(/條件合併來自多個分支[^，,\n]*[，,]\s*序列流向\s*([\d.-]+)/);
+  const condMergeM = text.match(/條件合併來自多個分支[^，,\n]*[，,]\s*序列流向\s*([\d.-]+(?:_g\d*)?)/);
   if (condMergeM) condMergeNextNums = [condMergeM[1].trim()];
 
   // ── 條件判斷：若未通過則返回 X，若通過則序列流向 Y ─────────────
   const loopConditions = [];
-  const loopM = text.match(/若未通過則返回\s*([\d.-]+)[^若]*若通過則序列流向\s*([\d.-]+)/);
+  const loopM = text.match(/若未通過則返回\s*([\d.-]+(?:_g\d*)?)[^若]*若通過則序列流向\s*([\d.-]+(?:_g\d*)?)/);
   if (loopM) {
     loopConditions.push({ label: '若未通過', nextNum: loopM[1].trim() });
     loopConditions.push({ label: '若通過',   nextNum: loopM[2].trim() });
@@ -245,26 +248,76 @@ function buildFlow(rows) {
   };
 }
 
+/** Detect gateway type from flow annotation keywords. Returns 'xor' | 'and' | null. */
+function detectGatewayFromText(flowText) {
+  if (/並行分支至/.test(flowText) || /並行合併來自/.test(flowText)) return 'and';
+  if (/條件分支至/.test(flowText)
+   || /若未通過則返回[\s\S]*若通過則序列流向/.test(flowText)
+   || /條件合併來自多個分支/.test(flowText)) return 'xor';
+  return null;
+}
+
 /**
  * Validate L3 / L4 number formats. Throws a detailed multi-line error if any
  * row has a malformed number. Patterns come from taskDefs.js so the spec
  * stays single-sourced.
+ *
+ * Checks:
+ *   - L3 / L4 base format (dash only)
+ *   - 開始事件 → suffix must be -0
+ *   - 結束事件 → suffix must be -99
+ *   - 閘道 (XOR / AND / OR) → must have _g / _g1 / _g2 / ... suffix
+ *   - Gateway prefix (d-d-d-d without _g*) must match an existing L4 task
  */
 function validateNumbering(allRows) {
   const errors = [];
-  // allRows includes header row at index 0; data starts at index 1.
+
+  // First pass: collect base L4 task numbers (no _g variant) for prefix lookup
+  const l4TaskSet = new Set();
+  for (let i = 1; i < allRows.length; i++) {
+    const l4 = String(allRows[i][COL_L4_NUMBER] ?? '').trim();
+    if (l4 && !/_g\d*$/.test(l4)) l4TaskSet.add(l4);
+  }
+
+  // Second pass: validate each row
   for (let i = 1; i < allRows.length; i++) {
     const row = allRows[i];
     const l4 = String(row[COL_L4_NUMBER] ?? '').trim();
     if (!l4) continue; // skip empty rows (filtered out later anyway)
-    const l3 = String(row[COL_L3_NUMBER] ?? '').trim();
+    const l3       = String(row[COL_L3_NUMBER] ?? '').trim();
+    const l4Name   = String(row[COL_L4_NAME]   ?? '').trim();
+    const flowText = String(row[COL_L4_FLOW]   ?? '');
     const excelRow = i + 1; // 1-indexed
 
     if (l3 && !L3_NUMBER_PATTERN.test(l3)) {
-      errors.push(`• 第 ${excelRow} 列 L3 編號「${l3}」格式錯誤`);
+      errors.push(`• 第 ${excelRow} 列 L3 編號「${l3}」格式錯誤（應為 1-1-1，僅接受「-」分隔）`);
     }
     if (!L4_NUMBER_PATTERN.test(l4)) {
-      errors.push(`• 第 ${excelRow} 列 L4 編號「${l4}」格式錯誤`);
+      errors.push(`• 第 ${excelRow} 列 L4 編號「${l4}」格式錯誤（僅接受「-」分隔；閘道為 1-1-1-1_g 或 _g1/_g2…）`);
+      continue; // suffix checks meaningless if base is wrong
+    }
+
+    const isStart     = /開始事件/.test(l4Name);
+    const isEnd       = /結束事件/.test(l4Name);
+    const gatewayType = detectGatewayFromText(flowText); // 'xor' | 'and' | null
+    const hasGTag     = /_g\d*$/.test(l4);
+
+    if (isStart && !L4_START_PATTERN.test(l4)) {
+      errors.push(`• 第 ${excelRow} 列為「開始事件」，L4 編號「${l4}」尾碼應為 0（範例:1-1-7-0）`);
+    }
+    if (isEnd && !L4_END_PATTERN.test(l4)) {
+      errors.push(`• 第 ${excelRow} 列為「結束事件」，L4 編號「${l4}」尾碼應為 99（範例:1-1-7-99）`);
+    }
+    if (gatewayType && !L4_GATEWAY_PATTERN.test(l4)) {
+      const label = gatewayType === 'and' ? 'AND（並行）' : 'XOR（排他）';
+      errors.push(`• 第 ${excelRow} 列為閘道 ${label}，L4 編號「${l4}」應加「_g」後綴（單一 _g；連續多個用 _g1/_g2/_g3… 範例:1-1-9-5_g 或 1-1-9-5_g1）`);
+    }
+    // Gateway prefix-must-match-task: 1-1-9-5_g / _g1 / _g2… 的前綴 1-1-9-5 必為 L4 任務
+    if (hasGTag) {
+      const baseNum = l4.replace(/_g\d*$/, '');
+      if (!l4TaskSet.has(baseNum)) {
+        errors.push(`• 第 ${excelRow} 列「閘道」 ${l4}：找不到前置任務 ${baseNum}（閘道編號前綴必為對應 L4 任務）`);
+      }
     }
   }
   if (errors.length === 0) return;
@@ -273,7 +326,13 @@ function validateNumbering(allRows) {
   const more = errors.length > 15 ? `\n… 另有 ${errors.length - 15} 筆未顯示` : '';
   throw new Error(
     `Excel 編號格式檢核未通過（共 ${errors.length} 筆），請修正檔案後再上傳：\n\n${show}${more}\n\n` +
-    `正確格式範例：L3「1-1-1」、L4「1-1-1-1」（系統也接受點分隔，例如 1.1.1 / 1.1.1.1）`
+    `編號規則（僅接受「-」分隔，不接受「.」分隔）：\n` +
+    `  • L3：1-1-1（三段）\n` +
+    `  • L4：1-1-1-1（四段）\n` +
+    `  • 開始事件：尾碼為 0，例如 1-1-7-0\n` +
+    `  • 結束事件：尾碼為 99，例如 1-1-7-99\n` +
+    `  • 閘道（XOR / AND / OR）：加「_g」後綴，例如 1-1-9-5_g；連續多個用 1-1-9-5_g1、1-1-9-5_g2、1-1-9-5_g3…\n` +
+    `    閘道編號前綴必為對應 L4 任務（例：1-1-9-5_g 前面必有 1-1-9-5）`
   );
 }
 

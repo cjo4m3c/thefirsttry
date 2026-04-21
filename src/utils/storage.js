@@ -45,3 +45,9 @@ export function generateId() {
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
+
+/** Today's date as `yyyymmdd` (zero-padded). Used as suffix in download filenames. */
+export function todayYmd() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
