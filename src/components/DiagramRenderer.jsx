@@ -324,7 +324,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
         a.href = dataUrl;
         a.click();
       })
-      .catch(e => console.error('PNG 匯出失敗', e))
+      .catch(e => alert(`PNG 匯出失敗：${e?.message || e}`))
       .finally(() => onExportDone?.());
   }, [autoExportPng]);
 
@@ -347,7 +347,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
       a.href = dataUrl;
       a.click();
     } catch (e) {
-      console.error('PNG 匯出失敗', e);
+      alert(`PNG 匯出失敗：${e?.message || e}`);
     }
   }
 
@@ -355,7 +355,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
     try {
       exportDrawio(flow);
     } catch (e) {
-      console.error('Draw.io 匯出失敗', e);
+      alert(`Draw.io 匯出失敗：${e?.message || e}`);
     }
   }
 

@@ -119,7 +119,7 @@
 | `src/constants/defaultInput.js` | 只給已刪的 InputPanel 用 |
 | `swimlane.html` | 舊版獨立 HTML，已遷移至 React + Vite |
 
-相關可移除 deps（尚未移除，因 package.json 手動更新才保險）：`js-yaml`（被 parser.js 使用）、`jszip`（被 vsdxExport.js 使用）。
+相關可移除 deps：`js-yaml`、`jszip` 已於 2026-04-21 移除（伴隨孤兒檔案清理）。
 
 ---
 
@@ -127,4 +127,4 @@
 
 （由 TodoWrite 即時管理，此處僅記錄跨 session 需要保留的項目）
 
-- [可選] 手動移除 `package.json` 的 `js-yaml`、`jszip`（清理孤兒檔案後已無引用）
+- 目前無待辦（`js-yaml`、`jszip` 已於 2026-04-21 從 package.json 移除）

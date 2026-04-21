@@ -7,6 +7,7 @@ import {
   makeRole, makeTask, makeCondition,
   normalizeTask, applyConnectionType, applySequentialDefaults,
   computeDisplayLabels, taskOptionLabel,
+  L3_NUMBER_PATTERN,
 } from '../utils/taskDefs.js';
 
 function initFormData(flow) {
@@ -112,7 +113,7 @@ function Step1({ data, onChange }) {
 
   function handleNumber(val) {
     onChange({ l3Number: val });
-    setNumErr(val && !/^\d+([.-]\d+)*$/.test(val) ? '格式錯誤，範例：1-1-1' : '');
+    setNumErr(val && !L3_NUMBER_PATTERN.test(val) ? '格式錯誤，範例：1-1-1' : '');
   }
 
   return (
@@ -372,7 +373,7 @@ function validate(step, data) {
   if (step >= 0) {
     if (!data.l3Number.trim()) errs.push('請填寫 L3 活動編號');
     if (!data.l3Name.trim())   errs.push('請填寫 L3 活動名稱');
-    if (!/^\d+([.-]\d+)*$/.test(data.l3Number.trim())) errs.push('L3 編號格式錯誤（例：1-1-1）');
+    if (!L3_NUMBER_PATTERN.test(data.l3Number.trim())) errs.push('L3 編號格式錯誤（例：1-1-1）');
   }
   if (step >= 1) {
     const namedRoles = data.roles.filter(r => r.name.trim());

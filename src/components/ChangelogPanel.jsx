@@ -10,6 +10,16 @@ import { useState } from 'react';
 
 const CHANGELOG = [
   {
+    date: '2026-04-21',
+    title: '程式碼清理 + UX 小修',
+    items: [
+      '移除未使用的 `js-yaml`、`jszip` 兩個 runtime 依賴，縮小安裝體積',
+      'Wizard L3 編號檢核改用 `taskDefs.js` 的 `L3_NUMBER_PATTERN`（嚴格 `1-1-1` 三段橫線分隔），移除原本的寬鬆 inline regex，同時順手修掉「`1-1` 兩段也能通過檢核」的隱性 bug',
+      'PNG / Draw.io 匯出失敗時改以 alert 告知使用者，取代原本只有 `console.error` 的無感失敗',
+      'CLAUDE.md 規則 9 同步更新：標記 `js-yaml`、`jszip` 已移除',
+    ],
+  },
+  {
     date: '2026-04-22',
     title: '編號規則強化 + 置頂 + 標題改名',
     items: [
