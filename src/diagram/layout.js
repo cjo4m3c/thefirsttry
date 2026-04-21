@@ -50,22 +50,29 @@ function getExitPriority(dr, dc) {
 /**
  * Infer entry side on target given the chosen exit side and direction.
  *
- *   exit=right/left  (horizontal) → target aligned vertically, enter via left/right (if same row)
- *                                   or top/bottom (if different row)
- *   exit=top/bottom  (vertical)   → target aligned horizontally, enter via left/right (if different col)
- *                                   or top/bottom opposite (if same col, corridor alignment)
+ * Principle: the entry port should match the direction of approach so the
+ * arrow visibly "lands" on the natural side of the target.
+ *
+ *   exit=right/left (horizontal)
+ *     target above/below   → enter via bottom/top (arrow comes in vertically)
+ *     target same row      → enter opposite horizontal (sequential flow)
+ *
+ *   exit=top/bottom (vertical)
+ *     target same row      → enter matching vertical side (path uses corridor
+ *                            above/below and approaches target from same side)
+ *     target other column  → enter via left/right (path turns at target's x)
+ *     target same column   → enter opposite vertical (corridor alignment)
  */
 function inferEntrySide(exitSide, dr, dc) {
   if (exitSide === 'top' || exitSide === 'bottom') {
-    if (dc > 0) return 'left';
-    if (dc < 0) return 'right';
-    // same column: target is directly above/below, enter opposite vertical
+    if (dr === 0) return exitSide;        // same row: top→top, bottom→bottom
+    if (dc > 0)   return 'left';
+    if (dc < 0)   return 'right';
     return exitSide === 'top' ? 'bottom' : 'top';
   }
   // exitSide is 'right' or 'left'
   if (dr < 0) return 'bottom';
   if (dr > 0) return 'top';
-  // same row: enter opposite horizontal
   return exitSide === 'right' ? 'left' : 'right';
 }
 

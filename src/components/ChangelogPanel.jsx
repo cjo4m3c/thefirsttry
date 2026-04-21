@@ -11,6 +11,16 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: '流程圖連線：端點進入點對齊通道方向',
+    items: [
+      '閘道用 top/bottom 通道到同列目標時，進入點改為 target 的 top / bottom **正中央**（原本一律進 left）',
+      '修正兩類視覺問題：(1) fork 同列有 3 個條件時，3 條線都擠在 target 的左側；(2) loop-back 繞回起點任務時，進入點跟起點任務的 outgoing port 撞在一起',
+      '規則：vertical exit (top/bottom) + 同列目標 → entry 跟 exit 同側（通道對齊）',
+      '其他方向（異列、同列 horizontal exit）保持原 smart routing 邏輯不變',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: '流程圖連線：複雜情境智慧端點分配',
     items: [
       '閘道有多個 outgoing 條件時，依每個條件目標的相對位置自動挑選不同出口端點（top / right / bottom / left），避免同側多條線重疊',
