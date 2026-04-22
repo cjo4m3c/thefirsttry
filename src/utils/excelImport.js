@@ -111,13 +111,17 @@ function parseFlowAnnotations(flowText) {
 /**
  * Determine gateway type from annotation. Returns null if not a gateway.
  *
- * NOTE: `loopBackNumbers` / `loopConditions` are NOT gateway triggers —
- * 迴圈返回 is modeled as a regular task with extra back-edges merged into
- * its nextTaskIds during buildFlow.
+ * ONLY fork patterns (條件分支至 / 並行分支至) make a row an independent
+ * gateway element. Merge patterns (條件合併來自 / 並行合併來自) describe
+ * an incoming-side annotation on a regular task: "multiple branches
+ * converge into me, then I continue via 序列流向 Z". The task stays a
+ * rectangle; the forward target Z is parsed via nextTaskNumbers.
+ * Loop-return (迴圈返回至 / 若未通過則返回) is also not a gateway — it's
+ * a back-edge on a regular task, merged into nextTaskIds.
  */
 function detectGatewayType(ann) {
-  if (ann.parallelToNumbers.length > 0 || ann.parallelMergeNextNums.length > 0) return 'and';
-  if (ann.branchToNumbers.length > 0 || ann.condMergeNextNums.length > 0) return 'xor';
+  if (ann.parallelToNumbers.length > 0) return 'and';
+  if (ann.branchToNumbers.length > 0)   return 'xor';
   return null;
 }
 
@@ -278,13 +282,20 @@ function buildFlow(rows) {
 /**
  * Detect gateway type from flow annotation keywords. Returns 'xor' | 'and' | null.
  *
- * NOTE: 迴圈返回（`迴圈返回至 X` 新式 / `若未通過則返回...若通過則序列流向...` 舊式）
- *       並不屬於獨立閘道元件，validator 不以此為 `_g` 後綴要求；parser 會把返回目標
- *       合併進任務本身的 nextTaskIds，畫成任務上的 back-edge，而不是菱形閘道。
+ * ONLY fork patterns are independent gateway elements requiring `_g` suffix:
+ *   - 條件分支至 …     → XOR fork
+ *   - 並行分支至 …     → AND fork
+ *
+ * NOT gateways (these describe incoming/back behaviour on a regular task):
+ *   - 條件合併來自多個分支、序列流向 Z → merge TARGET (validator check: Z
+ *     receives ≥2 incoming branches)
+ *   - 並行合併來自 X、Y、序列流向 Z    → AND-join TARGET (same semantics)
+ *   - 迴圈返回至 X                      → back-edge on a regular task
+ *   - 若未通過則返回 X、若通過則序列流向 Y → legacy loop-back, same as above
  */
 function detectGatewayFromText(flowText) {
-  if (/並行分支至/.test(flowText) || /並行合併來自/.test(flowText)) return 'and';
-  if (/條件分支至/.test(flowText) || /條件合併來自多個分支/.test(flowText)) return 'xor';
+  if (/並行分支至/.test(flowText)) return 'and';
+  if (/條件分支至/.test(flowText)) return 'xor';
   return null;
 }
 

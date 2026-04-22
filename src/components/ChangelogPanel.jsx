@@ -11,6 +11,17 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: '合併點不再視為閘道：只有 fork 關鍵字要 `_g`',
+    items: [
+      '修正 validator 誤把「條件合併來自多個分支」「並行合併來自」的任務當閘道而要求 `_g` 尾碼',
+      '這兩個標記的語意是：**該任務自身是 merge target**（收到 ≥2 條分支匯入），forward 目標由同句的 `序列流向 Z` 自動解析',
+      '**閘道判定範圍精簡為 2 個 fork 關鍵字**：`條件分支至`、`並行分支至`（其他都是一般任務）',
+      'Parser `detectGatewayType` 同步調整：只有 fork 類觸發 gateway 分類；merge 任務保持矩形',
+      'CLAUDE.md 規則 3 完整整理「哪些是閘道、哪些不是」，列出 5 種情境',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: '流程圖 Phase 3：跨閘道 corridor 衝突偵測 + 首頁清理',
     items: [
       '**新增 Phase 3 corridor 衝突偵測**：當兩個不同閘道的條件都想走同一條上方通道且欄位範圍重疊時，後處理的那條自動切到下一順位出口（例如原本走 top corridor → 切到 bottom corridor）',
