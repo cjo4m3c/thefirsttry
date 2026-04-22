@@ -29,8 +29,13 @@ function normalizeL3Number(raw) {
  *   並行分支至 X、Y、Z             → parallelToNumbers                 [AND gateway]
  *   並行合併來自 X、Y，序列流向 Z  → parallelMergeNextNums             [AND join]
  *   條件合併來自多個分支，序列流向 Z→ condMergeNextNums                [XOR/OR join]
- *   條件判斷：若未通過則返回 X，若通過則序列流向 Y → loopConditions    [XOR loop]
+ *   迴圈返回至 X                   → loopBackNumbers (new, simple)     [regular task with back-edge]
+ *   迴圈返回：若未通過則返回 X，若通過則序列流向 Y → loopConditions    [regular task, back + forward]
  *   調用子流程 A，返回後序列流向 X → nextTaskNumbers (return leg only) [treated as task]
+ *
+ * NOTE: 迴圈返回 is NOT a gateway. Task stays as regular rectangle shape;
+ *       loop targets are merged into nextTaskIds so the diagram draws the
+ *       back-edge to the earlier task without converting to a diamond.
  */
 function parseFlowAnnotations(flowText) {
   const text = String(flowText ?? '');
@@ -74,7 +79,12 @@ function parseFlowAnnotations(flowText) {
   const condMergeM = text.match(/條件合併來自多個分支[^，,\n]*[，,]\s*序列流向\s*([\d.-]+(?:_g\d*)?)/);
   if (condMergeM) condMergeNextNums = [condMergeM[1].trim()];
 
-  // ── 條件判斷：若未通過則返回 X，若通過則序列流向 Y ─────────────
+  // ── 迴圈返回至 X (new simple syntax) ───────────────────────────
+  const loopBackNumbers = [...text.matchAll(/迴圈返回至\s*([\d.-]+(?:_g\d*)?)/g)]
+    .map(m => m[1].trim())
+    .filter((v, i, a) => a.indexOf(v) === i);
+
+  // ── 迴圈返回：若未通過則返回 X，若通過則序列流向 Y (legacy, back-compat) ──
   const loopConditions = [];
   const loopM = text.match(/若未通過則返回\s*([\d.-]+(?:_g\d*)?)[^若]*若通過則序列流向\s*([\d.-]+(?:_g\d*)?)/);
   if (loopM) {
@@ -91,14 +101,21 @@ function parseFlowAnnotations(flowText) {
     parallelToNumbers,  // AND gateway fork targets
     parallelMergeNextNums, // AND join: outgoing target
     condMergeNextNums,  // XOR/OR join: outgoing target
-    loopConditions,     // XOR loop conditions [{label, nextNum}]
+    loopBackNumbers,    // back-edge targets (new simple syntax, non-gateway)
+    loopConditions,     // legacy loop annotation targets (non-gateway, both back + forward)
   };
 }
 
-/** Determine gateway type from annotation. Returns null if not a gateway. */
+/**
+ * Determine gateway type from annotation. Returns null if not a gateway.
+ *
+ * NOTE: `loopBackNumbers` / `loopConditions` are NOT gateway triggers —
+ * 迴圈返回 is modeled as a regular task with extra back-edges merged into
+ * its nextTaskIds during buildFlow.
+ */
 function detectGatewayType(ann) {
   if (ann.parallelToNumbers.length > 0 || ann.parallelMergeNextNums.length > 0) return 'and';
-  if (ann.branchToNumbers.length > 0 || ann.loopConditions.length > 0 || ann.condMergeNextNums.length > 0) return 'xor';
+  if (ann.branchToNumbers.length > 0 || ann.condMergeNextNums.length > 0) return 'xor';
   return null;
 }
 
@@ -184,13 +201,21 @@ function buildFlow(rows) {
         ann.parallelMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
       } else {
         ann.branchToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.branchLabels[i] || ''));
-        ann.loopConditions.forEach(lc => addCond(taskByNumber[lc.nextNum]?.id, lc.label));
         ann.condMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
       }
       ann.nextTaskNumbers.forEach(n => addCond(taskByNumber[n]?.id));
 
     } else if (task.type !== 'end') {
-      task.nextTaskIds = ann.nextTaskNumbers.map(n => taskByNumber[n]?.id).filter(Boolean);
+      // Regular task: merge sequential + loop-back targets into nextTaskIds.
+      //   loopConditions yields [backTarget, forwardTarget] (legacy)
+      //   loopBackNumbers yields [backTarget] (new simple syntax)
+      const loopNums = [
+        ...ann.loopConditions.map(lc => lc.nextNum),
+        ...ann.loopBackNumbers,
+      ];
+      const combined = [...ann.nextTaskNumbers, ...loopNums]
+        .filter((v, i, a) => a.indexOf(v) === i);
+      task.nextTaskIds = combined.map(n => taskByNumber[n]?.id).filter(Boolean);
     }
   });
 
@@ -248,12 +273,16 @@ function buildFlow(rows) {
   };
 }
 
-/** Detect gateway type from flow annotation keywords. Returns 'xor' | 'and' | null. */
+/**
+ * Detect gateway type from flow annotation keywords. Returns 'xor' | 'and' | null.
+ *
+ * NOTE: 迴圈返回（`迴圈返回至 X` 新式 / `若未通過則返回...若通過則序列流向...` 舊式）
+ *       並不屬於獨立閘道元件，validator 不以此為 `_g` 後綴要求；parser 會把返回目標
+ *       合併進任務本身的 nextTaskIds，畫成任務上的 back-edge，而不是菱形閘道。
+ */
 function detectGatewayFromText(flowText) {
   if (/並行分支至/.test(flowText) || /並行合併來自/.test(flowText)) return 'and';
-  if (/條件分支至/.test(flowText)
-   || /若未通過則返回[\s\S]*若通過則序列流向/.test(flowText)
-   || /條件合併來自多個分支/.test(flowText)) return 'xor';
+  if (/條件分支至/.test(flowText) || /條件合併來自多個分支/.test(flowText)) return 'xor';
   return null;
 }
 

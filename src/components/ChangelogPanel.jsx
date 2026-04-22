@@ -11,6 +11,17 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: '迴圈返回：不再視為閘道，只是帶 back-edge 的一般任務',
+    items: [
+      '重新定義「迴圈返回」語意：**不是獨立閘道元件**，而是一般任務 + 往前任務的連線',
+      '新增簡化語法 **`迴圈返回至 5-5-5-4`**，代表此任務指向 5-5-5-4（單一 back-edge）',
+      '舊語法 `迴圈返回：若未通過則返回 X，若通過則序列流向 Y` 向後相容，解析後任務的 `nextTaskIds` 會同時包含 Y 與 X',
+      'Validator 不再要求迴圈返回的 L4 加 `_g` 後綴（原本會誤判成 XOR 閘道）',
+      '流程圖渲染：迴圈返回的任務保持矩形（不再變成菱形），back-edge 由 smart routing 的 top/bottom 通道處理，不會跟其他連線撞 port',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: '流程圖連線：端點進入點對齊通道方向',
     items: [
       '閘道用 top/bottom 通道到同列目標時，進入點改為 target 的 top / bottom **正中央**（原本一律進 left）',
