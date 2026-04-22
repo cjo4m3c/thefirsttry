@@ -11,7 +11,7 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-23',
-    title: '閘道多條件端點分散 + corridor 優先端點不混用 + 同 target 巢狀 slot',
+    title: '閘道多條件端點分散 + corridor 優先端點不混用 + 同 target 巢狀 slot + 泳道色塊補滿',
     items: [
       '**閘道 4 個以上條件的 fan-out 重疊**（使用者：「指向 5-1-2-7 和 5-1-2-10 的連線幾乎完全重疊」）：原因是 `getExitPriority` 對多數方向只回傳 3 個優先端點（top/right/bottom），第 4 條件 fallback 回第一個（重複佔用 top），從閘道發出的兩條線疊在同一個 port',
       '修正：`getExitPriority` 追加所有未列出的側邊為末尾 fallback，確保 4 條件下可分到 4 個不同 port；5 條以上仍會重複（需 port 子位置偏移架構，列 backlog）',
@@ -19,6 +19,8 @@ const CHANGELOG = [
       '修正：bottom 回退前先檢查 `hasIn(source, bottom) || hasOut(target, bottom)`；若會混用則寧可使用 top（視覺交叉屬規則 2、端點混用屬規則 1，規則 1 優先）',
       '**Top / bottom corridor 同 target 的 slot 順序**：原本 tiebreaker 用 source col 升冪，導致 range [2,6] 排在內側、contained 的 [4,6] 排外側（橫線交叉）。改以 span 升冪為 tiebreaker：窄的在內、寬的在外，巢狀 range 不再交叉',
       'Trace 驗證使用者情境：4 條件分別走 top/right/bottom/left，t7/t8/t9 → end 都走 top corridor 且無混用，t10 → end 用 default 直達',
+      '**泳道左側角色欄出現白色缺口**：當一個 lane 需要預留多個 top corridor slot（例如一角色做多件事、連線被抬高）時，step 7 把 corridor 空間加在 lane 之上，但 header / body rect 只覆蓋 `laneTopY ~ laneTopY + laneH`，corridor 那段就變成白條',
+      '修正：DiagramRenderer 畫 header / body 時改從「上一 lane 底部」（或 `TITLE_H`）開始，吃掉 corridor 預留空間。概念上 corridor 屬於下方那個 lane 的進入走廊，顏色跟該 lane 一致合理',
     ],
   },
   {

@@ -491,11 +491,18 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
             const laneY = laneTopY[i];
             const laneH = laneHeights[i];
             const laneBg = i % 2 === 0 ? COLORS.LANE_ODD : COLORS.LANE_EVEN;
+            // The top-corridor gap above this lane belongs visually to this
+            // lane (arrows entering this lane use that corridor). Extend
+            // header + body rects upward to absorb the gap so the swimlane
+            // has no white strip when the corridor reserves extra space.
+            const prevBottom = i === 0 ? TITLE_H : laneTopY[i - 1] + laneHeights[i - 1];
+            const fillTop = prevBottom;
+            const fillH = laneY + laneH - fillTop;
             return (
               <g key={role.id}>
-                <rect x={LANE_HEADER_W} y={laneY} width={svgWidth - LANE_HEADER_W} height={laneH}
+                <rect x={LANE_HEADER_W} y={fillTop} width={svgWidth - LANE_HEADER_W} height={fillH}
                   fill={laneBg} />
-                <rect x={0} y={laneY} width={LANE_HEADER_W} height={laneH} fill={headerBg} />
+                <rect x={0} y={fillTop} width={LANE_HEADER_W} height={fillH} fill={headerBg} />
                 {wrapText(role.name, 5).map((line, li) => {
                   const lineH = 16;
                   const total = (wrapText(role.name, 5).length - 1) * lineH;
