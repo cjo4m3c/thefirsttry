@@ -11,6 +11,15 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-22',
+    title: 'Hover 時同步高亮相關連線',
+    items: [
+      '滑過任何元件（task / gateway / start / end / L3 活動）時，除了元件本身變藍，**指向它的 incoming 連線**與**它指出去的 outgoing 連線**也一起改為藍色加粗',
+      '實作：`ConnectionArrow` 接收 `hoveredId` prop，連線兩端有一端為 hovered 元件即觸發高亮（stroke 改 `#2563EB`、寬度 1.4 → 2.5、箭頭 marker 改同色）',
+      '新增 `ah-hover` SVG marker 讓箭頭尖端也跟著變色',
+    ],
+  },
+  {
+    date: '2026-04-22',
     title: '文件同步 + 新增 3 個 AI skill',
     items: [
       '`HelpPanel` 規則對齊最新 routing：ROUTING 表格合併出入口欄、補「Corridor slot 系統」小節說明 top / bottom 通道規則',

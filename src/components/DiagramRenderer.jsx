@@ -215,6 +215,9 @@ function ArrowMarkers() {
       <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill={COLORS.ARROW_COLOR} />
       </marker>
+      <marker id="ah-hover" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill={HOVER_STROKE} />
+      </marker>
       <marker id="ah-dashed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill={COLORS.ARROW_COLOR} />
       </marker>
@@ -222,7 +225,7 @@ function ArrowMarkers() {
   );
 }
 
-function ConnectionArrow({ conn, positions }) {
+function ConnectionArrow({ conn, positions, hoveredId }) {
   const from = positions[conn.fromId];
   const to = positions[conn.toId];
   if (!from || !to) return null;
@@ -234,10 +237,16 @@ function ConnectionArrow({ conn, positions }) {
     ? [(pts[1][0] + pts[2][0]) / 2, (pts[1][1] + pts[2][1]) / 2]
     : [(pts[0][0] + pts[pts.length - 1][0]) / 2, (pts[0][1] + pts[pts.length - 1][1]) / 2];
 
+  // Highlight this connection when either endpoint is hovered.
+  const isHighlighted = hoveredId != null && (conn.fromId === hoveredId || conn.toId === hoveredId);
+  const strokeColor = isHighlighted ? HOVER_STROKE : COLORS.ARROW_COLOR;
+  const strokeW = isHighlighted ? 2.5 : 1.4;
+  const markerId = isHighlighted ? 'ah-hover' : 'ah';
+
   return (
     <g>
-      <polyline points={pointsStr} fill="none" stroke={COLORS.ARROW_COLOR}
-        strokeWidth={1.4} markerEnd="url(#ah)" />
+      <polyline points={pointsStr} fill="none" stroke={strokeColor}
+        strokeWidth={strokeW} markerEnd={`url(#${markerId})`} />
       {conn.label && (
         <>
           <rect x={labelPt[0] - 14} y={labelPt[1] - 9} width={28} height={16}
@@ -461,7 +470,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
             stroke={COLORS.LANE_BORDER} strokeWidth={1.5} />
 
           {connections.map((conn, i) => (
-            <ConnectionArrow key={i} conn={conn} positions={positions} />
+            <ConnectionArrow key={i} conn={conn} positions={positions} hoveredId={hoveredId} />
           ))}
 
           {flow.tasks.map(task => {
