@@ -11,6 +11,15 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: '文件：新增 README.md + HANDOVER.md',
+    items: [
+      'Repo 根目錄新增 `README.md`：專案簡介、快速開始、部署、編號規則摘要',
+      '新增 `HANDOVER.md`：環境盤點、程式碼結構、交接情境（AI / 純人工 / 轉 hosting / 轉後端）+ checklist',
+      '讓新接手人 clone 後第一眼就能看到完整脈絡，不用翻對話歷史',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: '閘道編號強制 `_g`：舊資料自動遷移 + 匯入鏈警告',
     items: [
       '**storage 載入遷移**：舊 localStorage 若有 `type=gateway` 但 L4 編號缺 `_g`（例：`1-1-1-3`），載入時自動改成 `${前置任務編號}_g`（連續多個依序 `_g2`、`_g3`…）',
