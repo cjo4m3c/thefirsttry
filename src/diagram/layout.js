@@ -40,7 +40,11 @@ function getExitPriority(dr, dc) {
   if (dr < 0) {
     if (dc === 0) return ['top',    'left',   'right'];
     if (dc > 0)   return ['top',    'right',  'bottom'];
-    return ['top',   'left',   'bottom'];                // up-left backward
+    // Up-left backward (e.g. loop-back from a lower-lane gateway to an
+    // earlier task in a higher lane). Bottom corridor stays local to the
+    // source's lower region instead of climbing all the way above the top
+    // lane, so prefer `bottom` over `top` here.
+    return ['bottom', 'left', 'top'];
   }
   // dr > 0
   if (dc === 0) return ['bottom', 'left',   'right'];
@@ -67,8 +71,23 @@ function getExitPriority(dr, dc) {
 function inferEntrySide(exitSide, dr, dc) {
   if (exitSide === 'top' || exitSide === 'bottom') {
     if (dr === 0) return exitSide;        // same row: top→top, bottom→bottom
-    if (dc > 0)   return 'left';
-    if (dc < 0)   return 'right';
+    // Corridor-aligned cases: the path uses the corridor on `exitSide` of
+    // source and descends / ascends into the target from that same side.
+    // Picking entry = exitSide keeps the arrow out of target's horizontal
+    // ports (left/right), which are typically already occupied by forward
+    // flow or another gateway condition.
+    //
+    //   1. Vertical opposite (target on the opposite vertical side of source):
+    //      corridor wraps around on exitSide.
+    if (exitSide === 'bottom' && dr < 0) return 'bottom';
+    if (exitSide === 'top'    && dr > 0) return 'top';
+    //   2. Backward (dc<0, any dr): corridor goes back over source and
+    //      descends (top) / ascends (bottom) into target.
+    if (dc < 0) return exitSide;
+    //   3. Forward-different-row (dc>0, dr≠0): 1-bend L-path into target's
+    //      left port — no corridor detour needed.
+    if (dc > 0) return 'left';
+    // dc=0 with dr≠0: straight vertical, enter opposite vertical.
     return exitSide === 'top' ? 'bottom' : 'top';
   }
   // exitSide is 'right' or 'left'
