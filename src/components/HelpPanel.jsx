@@ -67,7 +67,7 @@ const ELEMENTS = [
     type: 'L3 活動（子流程調用）',
     shape: '書端矩形（左右側垂直分隔線）',
     color: '#FFFFFF / 深灰框',
-    purpose: '調用另一個 L3 活動（Call Activity）。圖上顯示「[子流程]」+ 被調用的 L3 編號（例 `5-3-2`）。Excel 標記 `調用子流程 5-3-2`。',
+    purpose: '調用另一個 L3 活動（Call Activity）。**圖上頂端顯示所調用的 L3 編號**（例 `5-3-2`，取代此任務本身的 L4 編號），內部顯示「[子流程]」+ 任務名稱。Excel 標記 `調用子流程 5-3-2`。',
   },
   {
     type: '排他閘道（XOR）',
@@ -190,12 +190,13 @@ const ROUTING = [
   { condition: 'dr=0, dc>1（同列跳欄向右）',         exit: '上 → 上',       note: '走上方 corridor 跳過中間元件；slot 系統分配不同 y-level' },
   { condition: 'dr=0, dc<0（同列往前 / loop-back）',  exit: '上 → 上',       note: '走上方 corridor 回到前面任務；slot 系統避免與其他 top 連線重疊' },
   { condition: 'dr<0, dc=0 / 相鄰（目標在上方同欄）', exit: '上 → 對側',      note: '簡單 1-bend 折線' },
-  { condition: 'dr<0, dc>0（上方右側）',              exit: '上 → 左',       note: 'L 形繞上' },
+  { condition: 'dr<0, dc>0（上方右側）',              exit: '右 → 左',       note: 'L 形繞上' },
   { condition: 'dr>0, dc=0 / 相鄰（目標在下方同欄）', exit: '下 → 對側',      note: '簡單 1-bend 折線' },
-  { condition: 'dr>0, dc>0（下方右側）',              exit: '下 → 左',       note: 'L 形繞下' },
+  { condition: 'dr>0, dc>0（下方右側）',              exit: '右 → 左',       note: 'L 形繞下' },
   { condition: '同閘道多出口衝突',                    exit: '依優先順序分散', note: 'Phase 1：每條件挑第一個未被 sibling 佔用的側' },
   { condition: '目標閘道有多條 incoming',             exit: '入口分散',       note: 'Phase 2：按來源方向把 entry 分到 4 個 port' },
   { condition: '閘道自身 incoming 端點已被佔用',      exit: '避開',           note: 'outgoing 會跳過 incoming 已佔的側，避免共用 port' },
+  { condition: '跨列 forward 預設路徑會穿過任務矩形', exit: '改端點避障',     note: 'Phase 3d：優先改 target 上/下端點（垂直段放 target 欄）；失敗改 source 上/下端點（垂直段放 source 欄）' },
 ];
 
 const CORRIDOR = [

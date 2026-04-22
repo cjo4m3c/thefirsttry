@@ -370,9 +370,9 @@ export function computeLayout(flow) {
   // corridor already has a slot-allocation system (step 5/8).
   const topCorridorByRow = new Map();
 
-  // Per-task per-side port direction tracking. Phase 3b/3c consult this
-  // to avoid assigning an OUT on a port already used by IN (or vice
-  // versa) — the user rule "一個元件的端點不能同時有進入和出發".
+  // Per-task per-side port direction tracking. Phase 3b/3c/3d consult
+  // this to avoid assigning an OUT on a port already used by IN (or
+  // vice versa) — the user rule "一個元件的端點不能同時有進入和出發".
   const portIn  = new Map();  // `${taskId}::${side}` → count
   const portOut = new Map();
   const pk = (id, side) => `${id}::${side}`;
@@ -503,7 +503,7 @@ export function computeLayout(flow) {
     if (accepted.exit !== r0.exitSide || accepted.entry !== r0.entrySide) {
       condRouting.set(c.key, { exitSide: accepted.exit, entrySide: accepted.entry });
     }
-    // Track final port direction usage so Phase 3b/3c can detect mixing.
+    // Track final port direction usage so Phase 3b/3c/3d can detect mixing.
     useOut(c.gatewayId, accepted.exit);
     if (c.toId) useIn(c.toId, accepted.entry);
     if (accepted.range) registerTopCorridor(accepted.range.row, accepted.range.minCol, accepted.range.maxCol);
@@ -654,11 +654,15 @@ export function computeLayout(flow) {
       if (!defaultBad) return;
 
       // Option A: entry top/bottom (vertical at tc). Horizontal at row fr.
+      // Port-mix check: source's `right` must not already have IN (we're
+      // adding OUT), target's `entrySideA` must not already have OUT (we're
+      // adding IN). Multiple INs or multiple OUTs on the same port are
+      // fine — the rule is no mix of directions per port.
       const entrySideA = dr > 0 ? 'top' : 'bottom';
       let aBad = false;
       for (let c = fc + 1; c < tc && !aBad; c++) if (taskAt(fr, c)) aBad = true;
       for (let r = rLo + 1; r < rHi && !aBad; r++) if (taskAt(r, tc)) aBad = true;
-      if (!aBad && !hasIn(toId, entrySideA) && !hasOut(task.id, 'right')) {
+      if (!aBad && !hasIn(task.id, 'right') && !hasOut(toId, entrySideA)) {
         taskCrossLaneRouting.set(`${task.id}::${toId}`, { exitSide: 'right', entrySide: entrySideA });
         useOut(task.id, 'right'); useIn(toId, entrySideA);
         return;
@@ -669,7 +673,7 @@ export function computeLayout(flow) {
       let bBad = false;
       for (let r = rLo + 1; r < rHi && !bBad; r++) if (taskAt(r, fc)) bBad = true;
       for (let c = fc + 1; c < tc && !bBad; c++) if (taskAt(tr, c)) bBad = true;
-      if (!bBad && !hasOut(task.id, exitSideB) && !hasIn(toId, 'left')) {
+      if (!bBad && !hasIn(task.id, exitSideB) && !hasOut(toId, 'left')) {
         taskCrossLaneRouting.set(`${task.id}::${toId}`, { exitSide: exitSideB, entrySide: 'left' });
         useOut(task.id, exitSideB); useIn(toId, 'left');
         return;

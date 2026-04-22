@@ -11,6 +11,17 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-23',
+    title: 'Phase 3d 端點混用判斷修正 + 文件同步',
+    items: [
+      '**Phase 3d 端點混用檢查方向錯誤**：原本寫「port 已有同方向」而非「已有相反方向」，導致 t9 → end 在 end 的 bottom 已被 t7 / t8 用作 IN 時會被誤擋（還是走預設 right→left 穿過中間任務）',
+      '修正為檢查相反方向：新增 OUT 時擋「該 port 已有 IN」、新增 IN 時擋「該 port 已有 OUT」，對齊 Phase 3b / 3c 的寫法與使用者規則「端點不可同時進入和出發」',
+      '**HelpPanel 文件同步**：L3 活動元件說明改寫（頂端顯示 L3 編號、內部顯示 `[子流程] + 任務名稱`）；ROUTING 表修正跨列 forward 預設值（`右 → 左` 而非 `上 → 左`），並新增 Phase 3d 條目',
+      '**HANDOVER 更新**：第 7 節的 phase 清單加入 Phase 3d，建議閱讀 PR 範圍延伸至 #40',
+      'layout.js 內部註解提到「Phase 3b / 3c」的地方補上 3d',
+    ],
+  },
+  {
+    date: '2026-04-23',
     title: '流程圖編號規則：只顯示 L3 / L4；迴圈返回改新標準文字',
     items: [
       '**流程圖上的編號顯示規則重新釐清**：只有 L3 活動與 L4 任務的「正式編號」才會印在形狀上；開始（尾碼 `-0`）、結束（`-99`）、閘道（`_g` / `_g1`…）的編號僅作辨識用，不顯示在流程圖上',
