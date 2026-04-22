@@ -174,7 +174,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">L3 工作流</h1>
-            <p className="text-sm text-gray-500 mt-1">管理所有 L3 工作流，點選「編輯」可直接編輯 L4 泳道圖；點星星可置頂</p>
+            <p className="text-sm text-gray-500 mt-1">點星星可置頂、勾選可批量下載</p>
           </div>
           <div className="flex items-center gap-2">
             <select
