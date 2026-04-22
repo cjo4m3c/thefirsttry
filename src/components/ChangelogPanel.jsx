@@ -11,6 +11,16 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: 'README 聚焦：本地建置流程 + 專案架構',
+    items: [
+      '重寫 `README.md`：只保留「本地建置流程（環境需求、套件、安裝步驟）」與「專案架構說明」兩大區塊',
+      '移除 live demo link、功能特色、編號規則摘要等——這些改由 `HANDOVER.md` 與 `CLAUDE.md` 承擔',
+      '套件表分 runtime 與 dev 兩欄列出，標示每個套件的用途',
+      '專案結構樹加入每個檔案的一行說明 + 標示關鍵檔案',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: '文件：新增 README.md + HANDOVER.md',
     items: [
       'Repo 根目錄新增 `README.md`：專案簡介、快速開始、部署、編號規則摘要',

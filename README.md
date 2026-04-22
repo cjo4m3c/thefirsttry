@@ -1,58 +1,117 @@
 # FlowSprite
 
-BPM 業務活動泳道圖設計工具。在瀏覽器建立 L3 活動 → L4 任務泳道圖，支援 Excel 匯入/匯出、PNG / Draw.io 下載。
+BPM 業務活動泳道圖設計工具（純前端 React SPA）。
 
-**正式服務**：https://cjo4m3c.github.io/FlowSprite/
+---
 
-## 特色
+## 本地建置
 
-- **純前端 SPA**，無後端、無帳號系統，資料存在瀏覽器 `localStorage`
-- **Excel 雙向**：匯入解析多個 L3 + 閘道 / 合併 / 迴圈返回標記；匯出 10 欄標準 L4 任務清單
-- **四種 BPMN 元件**：任務、閘道（XOR / AND / OR）、開始 / 結束事件、L3 活動（雙框）
-- **智慧連線路由**：依相對位置自動挑選閘道端點（top / right / bottom / left），避免線條重疊
-- **多泳道支援**：內部 / 外部角色分流，自動計算泳道高度
-- **批量操作**：首頁多選 → 批量下載 PNG / Draw.io / Excel / 批量刪除
-- **置頂 / 排序**：星星 icon 釘選常用 L3；支援編號、更新日期排序
-- **鏈完整性警告**：匯入 Excel 時檢查 `X → X_g` 閘道鏈連線完整性
+### 環境需求
 
-## 技術堆疊
+| 項目 | 版本 |
+|---|---|
+| Node.js | 22（部署 workflow 也鎖在 22）|
+| npm | 10+（Node 22 內建）|
+| 作業系統 | 任意（macOS / Linux / Windows）|
+| 瀏覽器（執行時）| 任何支援 ES2020 + `crypto.randomUUID` 的現代瀏覽器 |
 
-React 18 · Vite 5 · Tailwind CSS 3 · xlsx · html-to-image · Node 22
+### Runtime 套件（`dependencies`）
 
-## 本地開發
+| 套件 | 版本 | 用途 |
+|---|---|---|
+| `react` | ^18.3.1 | UI framework |
+| `react-dom` | ^18.3.1 | React DOM renderer |
+| `xlsx` | ^0.18.5 | Excel (.xlsx) 讀寫 |
+| `html-to-image` | ^1.11.11 | 泳道圖匯出 PNG |
+
+### 開發套件（`devDependencies`）
+
+| 套件 | 版本 | 用途 |
+|---|---|---|
+| `vite` | ^5.4.10 | Dev server + build |
+| `@vitejs/plugin-react` | ^4.3.1 | Vite React 支援 |
+| `tailwindcss` | ^3.4.14 | Utility-first CSS |
+| `postcss` | ^8.4.47 | CSS 處理 pipeline |
+| `autoprefixer` | ^10.4.20 | CSS vendor prefix |
+
+### 安裝步驟
 
 ```bash
+# 1. Clone
 git clone https://github.com/cjo4m3c/FlowSprite.git
 cd FlowSprite
+
+# 2. 安裝套件（會同時裝 runtime + dev deps）
 npm install
-npm run dev       # http://localhost:5173/FlowSprite/
-npm run build     # 輸出 dist/
+
+# 3. 啟動本地 dev server（預設 http://localhost:5173/FlowSprite/）
+npm run dev
+
+# 4. 產生 production build（輸出到 dist/）
+npm run build
+
+# 5. 預覽 production build
+npm run preview
 ```
 
-## 部署
+`npm run dev` 啟動後改原始碼會自動熱更新；`npm run build` 會跑 Vite build + Tailwind 產生最終靜態檔。
 
-Push `main` 分支自動觸發 `.github/workflows/deploy.yml` → 發佈到 GitHub Pages（1–2 分鐘完成）。
+---
 
-## 資料儲存提醒
+## 專案架構
 
-- 所有 L3 活動資料存在**使用者瀏覽器**的 `localStorage`
-- 清除瀏覽器資料 / 換裝置 / 換瀏覽器 = **資料全無**
-- 唯一備份管道：下載 Excel，之後可重新上傳
+```
+FlowSprite/
+├── README.md                      ← 本檔案
+├── HANDOVER.md                    ← 完整交接手冊（環境、業務規則、交接情境）
+├── CLAUDE.md                      ← 長期規則 / AI 工作 SOP
+├── package.json                   ← deps + scripts
+├── package-lock.json              ← 鎖版
+├── vite.config.js                 ← Vite 設定（含 base = '/FlowSprite/'）
+├── tailwind.config.js             ← Tailwind 設定
+├── postcss.config.js              ← PostCSS 設定
+├── index.html                     ← SPA entry HTML
+├── .github/
+│   └── workflows/
+│       └── deploy.yml             ← push main 自動部署到 GitHub Pages
+├── .claude/
+│   └── skills/
+│       └── ship-feature.md        ← AI 工作 skill（PR 前檢查清單）
+├── public/                        ← 靜態資源（logo 等）
+└── src/
+    ├── main.jsx                   ← React entry point
+    ├── App.jsx                    ← 頂層路由：Dashboard / Wizard / FlowEditor
+    ├── index.css                  ← Tailwind directives + logo 動畫 + 捲軸樣式
+    ├── components/
+    │   ├── Dashboard.jsx          ← 首頁：L3 清單、Excel 上傳、批量操作
+    │   ├── Wizard.jsx             ← 新增 L3 的四步驟精靈
+    │   ├── FlowEditor.jsx         ← 編輯既有 L3（流程圖 + 頁籤式編輯）
+    │   ├── FlowTable.jsx          ← L4 任務明細表（詳細 Excel 清單頁籤）
+    │   ├── DiagramRenderer.jsx    ← SVG 泳道圖 + PNG / Draw.io 匯出按鈕
+    │   ├── ConnectionSection.jsx  ← 任務卡片內的連線設定 UI
+    │   ├── HelpPanel.jsx          ← 規則說明 Modal
+    │   └── ChangelogPanel.jsx     ← 版本更新紀錄 Modal（功能後新增條目）
+    ├── diagram/
+    │   ├── constants.js           ← LAYOUT 尺寸 + COLORS 主題色
+    │   └── layout.js              ← 核心：DAG 欄位分配 + 連線 smart routing
+    └── utils/
+        ├── taskDefs.js            ← 編號 regex、connectionType 常數、工廠函式
+        ├── storage.js             ← localStorage I/O + 載入時遷移（點→橫線、閘道補 _g）
+        ├── excelImport.js         ← 解析 Excel → flow 物件 + validator + 軟警告
+        ├── excelExport.js         ← 匯出 .xlsx
+        └── drawioExport.js        ← 匯出 .drawio
+```
 
-## 專案文件
+### 關鍵檔案
 
-- [**CLAUDE.md**](./CLAUDE.md)：長期規則、編號格式、工作流程 SOP（最重要）
-- [**HANDOVER.md**](./HANDOVER.md)：環境盤點、交接手冊
-- `src/components/ChangelogPanel.jsx` 的 `CHANGELOG` 陣列：版本更新紀錄（使用者視角）
+- `src/diagram/layout.js` — 複雜度最高的檔案（~500 行）。負責把 flow 物件轉成 SVG 座標、計算連線路由
+- `src/utils/taskDefs.js` — 所有編號 regex 的單一來源（修改編號規則只改這裡的常數）
+- `src/utils/storage.js` — localStorage 為唯一儲存層；載入時自動遷移舊資料格式
+- `src/utils/excelImport.js` — Excel 匯入的 parser + validator，是業務規則落地的地方
+- `CLAUDE.md` — 業務規則、工作流程 SOP；動任何程式碼前建議先讀
 
-## 核心編號規則（摘要）
+### 無後端 / 無測試套件
 
-| 元件 | 格式範例 |
-|---|---|
-| L3 活動 | `1-1-1`（三段，僅 `-` 分隔）|
-| L4 任務 | `1-1-1-1`（四段）|
-| 開始事件 | `1-1-1-0`（尾碼 `0`）|
-| 結束事件 | `1-1-1-99`（尾碼 `99`）|
-| 閘道 | `1-1-1-4_g`（前置任務 + `_g`；連續多個用 `_g1`、`_g2`、`_g3`）|
-
-完整規則、regex 常數、哪些算閘道哪些不算 → `CLAUDE.md` 規則 3 + `src/utils/taskDefs.js`。
+- 所有資料存在使用者瀏覽器的 `localStorage`（key = `bpm_flows_v1`）
+- 沒有 test / lint script；驗證靠 `npm run build` + 手動瀏覽器測試
+- 部署：push `main` 會觸發 `.github/workflows/deploy.yml` 自動發佈到 GitHub Pages
