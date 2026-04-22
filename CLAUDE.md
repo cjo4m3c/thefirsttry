@@ -125,6 +125,40 @@
 
 相關可移除 deps：`js-yaml`、`jszip` 已於 2026-04-21 移除（伴隨孤兒檔案清理）。
 
+## 10. 協作共同規則與 Insight（從歷次協作歸納，持續累積）
+
+### 10.1 業務 / 設計規則（按重要性）
+
+1. **規則 1：端點不混用** — 任一元件的 port 不可同時 IN + OUT。違反規則 1 比線段交叉更嚴重。
+2. **規則 2：避免視覺重疊** — 線段不可跨過任務矩形；重疊時**優先改端點（source 上下、target 上下），其次改路徑**。
+3. **規則 3：依 target 順序排列 slot** — 多條連線並存時，按 target 欄位由左到右決定 slot 內外順序（top 最內 = slot 0；bottom 最外 = slot 0，方向相反）。
+4. **規則 4：編號顯示分層** — 流程圖上只顯示 L3 / L4 的「正式編號」；start（`-0`）、end（`-99`）、閘道（`_g*`）的編號僅作辨識用，**不顯示在流程圖上**。編輯介面（task card、下拉選單）仍顯示全部編號。
+
+### 10.2 技術 / 工程慣例
+
+- **`src/diagram/layout.js` 是路由主腦**：phase-based（Phase 1 sibling → Phase 2 target entry → Phase 3 跨閘道衝突 → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 → 上下 corridor slot 分配）。每個 phase 只處理一種情境，改動前先認清影響範圍。新 phase 要 reuse `hasIn / hasOut / isColInsideTopRange / useIn / useOut / taskAt` 等共用 helper，不要重複實作。
+- **改 routing 必做 trace 驗證**：寫個 `/tmp/trace-*.mjs` 小腳本 mock flow 呼叫 `computeLayout`，印出所有 `connections` 的 `exitSide / entrySide`。**千萬別假設「build 過 = 邏輯對」**。歷史教訓：Phase 3d 混用判斷方向寫反、corridor 降級忘了檢查混用，兩次都是沒 trace 就報「完成」造成來回。
+- **端點混用檢查方向要對**：新增 OUT 時檢查 `hasIn`（source 同 port 是否已有 IN）；新增 IN 時檢查 `hasOut`（target 同 port 是否已有 OUT）。**同方向多條並不算混用**。
+- **Corridor 降級也要再檢查一次混用**：top 不行退到 bottom 前要檢查 bottom 是否也會混用；top / bottom 都會混用時，優先 top（視覺交叉屬規則 2、端點混用屬規則 1）。
+- **Excel I/O 向後相容**：匯出只產新格式；匯入用放寬的 regex 同時吃新舊格式（例如迴圈返回同時吃「迴圈返回，序列流向 X」、「迴圈返回至 X」、「迴圈返回 X」）。
+- **CJK / Latin 混合文字**：任何 wrap / truncate 都要 token-aware（CJK 逐字、Latin 整字不切），權重用 CJK = 2 / Latin = 1，maxChars 解讀為 CJK 等效寬度。
+- **文件同步三件組**：程式邏輯改動 → `ChangelogPanel.jsx` 加條目 + `HelpPanel.jsx` 改規則表 + `HANDOVER.md` 改 phase 清單 / PR 範圍。三者漏一都算沒做完。
+- **日期用 `date +%Y-%m-%d` 取**，不要依賴記憶或 session context（04-22 被寫成 04-23 的教訓）。
+
+### 10.3 協作流程
+
+- **小改動 / 明確需求**：直接動手。
+- **大改動 / 多種解法 / 跨檔案影響**：先提**計畫 + 主要 tradeoff（2–3 句）**，使用者點頭再執行。
+- **PR 走 branch → squash merge**：Claude 開分支 push → 使用者在 GitHub 網頁建 PR + merge → Claude 合後 `git fetch origin main && git reset --hard origin/main` 清乾淨 + 刪掉已合併的本地分支。
+- **分支衝突解法**：Claude 的分支若基於前一個未合併的 PR，等前面 PR 合併後直接 `git rebase origin/main`（git 會自動偵測 squash 後相同內容的 commit 並 skip）。
+- **使用者回報「還是有同樣問題」**：不是重新想辦法，**先 trace 原始 fix 是否真的生效**。90% 是條件寫反 / 漏檢查某情境 / 順序依賴造成沒套用。
+
+### 10.4 使用者偏好
+
+- 回應**簡潔**，不要長篇大論複述思路。
+- 大改動前提**計畫讓使用者核可**，不要「先做再說」。
+- Changelog 條目**引用使用者原話**當規則來源錨點（例：「使用者：「不能讓一個元件的端點同時有進入和出發」」），比乾巴巴的技術描述更有價值。
+
 ---
 
 ## 當前待辦狀態
