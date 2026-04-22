@@ -11,6 +11,16 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: '流程圖 Phase 3：跨閘道 corridor 衝突偵測 + 首頁清理',
+    items: [
+      '**新增 Phase 3 corridor 衝突偵測**：當兩個不同閘道的條件都想走同一條上方通道且欄位範圍重疊時，後處理的那條自動切到下一順位出口（例如原本走 top corridor → 切到 bottom corridor）',
+      '處理順序：Manhattan 距離短的先處理（保留自然路徑），長距離 / loop-back 類型的連線讓步',
+      '套用範圍：上方通道（top corridor）；下方通道已有 slot 系統不會重疊所以不需要',
+      '移除首頁底部「系統層級架構」提示區塊',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: '流程圖修正：閘道顯示 _g 編號 + 迴圈返回連線可見',
     items: [
       '**閘道現在會顯示 L4 編號（含 `_g` 尾碼）**：原本 `layout.l4Numbers` 只對 task 指派，閘道被跳過；改為優先用 `task.l4Number`，手動建立的 task 才 fallback 到 counter',
