@@ -11,6 +11,7 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-22',
+claude/top-corridor-crossing-avoidance
     title: 'Top corridor 跨越偵測：後發生連線會讓路避免視覺 X',
     items: [
       '使用者 case：`5-1-4-2_g`「不可達成」top-skip 到 `5-1-4-4`（col [3..5]）已登記；後處理的 `5-1-4-3 → end`（source col=4）若也走 top，vertical exit 會跟先前的水平 corridor 交叉成 X',
@@ -21,6 +22,8 @@ const CHANGELOG = [
   },
   {
     date: '2026-04-22',
+
+main
     title: 'Hover 高亮：方向色分流 + 連線反向高亮端點',
     items: [
       '**連線方向感知配色**：hover 元件時，**Outgoing（此元件指出去）**用 primary 深藍 `#2A5598`；**Incoming（指進此元件）**用 light 淡藍 `#7AB5DD`；方向一眼看清',
