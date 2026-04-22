@@ -185,17 +185,6 @@ FlowSprite/
 2. 移除 `.github/workflows/deploy.yml`
 3. 在新平台設定 build command = `npm run build`、output dir = `dist`
 
-### 5.4 **未來想要後端 / 多人協作**
-
-這是**大工程**，不是交接：
-
-- `src/utils/storage.js` 整個換成 REST/GraphQL client
-- 設計資料模型、API endpoints、認證機制
-- Dashboard / Wizard / FlowEditor 所有 `loadFlows / saveFlow / deleteFlow` 呼叫點改 async
-- 需新增使用者管理、權限系統
-
-目前為 backlog，未開始。
-
 ---
 
 ## 6. 交接 Checklist
@@ -208,10 +197,7 @@ FlowSprite/
 - [ ] 告知「此工具無後端 / 無帳號 / 無同步」，最終使用者備份唯一管道是 Excel 下載
 - [ ] 告知 `main` push 自動部署、只能 squash merge
 - [ ] 告知 backlog：
-  - 多人協作（需要後端，大工程）
   - 閘道 >4 條件分支時 port 共享（需要 port 子位置偏移架構）
-  - 嚴格按 target 順序排 corridor slot（目前按 span 長短，不是 target 位置）
-  - 可考慮把 `layout.js` 拆成多個模組（目前 ~800 行但邏輯很集中）
 
 ---
 
