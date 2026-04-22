@@ -370,6 +370,17 @@ export function computeLayout(flow) {
   // corridor already has a slot-allocation system (step 5/8).
   const topCorridorByRow = new Map();
 
+  // Per-task per-side port direction tracking. Phase 3b/3c consult this
+  // to avoid assigning an OUT on a port already used by IN (or vice
+  // versa) — the user rule "一個元件的端點不能同時有進入和出發".
+  const portIn  = new Map();  // `${taskId}::${side}` → count
+  const portOut = new Map();
+  const pk = (id, side) => `${id}::${side}`;
+  const hasIn  = (id, side) => (portIn.get(pk(id, side))  || 0) > 0;
+  const hasOut = (id, side) => (portOut.get(pk(id, side)) || 0) > 0;
+  const useIn  = (id, side) => portIn.set(pk(id, side),  (portIn.get(pk(id, side))  || 0) + 1);
+  const useOut = (id, side) => portOut.set(pk(id, side), (portOut.get(pk(id, side)) || 0) + 1);
+
   function hasTopConflict(row, minCol, maxCol) {
     const arr = topCorridorByRow.get(row) || [];
     return arr.some(([a, b]) => !(b < minCol || maxCol < a));
@@ -414,6 +425,7 @@ export function computeLayout(flow) {
       allGatewayConds.push({
         key: `${task.id}::${cond.id}`,
         gatewayId: task.id,
+        toId: cond.nextTaskId,
         fr, fc, tr, tc, dr, dc,
         priorities: getExitPriority(dr, dc),
       });
@@ -491,6 +503,9 @@ export function computeLayout(flow) {
     if (accepted.exit !== r0.exitSide || accepted.entry !== r0.entrySide) {
       condRouting.set(c.key, { exitSide: accepted.exit, entrySide: accepted.entry });
     }
+    // Track final port direction usage so Phase 3b/3c can detect mixing.
+    useOut(c.gatewayId, accepted.exit);
+    if (c.toId) useIn(c.toId, accepted.entry);
     if (accepted.range) registerTopCorridor(accepted.range.row, accepted.range.minCol, accepted.range.maxCol);
   });
 
@@ -524,11 +539,20 @@ export function computeLayout(flow) {
       const row = Math.min(fr, tr);
       const minCol = Math.min(fc, tc);
       const maxCol = Math.max(fc, tc);
-      if (isColInsideTopRange(row, fc) || isColInsideTopRange(row, tc)) {
+      // Fall back to bottom corridor when EITHER:
+      //   (a) top corridor cross-conflict (this edge's vertical would cross
+      //       an earlier horizontal corridor — `isColInsideTopRange`), or
+      //   (b) mixed-port conflict — the top port on source is already used
+      //       as incoming, or target's top is already used as outgoing.
+      const topWouldMix = hasIn(task.id, 'top') || hasOut(toId, 'top');
+      const topCrosses = isColInsideTopRange(row, fc) || isColInsideTopRange(row, tc);
+      if (topCrosses || topWouldMix) {
         taskBackwardRouting.set(`${task.id}::${toId}`, { exitSide: 'bottom', entrySide: 'bottom' });
+        useOut(task.id, 'bottom'); useIn(toId, 'bottom');
       } else {
         taskBackwardRouting.set(`${task.id}::${toId}`, { exitSide: 'top', entrySide: 'top' });
         registerTopCorridor(row, minCol, maxCol);
+        useOut(task.id, 'top'); useIn(toId, 'top');
       }
     });
   });
@@ -564,11 +588,18 @@ export function computeLayout(flow) {
       const row = fr;
       const minCol = Math.min(fc, tc);
       const maxCol = Math.max(fc, tc);
-      if (isColInsideTopRange(row, fc) || isColInsideTopRange(row, tc)) {
+      // Top corridor fallback conditions (same as Phase 3b):
+      //   (a) col-range cross-conflict, OR
+      //   (b) mixed-port — top on source has incoming / top on target has outgoing
+      const topWouldMix = hasIn(task.id, 'top') || hasOut(toId, 'top');
+      const topCrosses = isColInsideTopRange(row, fc) || isColInsideTopRange(row, tc);
+      if (topCrosses || topWouldMix) {
         taskForwardRouting.set(`${task.id}::${toId}`, { exitSide: 'bottom', entrySide: 'bottom' });
+        useOut(task.id, 'bottom'); useIn(toId, 'bottom');
       } else {
         taskForwardRouting.set(`${task.id}::${toId}`, { exitSide: 'top', entrySide: 'top' });
         registerTopCorridor(row, minCol, maxCol);
+        useOut(task.id, 'top'); useIn(toId, 'top');
       }
     });
   });
@@ -618,7 +649,20 @@ export function computeLayout(flow) {
     }
   });
 
-  bottomConnsByRow.forEach(arr => arr.sort((a, b) => b.span - a.span));
+  // Slot ordering rule: user wants the reading flow to match target /
+  // source column order ("依照下一個任務的順序依序連線").
+  //
+  // Top corridor: slotIdx 0 sits just above the lane (innermost). So
+  //   smaller target col → smaller slotIdx → innermost. Ascending sort.
+  //
+  // Bottom corridor: slotIdx 0 sits at lane bottom (FURTHEST from tasks,
+  //   i.e. outermost). So smaller target col → largest slotIdx → inner.
+  //   Reverse sort.
+  const slotSortAsc = (a, b) =>
+    (taskColOf[a.toId] - taskColOf[b.toId]) ||
+    (taskColOf[a.fromId] - taskColOf[b.fromId]);
+  const slotSortDesc = (a, b) => -slotSortAsc(a, b);
+  bottomConnsByRow.forEach(arr => arr.sort(slotSortDesc));
 
   // ── 6. Per-lane heights ─────────────────────────────────────────────
   const laneHeights = roles.map((_, row) => {
@@ -661,7 +705,7 @@ export function computeLayout(flow) {
       });
     }
   });
-  topConnsByRow.forEach(arr => arr.sort((a, b) => b.span - a.span));
+  topConnsByRow.forEach(arr => arr.sort(slotSortAsc));
 
   // ── 7. Cumulative lane top Y ─────────────────────────────────────────
   // Reserve extra space above each lane for its top-corridor slots.
