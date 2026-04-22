@@ -359,6 +359,15 @@ export function computeLayout(flow) {
     if (!topCorridorByRow.has(row)) topCorridorByRow.set(row, []);
     topCorridorByRow.get(row).push([minCol, maxCol]);
   }
+  // Whether `col` sits STRICTLY INSIDE any already-registered top-corridor
+  // range on `row`. Used by Phase 3b/3c: if a new top→top edge's endpoint
+  // is under an earlier corridor's horizontal segment, the new edge's
+  // vertical exit would cross that segment (visual X). Fall back to
+  // bottom corridor to avoid the crossing.
+  function isColInsideTopRange(row, col) {
+    const arr = topCorridorByRow.get(row) || [];
+    return arr.some(([a, b]) => col > a && col < b);
+  }
   function topCorridorRange(exitSide, entrySide, fr, fc, tr, tc) {
     if (exitSide !== 'top') return null;
     // top→top (dr=0 same row, or corridor detour when target crosses back)
@@ -489,9 +498,19 @@ export function computeLayout(flow) {
       const isBackward = (tc < fc) || (tc === fc && tr < fr);
       if (!isBackward) return;
 
-      // Always use top corridor for task backward edges; slot allocation
-      // (step 6b) staggers multiple parallel edges to distinct y-levels.
-      taskBackwardRouting.set(`${task.id}::${toId}`, { exitSide: 'top', entrySide: 'top' });
+      // Prefer top corridor; if source's column is strictly inside any
+      // already-registered top corridor range (an earlier gateway / task
+      // already routes a line above this column), the new edge's vertical
+      // exit would cross that line — fall back to the bottom corridor.
+      const row = Math.min(fr, tr);
+      const minCol = Math.min(fc, tc);
+      const maxCol = Math.max(fc, tc);
+      if (isColInsideTopRange(row, fc) || isColInsideTopRange(row, tc)) {
+        taskBackwardRouting.set(`${task.id}::${toId}`, { exitSide: 'bottom', entrySide: 'bottom' });
+      } else {
+        taskBackwardRouting.set(`${task.id}::${toId}`, { exitSide: 'top', entrySide: 'top' });
+        registerTopCorridor(row, minCol, maxCol);
+      }
     });
   });
 
@@ -519,10 +538,19 @@ export function computeLayout(flow) {
       // Only redirect forward edges that actually skip columns on the same row.
       if (dr !== 0 || dc <= 1) return;
 
-      // Always route long forward edges via the top corridor; the top-slot
-      // allocation (step 6b) gives each edge a distinct y-level so multiple
-      // parallel edges stagger instead of stacking on the same line.
-      taskForwardRouting.set(`${task.id}::${toId}`, { exitSide: 'top', entrySide: 'top' });
+      // Prefer top corridor. But if either endpoint's column sits strictly
+      // inside an earlier-registered top corridor range, the new edge's
+      // vertical exit/entry segment would cross that line — fall back to
+      // bottom corridor so the crossing doesn't happen.
+      const row = fr;
+      const minCol = Math.min(fc, tc);
+      const maxCol = Math.max(fc, tc);
+      if (isColInsideTopRange(row, fc) || isColInsideTopRange(row, tc)) {
+        taskForwardRouting.set(`${task.id}::${toId}`, { exitSide: 'bottom', entrySide: 'bottom' });
+      } else {
+        taskForwardRouting.set(`${task.id}::${toId}`, { exitSide: 'top', entrySide: 'top' });
+        registerTopCorridor(row, minCol, maxCol);
+      }
     });
   });
 
