@@ -39,6 +39,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
   const [sortKey, setSortKey] = useState('number-asc');
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
+  const [importWarnings, setImportWarnings] = useState([]);
   const [pendingPngFlow, setPendingPngFlow] = useState(null);
   const [logoReaction, setLogoReaction] = useState(null); // 'flash' | 'dim' | null
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -120,11 +121,12 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
     e.target.value = '';
     setImportError('');
     setImportSuccess('');
+    setImportWarnings([]);
 
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const importedFlows = parseExcelToFlow(ev.target.result);
+        const { flows: importedFlows, warnings } = parseExcelToFlow(ev.target.result);
 
         // Warn if any L3 numbers already exist
         const existingNums = new Set(flows.map(f => f.l3Number).filter(Boolean));
@@ -138,6 +140,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
         if (importedFlows.length > 1) {
           setImportSuccess(`成功匯入 ${importedFlows.length} 個 L3 活動：${importedFlows.map(f => f.l3Number).join('、')}`);
         }
+        if (warnings && warnings.length > 0) setImportWarnings(warnings);
         setLogoReaction('flash');
         onImportExcel(importedFlows);
       } catch (err) {
@@ -225,6 +228,28 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
             <span className="flex-shrink-0">✓</span>
             <span>{importSuccess}</span>
             <button onClick={() => setImportSuccess('')} className="ml-auto text-sky-400 hover:text-sky-600 font-bold">×</button>
+          </div>
+        )}
+
+        {/* Import warnings banner (gateway-chain soft checks) */}
+        {importWarnings.length > 0 && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-300 text-sm text-amber-800">
+            <div className="flex items-start gap-2 mb-1.5">
+              <span className="flex-shrink-0 font-bold">⚠</span>
+              <span className="font-medium flex-1">
+                Excel 已匯入，但有 {importWarnings.length} 筆閘道鏈警告（不影響使用，建議修正以獲得正確流程圖）
+              </span>
+              <button onClick={() => setImportWarnings([])}
+                className="text-amber-400 hover:text-amber-600 font-bold">×</button>
+            </div>
+            <ul className="ml-5 space-y-0.5 text-xs">
+              {importWarnings.slice(0, 20).map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+              {importWarnings.length > 20 && (
+                <li className="text-amber-600">… 另有 {importWarnings.length - 20} 筆未顯示</li>
+              )}
+            </ul>
           </div>
         )}
 
