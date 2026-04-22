@@ -384,13 +384,6 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
           </div>
         )}
 
-        {/* Future expansion note */}
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-          <strong>系統層級架構：</strong>
-          L1 業務領域 → L2 價值流 → L3 活動（泳道圖）→ L4 任務 → L5 步驟
-          <br />
-          <span className="opacity-70">目前支援 L3 活動 / L4 任務泳道圖，L5 步驟功能將陸續新增</span>
-        </div>
       </main>
 
       {/* Hidden off-screen renderer for single-flow PNG export */}

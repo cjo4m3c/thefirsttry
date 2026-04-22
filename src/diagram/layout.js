@@ -331,6 +331,103 @@ export function computeLayout(flow) {
     });
   });
 
+  // ── 4c. Phase 3: corridor conflict detection across gateways ─────
+  //
+  // Phase 1+2 only consider sibling conflicts within a single gateway.
+  // When two DIFFERENT gateways both route via the TOP corridor of the
+  // same row with overlapping column spans, their horizontal segments
+  // land on (nearly) the same y and visually overlap.
+  //
+  // Strategy: walk every gateway condition in deterministic order
+  // (short Manhattan first — short forward flows keep their natural
+  // choice, long / backward flows yield). For each condition, if its
+  // chosen corridor overlaps an already-registered corridor, advance
+  // through the exit-side priority list to find a non-conflicting one
+  // that hasn't been taken by a sibling of the same gateway. Then
+  // register the accepted corridor so later conditions see it.
+  //
+  // Only the TOP corridor is Phase-3-controlled here; the bottom lane
+  // corridor already has a slot-allocation system (step 5/8).
+  const topCorridorByRow = new Map();
+
+  function hasTopConflict(row, minCol, maxCol) {
+    const arr = topCorridorByRow.get(row) || [];
+    return arr.some(([a, b]) => !(b < minCol || maxCol < a));
+  }
+  function registerTopCorridor(row, minCol, maxCol) {
+    if (!topCorridorByRow.has(row)) topCorridorByRow.set(row, []);
+    topCorridorByRow.get(row).push([minCol, maxCol]);
+  }
+  function topCorridorRange(exitSide, entrySide, fr, fc, tr, tc) {
+    if (exitSide !== 'top') return null;
+    // top→top (dr=0 same row, or corridor detour when target crosses back)
+    // and top→left/right with same-row target (needsCorridor detour) both
+    // occupy a horizontal segment above the min-row lane.
+    if (entrySide === 'top' || fr === tr) {
+      return {
+        row: Math.min(fr, tr),
+        minCol: Math.min(fc, tc),
+        maxCol: Math.max(fc, tc),
+      };
+    }
+    return null;
+  }
+
+  const allGatewayConds = [];
+  tasks.forEach(task => {
+    if (task.type !== 'gateway' || !task.conditions?.length) return;
+    const fr = taskRowOf[task.id], fc = taskColOf[task.id];
+    task.conditions.forEach(cond => {
+      const tr = taskRowOf[cond.nextTaskId];
+      const tc = taskColOf[cond.nextTaskId];
+      if (tr === undefined || tc === undefined) return;
+      const dr = tr - fr, dc = tc - fc;
+      allGatewayConds.push({
+        key: `${task.id}::${cond.id}`,
+        gatewayId: task.id,
+        fr, fc, tr, tc, dr, dc,
+        priorities: getExitPriority(dr, dc),
+      });
+    });
+  });
+
+  allGatewayConds.sort((a, b) =>
+    (Math.abs(a.dr) + Math.abs(a.dc)) - (Math.abs(b.dr) + Math.abs(b.dc))
+  );
+
+  const usedExitsByGateway = new Map();
+  const gatewayUsed = (gid) => {
+    if (!usedExitsByGateway.has(gid)) usedExitsByGateway.set(gid, new Set());
+    return usedExitsByGateway.get(gid);
+  };
+
+  allGatewayConds.forEach(c => {
+    const r0 = condRouting.get(c.key);
+    if (!r0) return;
+    const used = gatewayUsed(c.gatewayId);
+
+    const candidates = [r0.exitSide, ...c.priorities.filter(p => p !== r0.exitSide)];
+
+    let accepted = null;
+    for (const p of candidates) {
+      if (p !== r0.exitSide && used.has(p)) continue;
+      const testEntry = inferEntrySide(p, c.dr, c.dc);
+      const range = topCorridorRange(p, testEntry, c.fr, c.fc, c.tr, c.tc);
+      if (range && hasTopConflict(range.row, range.minCol, range.maxCol)) continue;
+      accepted = { exit: p, entry: testEntry, range };
+      break;
+    }
+    if (!accepted) {
+      accepted = { exit: r0.exitSide, entry: r0.entrySide, range: null };
+    }
+
+    used.add(accepted.exit);
+    if (accepted.exit !== r0.exitSide || accepted.entry !== r0.entrySide) {
+      condRouting.set(c.key, { exitSide: accepted.exit, entrySide: accepted.entry });
+    }
+    if (accepted.range) registerTopCorridor(accepted.range.row, accepted.range.minCol, accepted.range.maxCol);
+  });
+
   // ── 5. Count bottom-routing slots needed per lane ─────────────
   const bottomConnsByRow = roles.map(() => []);
   tasks.forEach(task => {
