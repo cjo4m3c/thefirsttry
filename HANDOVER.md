@@ -72,7 +72,8 @@ FlowSprite/
 │       ├── ship-feature.md    # PR 前檢查清單 + squash merge + 回報
 │       ├── sync-main.md       # 使用者合併後本地同步 + 清 branch
 │       ├── doc-audit.md       # Changelog / HelpPanel / README / HANDOVER 對齊性檢查
-│       └── trace-layout.md    # 流程圖路由 node trace 樣板
+│       ├── trace-layout.md    # 流程圖路由 node trace 樣板
+│       └── ui-rules.md        # 藍色主題色票、按鈕 / banner / modal pattern
 └── src/
     ├── main.jsx                   # React entry
     ├── App.jsx                    # Route: Dashboard / Wizard / FlowEditor
@@ -153,7 +154,7 @@ FlowSprite/
 1. GitHub `cjo4m3c/FlowSprite` 新增接手人為 collaborator（或 transfer ownership）
 2. 接手人安裝 Claude Code 或同類工具
 3. 把 `CLAUDE.md` + `HANDOVER.md` + `src/components/ChangelogPanel.jsx`（變更歷史）給他
-4. 提醒他 `.claude/skills/` 底下的 4 個重用流程（`/ship-feature`、`/sync-main`、`/doc-audit`、`/trace-layout`）
+4. 提醒他 `.claude/skills/` 底下的 5 個重用流程（`/ship-feature`、`/sync-main`、`/doc-audit`、`/trace-layout`、`/ui-rules`）
 
 **限制**：他的 AI 設定中應保留「只能操作 `cjo4m3c/FlowSprite`」的 scope 限制、squash merge 預設、不改 deploy workflow。
 

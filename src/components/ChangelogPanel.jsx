@@ -19,6 +19,7 @@ const CHANGELOG = [
       '新增 `.claude/skills/sync-main.md`：使用者合併 PR 後本地同步的通用流程',
       '新增 `.claude/skills/doc-audit.md`：四份文件對齊性檢查清單',
       '新增 `.claude/skills/trace-layout.md`：跑 node trace 腳本驗證 `computeLayout` 輸出的樣板',
+      '新增 `.claude/skills/ui-rules.md`：藍色主題色票、按鈕 / banner / modal / 頁首 / 表單 pattern，UI 異動前必讀',
     ],
   },
   {
