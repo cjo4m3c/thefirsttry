@@ -48,20 +48,34 @@ function L4Number({ number, cx, y }) {
 
 function EventLabel({ cx, y, name, desc }) {
   const fontFamily = 'Microsoft JhengHei, PingFang TC, sans-serif';
+  // Events (start/end) sit in roughly one column width (168px); wrap at
+  // ~14 CJK chars for the name and ~18 for the smaller description so
+  // long labels don't spill past the column / lane boundary.
+  const nameLines = wrapText(name || '', 14);
+  const descLines = wrapText(desc || '', 18);
+  const nameLineH = 13;
+  const descLineH = 12;
+  const gap = 3;
+  let cursor = y;
   return (
     <>
-      {name && (
-        <text x={cx} y={y} textAnchor="middle" dominantBaseline="middle"
+      {nameLines.map((line, i) => (
+        <text key={`n${i}`} x={cx} y={cursor + i * nameLineH}
+          textAnchor="middle" dominantBaseline="middle"
           fontSize={10} fill={COLORS.TASK_TEXT} fontFamily={fontFamily}>
-          {name}
+          {line}
         </text>
-      )}
-      {desc && (
-        <text x={cx} y={y + 13} textAnchor="middle" dominantBaseline="middle"
-          fontSize={9} fill="#6B7280" fontFamily={fontFamily}>
-          {desc}
-        </text>
-      )}
+      ))}
+      {descLines.length > 0 && descLines.map((line, i) => {
+        const y0 = cursor + Math.max(nameLines.length, 1) * nameLineH + gap + i * descLineH;
+        return (
+          <text key={`d${i}`} x={cx} y={y0}
+            textAnchor="middle" dominantBaseline="middle"
+            fontSize={9} fill="#6B7280" fontFamily={fontFamily}>
+            {line}
+          </text>
+        );
+      })}
     </>
   );
 }

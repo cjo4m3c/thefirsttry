@@ -11,6 +11,15 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: '開始 / 結束事件 label 長文字自動換行',
+    items: [
+      '原本 `EventLabel` 把 name 與 description 各畫成一個 `<text>`，長字串會溢出泳道欄位邊界',
+      '改用 `wrapText` 換行：name 每行 14 字、description 每行 18 字，多行堆疊',
+      '名稱與說明之間加 3px gap，避免擠在一起',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: '迴圈返回 UI 對齊新規則：單一目標欄位',
     items: [
       'Wizard / FlowEditor 的「迴圈返回」連線類型原本用「若未通過 / 若通過」兩個條件欄位（舊的閘道式模型）',
