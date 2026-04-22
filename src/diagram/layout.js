@@ -428,28 +428,82 @@ export function computeLayout(flow) {
     if (accepted.range) registerTopCorridor(accepted.range.row, accepted.range.minCol, accepted.range.maxCol);
   });
 
+  // ── 4d. Phase 3b: non-gateway backward edge corridor decision ────
+  //
+  // A regular task's backward nextTaskId (e.g. 迴圈返回至 X) is drawn as
+  // top→top by default. If the top corridor at that row is already taken
+  // by a gateway condition (registered in Phase 3), route this backward
+  // edge via bottom→bottom instead, so it doesn't overlap.
+  //
+  // Bottom→bottom edges join the existing slot-allocation pipeline
+  // (step 5) so the lane auto-expands to fit.
+  const taskIdSetAll = new Set(tasks.map(t => t.id));
+  const taskBackwardRouting = new Map();  // key: `${fromId}::${toId}` → { exitSide, entrySide }
+
+  tasks.forEach(task => {
+    if (task.type === 'end' || task.type === 'gateway' || task.type === 'start') return;
+    const nextIds = task.nextTaskIds?.length ? task.nextTaskIds : (task.nextTaskId ? [task.nextTaskId] : []);
+    const fr = taskRowOf[task.id], fc = taskColOf[task.id];
+    nextIds.forEach(toId => {
+      if (!toId || !taskIdSetAll.has(toId)) return;
+      const tr = taskRowOf[toId], tc = taskColOf[toId];
+      if (tr === undefined || tc === undefined) return;
+      const isBackward = (tc < fc) || (tc === fc && tr < fr);
+      if (!isBackward) return;
+
+      const row = Math.min(fr, tr);
+      const minCol = Math.min(fc, tc);
+      const maxCol = Math.max(fc, tc);
+      if (hasTopConflict(row, minCol, maxCol)) {
+        taskBackwardRouting.set(`${task.id}::${toId}`, { exitSide: 'bottom', entrySide: 'bottom' });
+      } else {
+        taskBackwardRouting.set(`${task.id}::${toId}`, { exitSide: 'top', entrySide: 'top' });
+        registerTopCorridor(row, minCol, maxCol);
+      }
+    });
+  });
+
   // ── 5. Count bottom-routing slots needed per lane ─────────────
   const bottomConnsByRow = roles.map(() => []);
   tasks.forEach(task => {
-    if (task.type !== 'gateway') return;
-    (task.conditions || []).forEach(cond => {
-      if (!cond.nextTaskId || taskRowOf[cond.nextTaskId] === undefined) return;
-      const routing = condRouting.get(`${task.id}::${cond.id}`);
-      if (!routing) return;
-      const { exitSide, entrySide } = routing;
-      if (exitSide === 'bottom' && entrySide === 'bottom') {
-        const fr = taskRowOf[task.id];
-        const tr = taskRowOf[cond.nextTaskId];
-        const fc = taskColOf[task.id];
-        const tc = taskColOf[cond.nextTaskId];
-        const lowerRow = Math.max(fr, tr);
-        bottomConnsByRow[lowerRow].push({
-          fromId: task.id,
-          toId: cond.nextTaskId,
-          span: Math.abs(tc - fc),
-        });
-      }
-    });
+    if (task.type === 'gateway') {
+      (task.conditions || []).forEach(cond => {
+        if (!cond.nextTaskId || taskRowOf[cond.nextTaskId] === undefined) return;
+        const routing = condRouting.get(`${task.id}::${cond.id}`);
+        if (!routing) return;
+        const { exitSide, entrySide } = routing;
+        if (exitSide === 'bottom' && entrySide === 'bottom') {
+          const fr = taskRowOf[task.id];
+          const tr = taskRowOf[cond.nextTaskId];
+          const fc = taskColOf[task.id];
+          const tc = taskColOf[cond.nextTaskId];
+          const lowerRow = Math.max(fr, tr);
+          bottomConnsByRow[lowerRow].push({
+            fromId: task.id,
+            toId: cond.nextTaskId,
+            span: Math.abs(tc - fc),
+          });
+        }
+      });
+    } else if (task.type !== 'end' && task.type !== 'start') {
+      // Non-gateway backward edges that Phase 3b pushed to bottom corridor
+      const nextIds = task.nextTaskIds?.length ? task.nextTaskIds : (task.nextTaskId ? [task.nextTaskId] : []);
+      nextIds.forEach(toId => {
+        const routing = taskBackwardRouting.get(`${task.id}::${toId}`);
+        if (!routing) return;
+        if (routing.exitSide === 'bottom' && routing.entrySide === 'bottom') {
+          const fr = taskRowOf[task.id];
+          const tr = taskRowOf[toId];
+          const fc = taskColOf[task.id];
+          const tc = taskColOf[toId];
+          bottomConnsByRow[Math.max(fr, tr)].push({
+            fromId: task.id,
+            toId,
+            span: Math.abs(tc - fc),
+          });
+        }
+      });
+    }
   });
 
   bottomConnsByRow.forEach(arr => arr.sort((a, b) => b.span - a.span));
@@ -544,14 +598,23 @@ export function computeLayout(flow) {
         if (!nextId || !taskIdSet.has(nextId)) return;
         const toTask = tasks.find(t => t.id === nextId);
         if (!toTask) return;
-        // Backward edge (e.g. 迴圈返回): route via top corridor above lanes so
-        // the arrow is clearly visible in the gap between title bar and tasks,
-        // instead of hiding inside the title bar area.
-        const toPos = positions[toTask.id];
-        const isBackward = toPos && (toPos.col < fromPos.col || (toPos.col === fromPos.col && toPos.row < fromPos.row));
-        const exitSide  = isBackward ? 'top' : 'right';
-        const entrySide = isBackward ? 'top' : 'left';
-        connections.push({ fromId: task.id, toId: toTask.id, label: '', exitSide, entrySide, laneBottomY: undefined });
+        // Forward (default right→left) / backward (Phase 3b decision: top→top
+        // unless top corridor is already occupied, in which case bottom→bottom
+        // via the slot-allocated lane-bottom corridor).
+        const routing = taskBackwardRouting.get(`${task.id}::${nextId}`);
+        let exitSide, entrySide, laneBottomY;
+        if (routing) {
+          exitSide = routing.exitSide;
+          entrySide = routing.entrySide;
+          if (exitSide === 'bottom' && entrySide === 'bottom') {
+            laneBottomY = bottomYMap[`${task.id}::${nextId}`]
+              ?? (Math.max(fromPos.bottom.y, positions[toTask.id].bottom.y) + 24);
+          }
+        } else {
+          exitSide = 'right';
+          entrySide = 'left';
+        }
+        connections.push({ fromId: task.id, toId: toTask.id, label: '', exitSide, entrySide, laneBottomY });
       });
     }
   });

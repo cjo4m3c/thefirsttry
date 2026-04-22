@@ -11,6 +11,17 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: 'Phase 3b：task backward 也避開 top corridor 衝突',
+    items: [
+      '原本 Phase 3 corridor 衝突偵測只管閘道（gateway→X），不看 task→task 的 backward 連線',
+      '使用者 case：`5-4-11-4 → 5-4-11-2` 的迴圈返回跟 `5-4-11-2_g → 5-4-11-5` 的「正常」top-skip 兩條都走上方 corridor，重疊',
+      '新增 **Phase 3b**：task 的 backward edge 先檢查 top corridor 是否已被閘道佔用；衝突時改走 bottom→bottom 通道（slot 系統自動處理不疊）',
+      'Bottom 通道用現有的 lane-bottom slot allocation，lane 高度自動擴張',
+      '保持不變：無衝突時簡單 loop-back 仍走 top（在 title bar 與任務間的空隙清楚可見）',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: 'README 聚焦：本地建置流程 + 專案架構',
     items: [
       '重寫 `README.md`：只保留「本地建置流程（環境需求、套件、安裝步驟）」與「專案架構說明」兩大區塊',
