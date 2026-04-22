@@ -33,6 +33,14 @@ description: Apply FlowSprite's UI conventions (blue color palette, button patte
 | Progress | `bg-yellow-50 border-yellow-300` | PNG 批量進度 |
 | Success | `bg-sky-50 border-sky-200` / `text-sky-800` | 匯入成功 banner（**注意**：改用 sky 不用 green，只有狀態色保留 red/amber/yellow） |
 
+流程圖連線 hover 色（方向感知）：
+| 角色 | HEX | 用途 |
+|---|---|---|
+| Outgoing hover | `#2A5598` (primary 深藍) | hover 某元件時，**它指出去**的連線變深藍加粗，示意 flow 流向 |
+| Incoming hover | `#7AB5DD` (light 淡藍) | hover 某元件時，**指向它**的連線變淡藍加粗，示意 upstream 來源 |
+| Element hover border | `#2563EB` (HOVER_STROKE) | 元件邊框 hover（Tailwind blue-600）|
+| Element hover tint | `#DBEAFE` (HOVER_TINT) | 元件底色 hover（Tailwind blue-100） |
+
 泳道圖內部色（在 `src/diagram/constants.js` `COLORS`）：
 | 常數 | 值 | 用途 |
 |---|---|---|

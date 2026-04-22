@@ -11,6 +11,17 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-22',
+    title: 'Hover 高亮：方向色分流 + 連線反向高亮端點',
+    items: [
+      '**連線方向感知配色**：hover 元件時，**Outgoing（此元件指出去）**用 primary 深藍 `#2A5598`；**Incoming（指進此元件）**用 light 淡藍 `#7AB5DD`；方向一眼看清',
+      '**反向：hover 連線也會高亮端點任務** — 滑鼠移到線段上，整條線變主藍 `#2563EB` 加粗，兩端的 task / gateway / event 也同步亮起藍邊框 + 淡藍底',
+      '連線 hit area 擴大：額外加一條 transparent 10px 寬的 stroke 包住實線，讓滑鼠不用完全壓在細線上也能 hover 到',
+      '新增 `ah-hover-out` / `ah-hover-in` 兩個 SVG marker，箭頭尖端跟線段同色',
+      '`ui-rules.md` 新增「連線 hover 色」段落，兩色納入標準色票',
+    ],
+  },
+  {
+    date: '2026-04-22',
     title: 'Hover 時同步高亮相關連線',
     items: [
       '滑過任何元件（task / gateway / start / end / L3 活動）時，除了元件本身變藍，**指向它的 incoming 連線**與**它指出去的 outgoing 連線**也一起改為藍色加粗',

@@ -11,6 +11,12 @@ const L3_INSET = 4; // inner border inset for L3 Activity shape
 const HOVER_STROKE = '#2563EB'; // Tailwind blue-600
 const HOVER_TINT   = '#DBEAFE'; // Tailwind blue-100
 
+// Connection hover palette — distinct colors for incoming vs outgoing so the
+// viewer can tell at a glance which direction each related edge flows.
+// Palette values from ui-rules.md.
+const HOVER_OUT_STROKE = '#2A5598'; // primary deep blue — where this element LEADS TO
+const HOVER_IN_STROKE  = '#7AB5DD'; // light blue        — what FEEDS INTO this element
+
 function wrapText(text, maxChars) {
   if (!text) return [];
   const lines = [];
@@ -218,6 +224,12 @@ function ArrowMarkers() {
       <marker id="ah-hover" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill={HOVER_STROKE} />
       </marker>
+      <marker id="ah-hover-out" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill={HOVER_OUT_STROKE} />
+      </marker>
+      <marker id="ah-hover-in" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill={HOVER_IN_STROKE} />
+      </marker>
       <marker id="ah-dashed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill={COLORS.ARROW_COLOR} />
       </marker>
@@ -225,7 +237,7 @@ function ArrowMarkers() {
   );
 }
 
-function ConnectionArrow({ conn, positions, hoveredId }) {
+function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey, onHover }) {
   const from = positions[conn.fromId];
   const to = positions[conn.toId];
   if (!from || !to) return null;
@@ -237,14 +249,35 @@ function ConnectionArrow({ conn, positions, hoveredId }) {
     ? [(pts[1][0] + pts[2][0]) / 2, (pts[1][1] + pts[2][1]) / 2]
     : [(pts[0][0] + pts[pts.length - 1][0]) / 2, (pts[0][1] + pts[pts.length - 1][1]) / 2];
 
-  // Highlight this connection when either endpoint is hovered.
-  const isHighlighted = hoveredId != null && (conn.fromId === hoveredId || conn.toId === hoveredId);
-  const strokeColor = isHighlighted ? HOVER_STROKE : COLORS.ARROW_COLOR;
-  const strokeW = isHighlighted ? 2.5 : 1.4;
-  const markerId = isHighlighted ? 'ah-hover' : 'ah';
+  // Highlight priority:
+  //   (1) This connection itself is hovered → neutral HOVER_STROKE (both
+  //       endpoint elements will also highlight via hoveredConnKey below).
+  //   (2) An endpoint element is hovered → direction-aware coloring.
+  let strokeColor = COLORS.ARROW_COLOR;
+  let strokeW = 1.4;
+  let markerId = 'ah';
+  if (hoveredConnKey === connKey) {
+    strokeColor = HOVER_STROKE;
+    strokeW = 2.5;
+    markerId = 'ah-hover';
+  } else if (hoveredId != null) {
+    if (conn.fromId === hoveredId) {
+      strokeColor = HOVER_OUT_STROKE;
+      strokeW = 2.5;
+      markerId = 'ah-hover-out';
+    } else if (conn.toId === hoveredId) {
+      strokeColor = HOVER_IN_STROKE;
+      strokeW = 2.5;
+      markerId = 'ah-hover-in';
+    }
+  }
 
   return (
-    <g>
+    <g onMouseEnter={() => onHover?.(connKey)}
+       onMouseLeave={() => onHover?.(null)}
+       style={{ cursor: 'pointer' }}>
+      {/* invisible wider stroke for easier hover targeting */}
+      <polyline points={pointsStr} fill="none" stroke="transparent" strokeWidth={10} />
       <polyline points={pointsStr} fill="none" stroke={strokeColor}
         strokeWidth={strokeW} markerEnd={`url(#${markerId})`} />
       {conn.label && (
@@ -352,6 +385,7 @@ function LegendIcon({ type }) {
 export default function DiagramRenderer({ flow, showExport = true, autoExportPng = false, onExportDone = null }) {
   const exportRef = useRef(null);
   const [hoveredId, setHoveredId] = useState(null);
+  const [hoveredConnKey, setHoveredConnKey] = useState(null);
 
   useEffect(() => {
     if (!autoExportPng || !exportRef.current) return;
@@ -470,14 +504,21 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
             stroke={COLORS.LANE_BORDER} strokeWidth={1.5} />
 
           {connections.map((conn, i) => (
-            <ConnectionArrow key={i} conn={conn} positions={positions} hoveredId={hoveredId} />
+            <ConnectionArrow key={i} conn={conn} connKey={`c${i}`} positions={positions}
+              hoveredId={hoveredId} hoveredConnKey={hoveredConnKey}
+              onHover={setHoveredConnKey} />
           ))}
 
-          {flow.tasks.map(task => {
+          {(() => {
+            // Derive endpoints of the hovered connection (if any) so we can
+            // light up BOTH tasks that a hovered line connects.
+            const hc = hoveredConnKey ? connections[parseInt(hoveredConnKey.slice(1), 10)] : null;
+            const hoveredConnEndpoints = hc ? new Set([hc.fromId, hc.toId]) : null;
+            return flow.tasks.map(task => {
             const pos = positions[task.id];
             const num = l4Numbers[task.id];
             if (!pos) return null;
-            const isHovered = hoveredId === task.id;
+            const isHovered = hoveredId === task.id || (hoveredConnEndpoints?.has(task.id) ?? false);
             const props = { pos, l4Number: num, task, isHovered };
             let shape;
             if (task.type === 'start')           shape = <StartShape {...props} />;
@@ -493,7 +534,8 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
                 {shape}
               </g>
             );
-          })}
+          });
+          })()}
         </svg>
         </div>
       </div>
