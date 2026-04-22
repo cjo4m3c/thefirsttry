@@ -11,6 +11,17 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-21',
+    title: '閘道編號強制 `_g`：舊資料自動遷移 + 匯入鏈警告',
+    items: [
+      '**storage 載入遷移**：舊 localStorage 若有 `type=gateway` 但 L4 編號缺 `_g`（例：`1-1-1-3`），載入時自動改成 `${前置任務編號}_g`（連續多個依序 `_g2`、`_g3`…）',
+      '**layout 顯示保底**：即使 stored 缺 `_g`（Wizard 建的閘道或遷移漏掉的角落），diagram 顯示時強制補 `_g`',
+      '**閘道鏈完整性警告**：Excel 匯入後，若 `X_g` 找不到前置任務 X 或 X 沒連向 `X_g`，首頁跳出黃色警告橫條（不擋匯入）',
+      '`X_g{n}`（n≥2）的前置為 `X_g{n-1}`，同樣會檢查',
+      '`parseExcelToFlow` 回傳格式改為 `{ flows, warnings }`',
+    ],
+  },
+  {
+    date: '2026-04-21',
     title: '合併點不再視為閘道：只有 fork 關鍵字要 `_g`',
     items: [
       '修正 validator 誤把「條件合併來自多個分支」「並行合併來自」的任務當閘道而要求 `_g` 尾碼',

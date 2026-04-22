@@ -378,6 +378,50 @@ function validateNumbering(allRows) {
   );
 }
 
+/**
+ * Soft-validate gateway chain semantics (warnings, not errors).
+ *
+ * User rule: `X_g` is the gateway immediately AFTER task X;
+ *            `X_g{n+1}` is the gateway immediately after `X_g{n}`.
+ *
+ * For each `X_g\\d*` row, verify the expected predecessor exists AND its
+ * 任務關聯說明 text mentions this gateway's number. Any mismatch is
+ * returned as a warning string so the UI can show it without blocking.
+ */
+function collectGatewayChainWarnings(allRows) {
+  const warnings = [];
+  const rowByL4 = {};
+  for (let i = 1; i < allRows.length; i++) {
+    const l4 = String(allRows[i][COL_L4_NUMBER] ?? '').trim();
+    if (!l4) continue;
+    rowByL4[l4] = {
+      excelRow: i + 1,
+      flowText: String(allRows[i][COL_L4_FLOW] ?? ''),
+    };
+  }
+
+  for (const [l4, info] of Object.entries(rowByL4)) {
+    const m = l4.match(/^(\d+-\d+-\d+-\d+)_g(\d*)$/);
+    if (!m) continue;
+    const base = m[1];
+    const n = m[2] === '' ? 1 : parseInt(m[2], 10);
+    const predecessor = n <= 1 ? base : `${base}_g${n - 1}`;
+    const predInfo = rowByL4[predecessor];
+    if (!predInfo) {
+      warnings.push(
+        `• 第 ${info.excelRow} 列閘道 ${l4}：找不到預期的前置元件 ${predecessor}（規則：${l4} 應接在 ${predecessor} 之後）`
+      );
+      continue;
+    }
+    if (!predInfo.flowText.includes(l4)) {
+      warnings.push(
+        `• 第 ${info.excelRow} 列閘道 ${l4}：前置元件 ${predecessor}（第 ${predInfo.excelRow} 列）的任務關聯說明未指向 ${l4}（建議補「序列流向 ${l4}」或對應的分支標記）`
+      );
+    }
+  }
+  return warnings;
+}
+
 export function parseExcelToFlow(arrayBuffer) {
   const workbook  = XLSX.read(arrayBuffer, { type: 'array' });
   const sheet     = workbook.Sheets[workbook.SheetNames[0]];
@@ -385,6 +429,9 @@ export function parseExcelToFlow(arrayBuffer) {
 
   // Validate L3 / L4 number formats BEFORE any processing
   validateNumbering(allRows);
+
+  // Soft chain-integrity warnings (non-blocking)
+  const warnings = collectGatewayChainWarnings(allRows);
 
   const dataRows = allRows.slice(1).filter(row => String(row[COL_L4_NUMBER] ?? '').trim());
   if (dataRows.length === 0) throw new Error('找不到有效的 L4 任務資料（請確認欄位順序正確，且 Excel 首列為標題列）');
@@ -411,5 +458,6 @@ export function parseExcelToFlow(arrayBuffer) {
   if (currentGroup.length > 0) groups.push(currentGroup);
   if (groups.length === 0) throw new Error('無法識別 L3 活動編號（第 1 欄）');
 
-  return groups.map(buildFlow);
+  const flows = groups.map(buildFlow);
+  return { flows, warnings };
 }

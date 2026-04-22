@@ -496,8 +496,15 @@ export function computeLayout(flow) {
     // Use stored l4Number (from Excel import) whenever present so imported
     // gateways retain their `_g` suffix label; fall back to sequential counter
     // for manually-created tasks without a stored number.
+    //
+    // Safety net: if a gateway's stored number lacks `_g` (e.g. legacy data
+    // that slipped past storage migration, or a Wizard-created gateway),
+    // force append `_g` for display so the diagram consistently shows the
+    // gateway naming rule.
     if (task.l4Number) {
-      l4Numbers[task.id] = String(task.l4Number);
+      let label = String(task.l4Number);
+      if (task.type === 'gateway' && !/_g\d*$/.test(label)) label += '_g';
+      l4Numbers[task.id] = label;
     } else if (task.type === 'task') {
       l4Numbers[task.id] = `${l3Number}-${taskCounter++}`;
     } else {
