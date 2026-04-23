@@ -6,7 +6,6 @@ import { exportDrawio } from '../utils/drawioExport.js';
 import { todayYmd } from '../utils/storage.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H, TITLE_H, NODE_W, NODE_H, DIAMOND_SIZE, CIRCLE_R } = LAYOUT;
-const L3_INSET = 4; // inner border inset for L3 Activity shape
 
 const HOVER_STROKE = '#2563EB'; // Tailwind blue-600
 const HOVER_TINT   = '#DBEAFE'; // Tailwind blue-100
