@@ -19,6 +19,86 @@ import {
   normalizeTask, applyConnectionType, applySequentialDefaults,
   computeDisplayLabels,
 } from '../utils/taskDefs.js';
+} from '../utils/taskDefs.js';
+
+// ── Pre-save validation ──────────────────────────────────────
+// Split into two tiers so the user can still save an imperfect draft:
+//   blocking  — hard stops (no save button will work until fixed)
+//   warnings  — soft checks surfaced as a confirm dialog; user chooses
+//               whether to save anyway or go back to fix them.
+function isStart(t) { return t.connectionType === 'start' || t.type === 'start'; }
+function isEnd(t)   { return t.connectionType === 'end' || t.connectionType === 'breakpoint' || t.type === 'end'; }
+
+function validateFlow(flow) {
+  const tasks = flow.tasks || [];
+  const blocking = [];
+  const warnings = [];
+
+  const startTasks = tasks.filter(isStart);
+  const endTasks   = tasks.filter(isEnd);
+
+  // Count incoming connections per task so we can detect unconnected nodes
+  // and validate merge-gateway arity.
+  const incoming = {};
+  tasks.forEach(t => {
+    const outs = t.type === 'gateway'
+      ? (t.conditions || []).map(c => c.nextTaskId)
+      : (t.nextTaskIds || []);
+    outs.filter(Boolean).forEach(id => {
+      incoming[id] = (incoming[id] || 0) + 1;
+    });
+  });
+
+  // ── Blocking checks ────────────────────────────────────────
+  if (startTasks.length === 0) blocking.push('必須要有「流程開始」節點');
+  if (endTasks.length === 0)   blocking.push('必須要有「流程結束」或「流程斷點」節點');
+
+  startTasks.forEach(s => {
+    const outs = (s.nextTaskIds || []).filter(Boolean);
+    if (outs.length === 0) blocking.push('「流程開始」必須連接到其他任務元件');
+  });
+  endTasks.forEach(e => {
+    if (!(incoming[e.id] > 0)) blocking.push('「流程結束」/「流程斷點」必須有其他任務連接到它');
+  });
+
+  // ── Warning-level checks ───────────────────────────────────
+  tasks.forEach((t, i) => {
+    const ct = t.connectionType || 'sequence';
+    const label = `任務 ${i + 1}「${t.name || '未命名'}」`;
+
+    // 1. Non-end nodes must have next step.
+    if (!isEnd(t)) {
+      const hasNext = t.type === 'gateway'
+        ? (t.conditions || []).some(c => c.nextTaskId)
+        : (t.nextTaskIds || []).some(Boolean);
+      if (!hasNext) warnings.push(`${label}：未設定下一步`);
+    }
+
+    // 2. Parallel-merge needs ≥2 incoming.
+    if (ct === 'parallel-merge' && (incoming[t.id] || 0) < 2) {
+      warnings.push(`${label}：並行合併至少需要 2 個來源`);
+    }
+
+    // 3. Conditional-merge needs ≥2 incoming.
+    if (ct === 'conditional-merge' && (incoming[t.id] || 0) < 2) {
+      warnings.push(`${label}：條件合併至少需要 2 個來源`);
+    }
+
+    // 4. Every node except start must have incoming (already blocking for end,
+    //    this catches orphan middle nodes).
+    if (!isStart(t) && !(incoming[t.id] > 0)) {
+      warnings.push(`${label}：沒有任何任務連接到此節點`);
+    }
+
+    // 5. Loop-return must specify target.
+    if (ct === 'loop-return') {
+      const target = (t.nextTaskIds || [])[0];
+      if (!target) warnings.push(`${label}：迴圈返回必須指定目標任務`);
+    }
+  });
+
+  return { blocking, warnings };
+}
 
 // ── TaskCard ────────────────────────────────────────────────
 function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove, dragHandlers, isDragging, isOver }) {
@@ -143,7 +223,8 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('flow'); // 'flow' | 'table' | 'roles'
   const [logoReaction, setLogoReaction] = useState(null); // 'wave' | null
-
+  const [saveModal, setSaveModal] = useState(null); // { type: 'blocking'|'warning', messages: [] }
+  
   useEffect(() => {
     if (!logoReaction) return;
     const timer = setTimeout(() => setLogoReaction(null), 900);
@@ -179,10 +260,24 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     patch({ tasks: liveFlow.tasks.filter(t => t.id !== id) });
   }
 
-    function handleSave() {
-    onSave(liveFlow);
+      function doSave(flow) {
+    onSave(flow);
     setHasChanges(false);
     setLogoReaction('wave');
+    setSaveModal(null);
+  }
+
+  function handleSave() {
+    const { blocking, warnings } = validateFlow(liveFlow);
+    if (blocking.length > 0) {
+      setSaveModal({ type: 'blocking', messages: blocking });
+      return;
+    }
+    if (warnings.length > 0) {
+      setSaveModal({ type: 'warning', messages: warnings });
+      return;
+    }
+    doSave(liveFlow);
   }
 
   function handleTogglePin() {
@@ -343,7 +438,48 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         </div>
       </main>
 
-      <BackToTop />
+            <BackToTop />
+
+      {saveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSaveModal(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
+            <div className={`px-6 py-4 border-b ${saveModal.type === 'blocking' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+              <h2 className={`text-lg font-bold ${saveModal.type === 'blocking' ? 'text-red-700' : 'text-amber-700'}`}>
+                {saveModal.type === 'blocking' ? '⛔ 必要條件未達，無法儲存' : '⚠️ 有建議改善項目'}
+              </h2>
+              <p className="text-xs text-gray-600 mt-1">
+                {saveModal.type === 'blocking'
+                  ? '修正以下問題後才能儲存：'
+                  : '以下項目建議修正。您可以選擇仍然儲存，或取消並回去調整：'}
+              </p>
+            </div>
+            <div className="px-6 py-4 max-h-80 overflow-y-auto">
+              <ul className="text-sm text-gray-700 space-y-1.5 list-disc list-inside">
+                {saveModal.messages.map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setSaveModal(null)}
+                className="px-4 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                {saveModal.type === 'blocking' ? '知道了' : '取消'}
+              </button>
+              {saveModal.type === 'warning' && (
+                <button
+                  onClick={() => doSave(liveFlow)}
+                  className="px-4 py-2 rounded-lg text-sm text-white font-semibold transition-colors"
+                  style={{ background: '#D97706' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#B45309'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#D97706'}>
+                  仍然儲存
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
