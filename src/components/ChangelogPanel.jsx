@@ -11,6 +11,18 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-22',
+    title: '流程圖標題列改深灰、內外泳道調整為指定 HEX',
+    items: [
+      '**`TITLE_BG` 從 `#111827`（近黑）改成 `#374151`（Tailwind gray-700 深灰）**，視覺柔和一些，白字對比仍清楚',
+      '**`INTERNAL_BG` 從 `#2A5598`（主題深藍）改成 `#0066CC`（指定中藍）**，使用者指定色碼',
+      '**`EXTERNAL_BG` 從 `#4CAF50`（Material 綠）改成 `#009900`（指定純綠）**，使用者指定色碼',
+      '三個管道（網頁 SVG / PNG 下載 / drawio 下載）都共用 `COLORS` 常數，同步生效',
+      'Wizard / FlowEditor / Dashboard 的角色徽章與下拉選單顏色也同步更新',
+      'ui-rules.md 色彩標準表同步更新',
+    ],
+  },
+  {
+    date: '2026-04-22',
     title: '流程圖標題列改為黑底',
     items: [
       '**`TITLE_BG` 從 `#2A5598`（深藍）改成 `#111827`（黑）**，跟主題深藍頁首區分，流程圖標題更突顯',
