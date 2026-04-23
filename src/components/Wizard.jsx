@@ -186,7 +186,7 @@ function Step2({ data, onChange }) {
             <select value={role.type}
               onChange={e => updateRole(role.id, 'type', e.target.value)}
               className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
-              style={{ background: role.type === 'external' ? '#5B8AC9' : '#2A5598', color: 'white' }}>
+              style={{ background: role.type === 'external' ? '#4CAF50' : '#2A5598', color: 'white' }}>
               <option value="internal">內部角色</option>
               <option value="external">外部角色</option>
             </select>
@@ -206,7 +206,7 @@ function Step2({ data, onChange }) {
         <div className="flex flex-col gap-1">
           {data.roles.filter(r => r.name).map((r, i) => (
             <div key={r.id} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm" style={{ background: r.type === 'external' ? '#5B8AC9' : '#2A5598' }} />
+              <div className="w-3 h-3 rounded-sm" style={{ background: r.type === 'external' ? '#4CAF50' : '#2A5598' }} />
               <span className="text-xs font-medium text-gray-700">泳道 {i + 1}：{r.name}</span>
               <span className="text-xs text-gray-400">（{r.type === 'external' ? '外部' : '內部'}）</span>
             </div>

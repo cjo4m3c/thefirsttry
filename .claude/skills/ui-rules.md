@@ -17,7 +17,7 @@ description: Apply FlowSprite's UI conventions (blue color palette, button patte
 | Mid | `#3470B5` | 次要按鈕（Excel 上傳/下載、PNG 匯出、下一步）、規則說明/更新紀錄 |
 | Mid hover | `#274F86` | 次按鈕滑過變深 |
 | Light | `#7AB5DD` | hover 高亮、FlowEditor 內 save 按鈕（在深藍頁首中襯托）、捲軸 thumb |
-| External role | `#5B8AC9` | 外部角色泳道/標籤 |
+| External role | `#4CAF50` | 外部角色泳道 / 標籤（綠色區分，跟內部角色的藍色對比） |
 | Soft BG | `#E8F1F9` | 若有「淡藍底」需求 |
 | Soft hover | `#D1E3F2` |  |
 | Page BG | `#F5F8FC` | 首頁 / FlowEditor / Wizard 的 `<div className="min-h-screen">` 底色 |
@@ -46,7 +46,7 @@ description: Apply FlowSprite's UI conventions (blue color palette, button patte
 |---|---|---|
 | `TITLE_BG` | `#2A5598` | 流程圖標題列 |
 | `INTERNAL_BG` | `#2A5598` | 內部角色泳道頭 |
-| `EXTERNAL_BG` | `#5B8AC9` | 外部角色泳道頭 |
+| `EXTERNAL_BG` | `#4CAF50` | 外部角色泳道頭（綠色，跟內部角色的深藍對比） |
 | `LANE_ODD` | `#F0F6FB` | 奇數列淡藍底 |
 | `LANE_BORDER` | `#C8D9E8` | 泳道分隔線 |
 
