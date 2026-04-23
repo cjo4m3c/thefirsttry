@@ -74,6 +74,10 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
   const [bulkFormats, setBulkFormats] = useState({ png: true, drawio: true, excel: true });
   const [pngQueue, setPngQueue] = useState([]); // flows awaiting PNG render
   const [pngTotal, setPngTotal] = useState(0);
+  // Duplicate-L3 import confirmation. `pending` holds the imported flows +
+  // per-L3 existing counts so the modal can show what will happen on each
+  // button. Closing the modal discards the imported flows.
+  const [pendingImport, setPendingImport] = useState(null);
   const fileInputRef = useRef(null);
 
   const sortedFlows = useMemo(() => sortFlows(flows, sortKey), [flows, sortKey]);
@@ -147,6 +151,22 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
     });
   }
 
+  function finalizeImport(importedFlows, warnings, mode) {
+    if (importedFlows.length > 1) {
+      setImportSuccess(`成功匯入 ${importedFlows.length} 個 L3 活動：${importedFlows.map(f => f.l3Number).join('、')}`);
+    }
+    if (warnings && warnings.length > 0) setImportWarnings(warnings);
+    setLogoReaction('flash');
+    onImportExcel(importedFlows, mode);
+  }
+
+  function handleDuplicateResolve(mode) {
+    const pending = pendingImport;
+    setPendingImport(null);
+    if (!pending || mode === 'cancel') return;
+    finalizeImport(pending.importedFlows, pending.warnings, mode);
+  }
+
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -160,21 +180,24 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
       try {
         const { flows: importedFlows, warnings } = parseExcelToFlow(ev.target.result);
 
-        // Warn if any L3 numbers already exist
-        const existingNums = new Set(flows.map(f => f.l3Number).filter(Boolean));
-        const dupes = importedFlows.filter(f => existingNums.has(f.l3Number)).map(f => f.l3Number);
-        if (dupes.length > 0) {
-          if (!window.confirm(
-            `⚠ 以下 L3 編號已存在於系統中：${dupes.join('、')}\n繼續匯入將新增重複編號的活動，確定要繼續嗎？`
-          )) return;
-        }
+        // Detect duplicate L3 numbers + count how many existing activities
+        // share each one. If any duplicates exist, defer to the modal so
+        // the user can choose: keep all (coexist) / overwrite (delete old) /
+        // cancel. No dupes → proceed immediately.
+        const existingCounts = {};
+        flows.forEach(f => {
+          if (!f.l3Number) return;
+          existingCounts[f.l3Number] = (existingCounts[f.l3Number] || 0) + 1;
+        });
+        const dupes = importedFlows
+          .map(f => ({ l3Number: f.l3Number, count: existingCounts[f.l3Number] || 0 }))
+          .filter(d => d.count > 0);
 
-        if (importedFlows.length > 1) {
-          setImportSuccess(`成功匯入 ${importedFlows.length} 個 L3 活動：${importedFlows.map(f => f.l3Number).join('、')}`);
+        if (dupes.length > 0) {
+          setPendingImport({ importedFlows, warnings: warnings || [], dupes });
+          return;
         }
-        if (warnings && warnings.length > 0) setImportWarnings(warnings);
-        setLogoReaction('flash');
-        onImportExcel(importedFlows);
+        finalizeImport(importedFlows, warnings || [], 'keep');
       } catch (err) {
         setImportError(err.message ?? '解析 Excel 時發生未知錯誤');
       }
@@ -471,6 +494,56 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
       )}
 
       <BackToTop />
+
+      {pendingImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={e => { if (e.target === e.currentTarget) handleDuplicateResolve('cancel'); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-800">偵測到重複的 L3 編號</h2>
+              <p className="text-xs text-gray-500 mt-1">系統已有相同編號的活動，請選擇處理方式：</p>
+            </div>
+            <div className="px-6 py-4 space-y-2">
+              <ul className="text-sm text-gray-700 space-y-1 max-h-64 overflow-y-auto">
+                {pendingImport.dupes.map(d => (
+                  <li key={d.l3Number} className="flex items-center gap-2">
+                    <span className="font-mono text-blue-700">{d.l3Number}</span>
+                    <span className="text-gray-500">已有 {d.count} 個 → 將匯入 1 個新的</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-gray-500 pt-2">
+                <strong>都保留</strong>：新舊活動並存（跟目前行為一樣）<br />
+                <strong>覆蓋</strong>：刪除上述編號的 {pendingImport.dupes.reduce((s, d) => s + d.count, 0)} 個舊活動，只保留本次匯入
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 flex-wrap">
+              <button
+                onClick={() => handleDuplicateResolve('cancel')}
+                className="px-4 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                取消匯入
+              </button>
+              <button
+                onClick={() => handleDuplicateResolve('keep')}
+                className="px-4 py-2 rounded-lg text-sm text-white transition-colors"
+                style={{ background: '#3470B5' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#5B8AC9'}
+                onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}>
+                都保留
+              </button>
+              <button
+                onClick={() => handleDuplicateResolve('overwrite')}
+                className="px-4 py-2 rounded-lg text-sm text-white font-semibold transition-colors"
+                style={{ background: '#DC2626' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#B91C1C'}
+                onMouseLeave={e => e.currentTarget.style.background = '#DC2626'}>
+                覆蓋（刪除 {pendingImport.dupes.reduce((s, d) => s + d.count, 0)} 個舊的）
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
