@@ -225,12 +225,18 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     patch({ tasks: liveFlow.tasks.filter(t => t.id !== id) });
   }
 
-  function handleSave() {
+    function handleSave() {
     onSave(liveFlow);
     setHasChanges(false);
     setLogoReaction('wave');
   }
 
+  function handleTogglePin() {
+    const next = { ...liveFlow, pinned: !liveFlow.pinned };
+    setLiveFlow(next);
+    onSave(next);
+  }
+  
   function handleTableSave(updatedFlow) {
     setLiveFlow(updatedFlow);
     onSave(updatedFlow);
@@ -267,6 +273,17 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           {hasChanges && (
             <span className="text-xs text-yellow-300 font-medium hidden sm:inline">● 未儲存</span>
           )}
+          <button
+            onClick={handleTogglePin}
+            title={liveFlow.pinned ? '取消置頂' : '置頂此工作流'}
+            className="p-1.5 rounded transition-transform hover:scale-110">
+            <svg width="20" height="20" viewBox="0 0 24 24"
+              fill={liveFlow.pinned ? '#FBBF24' : 'none'}
+              stroke={liveFlow.pinned ? '#FBBF24' : 'white'} strokeWidth="2"
+              strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          </button>
           <button
             onClick={handleSave}
             className="px-4 py-1.5 text-sm rounded font-medium transition-colors"
