@@ -11,6 +11,19 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-23',
+    title: '閘道 backward 條件在 sibling 搶走 top 時改共用 top + 收緊 corridor guard',
+    items: [
+      '**情境**：使用者：「從排他閘道其中一個條件「駁回」出發的線條，現在是走上方，會遇到後發生的線條……先發生的先決定位置，所以要改 5-7-2-4 的連線方式」（5-3-3 未核准 loop-back 被擠到 bottom，繞到底部被任務擋住）',
+      '**根因 1**：Phase 3 sibling fallback 的 Pass 2 缺失。當 forward 條件（核准 top/left）先搶走 top exit，backward 條件（未核准）找不到乾淨選項就退回 `priorities[0]`（bottom），但 bottom 有 `dr<-1` 的長垂直問題，最後 `bottom/right` 繞到下方被任務擋住',
+      '**修正 1**：加入 Pass 2 sibling-sharing priority walk — 若 Pass 1 找不到乾淨 exit，照 priority list 再走一次，這次允許共用 sibling 已佔用的 port（但仍擋 port-mix、橫向 obstacle、長垂直 corridor）',
+      '驗證 5-3-3：未核准從 `bottom/right` 改成 `top/top`，兩條條件共用 GW 的 top exit（5-7-2-4 也是一樣原理，兩條 IN 共用目標 TOP）',
+      '**根因 2**：`corridorBlockedByFuturePhase3dVertical` 太嚴格 — 只要內側欄位的任務有 cross-row forward next 就當成 corridor 被擋，但 Phase 3d 可能走 Option A（垂直在 tc，不會切 corridor）或預設（垂直在 midX）',
+      '**修正 2**：真實模擬 Phase 3d 的觸發條件 — 先檢查 `defaultBad`（Phase 3d 會不會觸發），再檢查 `optionABlocked`（是否會 fall through 到 Option B），兩者都為 true 才判定 corridor 被切',
+      '驗證 5-2-6：駁回仍正確走 `bottom/bottom`（intermediate task 5-2-6-4 default 被 5-2-6-5 擋 + option A 也被 5-2-6-5 擋 → Option B 成立 → guard 正確觸發）',
+    ],
+  },
+  {
+    date: '2026-04-23',
     title: 'Excel 匯入遇重複 L3 編號時新增「覆蓋」選項',
     items: [
       '**情境**：使用者：「我希望跳出提醒後可以讓使用者選擇要都保留還是要用新的覆蓋 N 個舊的（如果有多於一個舊的重複編號，要提醒有多少個）」',
