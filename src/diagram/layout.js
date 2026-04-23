@@ -421,11 +421,20 @@ export function computeLayout(flow) {
     return arr.some(([a, b]) => col > a && col < b);
   }
   // A future Phase 3d edge (same-row non-gateway task with a cross-lane
-  // forward next) will exit that task's TOP or BOTTOM, drawing a vertical
-  // at the task's own column. If that column sits strictly INSIDE a
-  // proposed top-corridor span on the same row, the corridor's horizontal
-  // segment would get cut by the later vertical. Treat this as a corridor
-  // conflict so the current gateway condition falls back to another exit.
+  // forward next) may exit that task's TOP or BOTTOM, drawing a vertical at
+  // the task's own column. That vertical only lands at `col` if Phase 3d
+  // chooses **Option B** (exit source from top/bottom). Option A exits
+  // source's RIGHT with the vertical at `tc` instead, which does not cut
+  // our corridor.
+  //
+  // So: only treat this as a corridor conflict if Phase 3d will actually
+  // trigger AND fall through Option A to Option B. Mirror Phase 3d's own
+  // checks:
+  //   1. `defaultBad`: default right→left midX path has intermediate
+  //      task overlap — Phase 3d triggers.
+  //   2. `optionABlocked`: Option A horizontal-at-source-row or
+  //      vertical-at-tc has overlap — Phase 3d falls to Option B.
+  // Only when both are true does the future vertical land at `col`.
   function corridorBlockedByFuturePhase3dVertical(row, minCol, maxCol) {
     for (let col = minCol + 1; col < maxCol; col++) {
       const intId = taskAt(row, col);
@@ -438,12 +447,34 @@ export function computeLayout(flow) {
       for (const nid of nextIds) {
         const tr = taskRowOf[nid], tc = taskColOf[nid];
         if (tr === undefined || tc === undefined) continue;
-        // Cross-row forward → Phase 3d will exit this task's TOP/BOTTOM,
-        // drawing a vertical at col. We only care about verticals that
-        // actually cross our corridor row (fr → tr span includes row).
-        if (tr === row) continue;
-        if (tc <= col) continue;
-        return true;
+        if (tr === row) continue;   // not cross-row
+        if (tc <= col) continue;    // not forward
+
+        const rLo = Math.min(row, tr), rHi = Math.max(row, tr);
+
+        // Step 1 — does Phase 3d's default overlap check fire?
+        let defaultBad = false;
+        for (let c = col + 1; c < tc && !defaultBad; c++) {
+          if (taskAt(row, c) || taskAt(tr, c)) defaultBad = true;
+        }
+        for (let r = rLo + 1; r < rHi && !defaultBad; r++) {
+          for (let c = col + 1; c < tc && !defaultBad; c++) {
+            if (taskAt(r, c)) defaultBad = true;
+          }
+        }
+        if (!defaultBad) continue;  // Phase 3d won't override → no Option B vertical
+
+        // Step 2 — will Phase 3d's Option A also be blocked?
+        let optionABlocked = false;
+        for (let c = col + 1; c < tc && !optionABlocked; c++) {
+          if (taskAt(row, c)) optionABlocked = true;
+        }
+        for (let r = rLo + 1; r < rHi && !optionABlocked; r++) {
+          if (taskAt(r, tc)) optionABlocked = true;
+        }
+        if (!optionABlocked) continue;  // Option A will win → vertical at tc, not col
+
+        return true;  // Option B will win → vertical at col cuts our corridor
       }
     }
     return false;
@@ -506,7 +537,6 @@ export function computeLayout(flow) {
   allGatewayConds.sort((a, b) =>
     (Math.abs(a.dr) + Math.abs(a.dc)) - (Math.abs(b.dr) + Math.abs(b.dc))
   );
-
 
   // Compute incoming ports per gateway so the outgoing-port selection below
   // can avoid colliding with a port that already has an arrow landing on it.
@@ -583,10 +613,28 @@ export function computeLayout(flow) {
       accepted = { exit: p, entry: testEntry, range };
       break;
     }
-    // Sibling-sharing fallback: if no priority exit is clean, pick the
-    // primary priority (the one the earliest-processed sibling took) and
-    // land on target's LEFT edge (forward) / RIGHT edge (backward), so the
-    // two arrows share a source-side segment and diverge at the targets.
+      // Pass 2 — sibling-sharing with a priority-walk: if no clean exit
+    // was found, allow sharing a port that's already taken by an
+    // earlier-processed sibling of the same gateway. Walk the priority
+    // list again in order so we land on the most visually natural
+    // shared port (e.g. a backward condition whose `top` is held by a
+    // forward sibling shares top and enters target's TOP, rather than
+    // falling to an awkward bottom detour). Still reject port-mix with
+    // incoming, horizontal obstacles, and long cross-row verticals.
+    if (!accepted) {
+      for (const p of c.priorities) {
+        if (!used.has(p)) continue;
+        if (incoming.has(p)) continue;
+        if ((p === 'right' || p === 'left') && horizontalPathHasObstacle(c.fr, c.fc, c.tr, c.tc)) continue;
+        if (p === 'top'    && c.dr > 1)  continue;
+        if (p === 'bottom' && c.dr < -1) continue;
+        const testEntry = inferEntrySide(p, c.dr, c.dc);
+        accepted = { exit: p, entry: testEntry, range: null };
+        break;
+      }
+    }
+    // Pass 3 — legacy fallback: share primary priority with target LEFT/RIGHT
+    // edge entry so two arrows diverge at the targets.
     if (!accepted) {
       const pref = c.priorities[0];
       if (!incoming.has(pref)) {

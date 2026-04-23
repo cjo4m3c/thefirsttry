@@ -139,7 +139,8 @@ items: ['...', '...'],
 - **改 routing 必做 trace 驗證**：寫個 `/tmp/trace-*.mjs` 小腳本 mock flow 呼叫 `computeLayout`，印出所有 `connections` 的 `exitSide / entrySide`。**千萬別假設「build 過 = 邏輯對」**。歷史教訓：Phase 3d 混用判斷方向寫反、corridor 降級忘了檢查混用，兩次都是沒 trace 就報「完成」造成來回。
 - **端點混用檢查方向要對**：新增 OUT 時檢查 `hasIn`（source 同 port 是否已有 IN）；新增 IN 時檢查 `hasOut`（target 同 port 是否已有 OUT）。**同方向多條並不算混用**。
 - **Corridor 降級也要再檢查一次混用**：top 不行退到 bottom 前要檢查 bottom 是否也會混用；top / bottom 都會混用時，優先 top（視覺交叉屬規則 2、端點混用屬規則 1）。
-- **Sibling 共用 > 穿過任務 > 長垂直 corridor**：當 sibling 已佔用第一優先 exit，後續 sibling 優先用「橫向 L-path 不穿過任務」(`horizontalPathHasObstacle`) + 「top/bottom 垂直跨距 ≤1 列」檢查；都不成立就退回共用第一優先 exit + `entry=left`（forward）/ `right`（backward）。兩條線在閘道端共用一段、再各自彎向 target，比穿過任務矩形更可接受。
+- **Sibling 共用 > 穿過任務 > 長垂直 corridor**：當 sibling 已佔用第一優先 exit，後續 sibling 優先用「橫向 L-path 不穿過任務」(`horizontalPathHasObstacle`) + 「top/bottom 垂直跨距 ≤1 列」檢查；都不成立走 Pass 2 sibling-sharing priority walk（照 priority list 再走一次、允許共用 sibling 已佔用的 port、仍擋 port-mix / 橫向 obstacle / 長垂直）；Pass 2 也不成立才退回 Pass 3 legacy fallback（`priorities[0]` + `entry=left`/`right`/`top`/`bottom`）。
+- **Phase 3 corridor guard 要真實模擬 Phase 3d**：`corridorBlockedByFuturePhase3dVertical` 不能只看「內側有任務的 cross-row forward next」就擋，因為 Phase 3d 可能走預設（垂直在 midX）或 Option A（垂直在 tc），都不切 corridor。必須同時滿足 `defaultBad`（Phase 3d 會觸發）+ `optionABlocked`（fall through 到 Option B）才判定 corridor 被切。
 - **Corridor 要考慮「未來垂直」會不會切斷橫向段**：top corridor 內側欄位若有任務在 Phase 3d 會用 TOP/BOTTOM 垂直出發，這個 corridor 的橫向段會被切。用 `corridorBlockedByFuturePhase3dVertical` 在 Phase 3 acceptance loop 裡先擋。
 - **兩條 IN 共用同一端點 OK**：「端點不能同時有進有出」只禁止 IN + OUT 混用；IN + IN 是允許的（2026-04-23 回退 `expectedBackwardTopEntry` pre-scan 的原因）。Phase 3 選 entry 時不必刻意閃 backward edge 的同 port。
 - **Excel I/O 向後相容**：匯出只產新格式；匯入用放寬的 regex 同時吃新舊格式（例如迴圈返回同時吃「迴圈返回，序列流向 X」、「迴圈返回至 X」、「迴圈返回 X」）。
