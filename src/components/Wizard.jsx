@@ -177,7 +177,12 @@ function validate(step, data) {
 }
 
 // ── Main Wizard ──────────────────────────────────────────────────
-const STEPS = ['L3 基本資訊', '泳道角色'];
+// 3 steps are shown in the indicator; steps 0–1 are editable inside
+// Wizard, step 2 is a visual placeholder pointing at FlowEditor (the
+// next screen after "進入編輯流程") so users know editing continues
+// beyond the wizard.
+const STEPS = ['L3 基本資訊', '泳道角色', '流程編輯'];
+const LAST_WIZARD_STEP = 1;
 
 export default function Wizard({ flow, onSave, onCancel }) {
   const [step, setStep]     = useState(0);
@@ -243,7 +248,7 @@ export default function Wizard({ flow, onSave, onCancel }) {
             className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-colors">
             {step === 0 ? '取消' : '← 上一步'}
           </button>
-          {step < STEPS.length - 1 ? (
+          {step < LAST_WIZARD_STEP ? (
             <button onClick={handleNext}
               className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
               style={{ background: '#3470B5' }}
