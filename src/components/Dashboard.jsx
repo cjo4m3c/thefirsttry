@@ -369,7 +369,7 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
                   {(flow.roles ?? []).map(r => (
                     <span key={r.id}
                       className="px-2 py-0.5 rounded-full text-xs text-white"
-                      style={{ background: r.type === 'external' ? '#5B8AC9' : '#2A5598' }}>
+                      style={{ background: r.type === 'external' ? '#4CAF50' : '#2A5598' }}>
                       {r.name}
                     </span>
                   ))}

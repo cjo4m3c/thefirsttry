@@ -11,6 +11,16 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-22',
+    title: '流程圖色彩調整：標題列黑色、外部泳道綠色、內部泳道深藍',
+    items: [
+      '**`TITLE_BG` 從 `#2A5598`（深藍）改成 `#111827`（黑）**，白字標題清楚對比',
+      '**`EXTERNAL_BG` 從 `#5B8AC9`（淡藍）改回 `#4CAF50`（綠色）**，內部角色維持 `#2A5598`（深藍）；兩者色相對比明顯，使用者一眼分辨內外',
+      '同步更新：`src/diagram/constants.js`、Wizard / FlowEditor / Dashboard 的角色下拉選單與徽章顏色、`.claude/skills/ui-rules.md` 色彩標準表',
+      '**網頁介面 + PNG 匯出 + drawio 匯出** 三個管道共用 `COLORS.TITLE_BG` / `INTERNAL_BG` / `EXTERNAL_BG`，單一來源變動同步生效',
+    ],
+  },
+  {
+    date: '2026-04-22',
     title: '閘道多條件端點分散 + corridor 優先端點不混用 + 同 target 巢狀 slot + 泳道色塊補滿',
     items: [
       '**閘道 4 個以上條件的 fan-out 重疊**（使用者：「指向 5-1-2-7 和 5-1-2-10 的連線幾乎完全重疊」）：原因是 `getExitPriority` 對多數方向只回傳 3 個優先端點（top/right/bottom），第 4 條件 fallback 回第一個（重複佔用 top），從閘道發出的兩條線疊在同一個 port',

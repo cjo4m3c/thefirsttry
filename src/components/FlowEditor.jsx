@@ -350,7 +350,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
                     <select value={role.type}
                       onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, type: e.target.value } : r) })}
                       className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
-                      style={{ background: role.type === 'external' ? '#5B8AC9' : '#2A5598', color: 'white' }}>
+                      style={{ background: role.type === 'external' ? '#4CAF50' : '#2A5598', color: 'white' }}>
                       <option value="internal">內部角色</option>
                       <option value="external">外部角色</option>
                     </select>
