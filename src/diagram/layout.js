@@ -566,7 +566,6 @@ export function computeLayout(flow) {
       // loop-back top→top both landing on target's TOP center) is allowed
       // per the user rule "端點不能同時有進有出" — IN + IN is fine. No
       // special override needed here.
-      }
       const range = topCorridorRange(p, testEntry, c.fr, c.fc, c.tr, c.tc);
       if (range && hasTopConflict(range.row, range.minCol, range.maxCol)) continue;
       if (range && corridorBlockedByFuturePhase3dVertical(range.row, range.minCol, range.maxCol)) continue;
