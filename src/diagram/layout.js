@@ -364,6 +364,15 @@ export function computeLayout(flow) {
     });
   });
 
+  // Task-at-cell lookup is used by both Phase 3 (corridor guard against
+  // future Phase 3d verticals) and Phase 3d itself. Build it once here.
+  const cellTaskId = {};
+  tasks.forEach(t => {
+    const r = taskRowOf[t.id], c = taskColOf[t.id];
+    if (r !== undefined && c !== undefined) cellTaskId[`${r}::${c}`] = t.id;
+  });
+  const taskAt = (r, c) => cellTaskId[`${r}::${c}`];
+
   // ── 4c. Phase 3: corridor conflict detection across gateways ─────
   //
   // Phase 1+2 only consider sibling conflicts within a single gateway.
@@ -411,6 +420,55 @@ export function computeLayout(flow) {
     const arr = topCorridorByRow.get(row) || [];
     return arr.some(([a, b]) => col > a && col < b);
   }
+  // A future Phase 3d edge (same-row non-gateway task with a cross-lane
+  // forward next) will exit that task's TOP or BOTTOM, drawing a vertical
+  // at the task's own column. If that column sits strictly INSIDE a
+  // proposed top-corridor span on the same row, the corridor's horizontal
+  // segment would get cut by the later vertical. Treat this as a corridor
+  // conflict so the current gateway condition falls back to another exit.
+  function corridorBlockedByFuturePhase3dVertical(row, minCol, maxCol) {
+    for (let col = minCol + 1; col < maxCol; col++) {
+      const intId = taskAt(row, col);
+      if (!intId) continue;
+      const intTask = tasks.find(t => t.id === intId);
+      if (!intTask || intTask.type === 'gateway' || intTask.type === 'start' || intTask.type === 'end') continue;
+      const nextIds = intTask.nextTaskIds?.length
+        ? intTask.nextTaskIds
+        : (intTask.nextTaskId ? [intTask.nextTaskId] : []);
+      for (const nid of nextIds) {
+        const tr = taskRowOf[nid], tc = taskColOf[nid];
+        if (tr === undefined || tc === undefined) continue;
+        // Cross-row forward → Phase 3d will exit this task's TOP/BOTTOM,
+        // drawing a vertical at col. We only care about verticals that
+        // actually cross our corridor row (fr → tr span includes row).
+        if (tr === row) continue;
+        if (tc <= col) continue;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Does the default 1-bend path for a horizontal exit (right/left) cross
+  // through any task rectangle strictly between source and target?
+  // Used by Phase 3 to reject a fallback exit-side that would draw through
+  // another task — when that happens we prefer sharing the primary exit
+  // with a sibling (two arrows merge near the gateway) over cutting
+  // through a task box, per user rule priority
+  // "端點不混用 > 視覺不穿過任務 > sibling 不共用".
+  function horizontalPathHasObstacle(fr, fc, tr, tc) {
+    const rLo = Math.min(fr, tr), rHi = Math.max(fr, tr);
+    const cLo = Math.min(fc, tc), cHi = Math.max(fc, tc);
+    for (let r = rLo; r <= rHi; r++) {
+      for (let cc = cLo + 1; cc < cHi; cc++) {
+        if (r === fr && cc === fc) continue;
+        if (r === tr && cc === tc) continue;
+        if (taskAt(r, cc)) return true;
+      }
+    }
+    return false;
+  }
+
   function topCorridorRange(exitSide, entrySide, fr, fc, tr, tc) {
     if (exitSide !== 'top') return null;
     // top→top (dr=0 same row, or corridor detour when target crosses back)
@@ -448,6 +506,28 @@ export function computeLayout(flow) {
   allGatewayConds.sort((a, b) =>
     (Math.abs(a.dr) + Math.abs(a.dc)) - (Math.abs(b.dr) + Math.abs(b.dc))
   );
+
+  // Pre-scan non-gateway backward edges so Phase 3 below knows which targets
+  // will receive a top→top back-edge in Phase 3b. Without this, a gateway
+  // forward-skip condition choosing top→top to the same target would land
+  // on the target's TOP center x right where the back-edge also lands — two
+  // arrows converging on one point from opposite horizontal directions
+  // (visually reads as a port-mix even though both are INs). Phase 3's
+  // acceptance loop uses this set to shift such a condition's entry from
+  // `top` → `left`, keeping the same corridor but landing on the target's
+  // LEFT edge (a distinct x) so the two arrows stay visually separated.
+  const expectedBackwardTopEntry = new Set();
+  tasks.forEach(task => {
+    if (task.type === 'end' || task.type === 'gateway' || task.type === 'start') return;
+    const nextIds = task.nextTaskIds?.length ? task.nextTaskIds : (task.nextTaskId ? [task.nextTaskId] : []);
+    const fr = taskRowOf[task.id], fc = taskColOf[task.id];
+    nextIds.forEach(toId => {
+      if (!toId || taskRowOf[toId] === undefined) return;
+      const tr = taskRowOf[toId], tc = taskColOf[toId];
+      const isBackward = (tc < fc) || (tc === fc && tr < fr);
+      if (isBackward) expectedBackwardTopEntry.add(toId);
+    });
+  });
 
   // Compute incoming ports per gateway so the outgoing-port selection below
   // can avoid colliding with a port that already has an arrow landing on it.
@@ -502,11 +582,45 @@ export function computeLayout(flow) {
     for (const p of c.priorities) {
       if (used.has(p)) continue;
       if (incoming.has(p)) continue;
-      const testEntry = inferEntrySide(p, c.dr, c.dc);
+      let testEntry = inferEntrySide(p, c.dr, c.dc);
+      // If this forward condition would land on target's TOP at center x,
+      // but the target will also receive a backward-edge top→top in Phase 3b
+      // (which lands on the same center x), shift THIS entry to `left` so
+      // the two arrows land at distinct x (gateway on target's LEFT edge,
+      // back-edge on target's TOP center).
+      if (
+        p === 'top' && testEntry === 'top' &&
+        c.dc > 0 && expectedBackwardTopEntry.has(c.toId)
+      ) {
+        testEntry = 'left';
+      }
       const range = topCorridorRange(p, testEntry, c.fr, c.fc, c.tr, c.tc);
       if (range && hasTopConflict(range.row, range.minCol, range.maxCol)) continue;
+      if (range && corridorBlockedByFuturePhase3dVertical(range.row, range.minCol, range.maxCol)) continue;
+      // Horizontal exit (right/left) draws a 1-bend L-path whose vertical
+      // leg can pass through an intermediate task. Reject so the fallback
+      // below can share the primary exit with a sibling (visual line
+      // overlap near the gateway is preferred over cutting a task box).
+      if ((p === 'right' || p === 'left') && horizontalPathHasObstacle(c.fr, c.fc, c.tr, c.tc)) continue;
+      // Vertical exit (top/bottom) going OPPOSITE the target's row span
+      // needs a corridor detour whose drop/rise crosses more than one lane
+      // boundary when |dr| > 1. Prefer sharing the primary exit with a
+      // sibling over drawing such a long cross-row vertical.
+      if (p === 'top'    && c.dr > 1)  continue;
+      if (p === 'bottom' && c.dr < -1) continue;
       accepted = { exit: p, entry: testEntry, range };
       break;
+    }
+    // Sibling-sharing fallback: if no priority exit is clean, pick the
+    // primary priority (the one the earliest-processed sibling took) and
+    // land on target's LEFT edge (forward) / RIGHT edge (backward), so the
+    // two arrows share a source-side segment and diverge at the targets.
+    if (!accepted) {
+      const pref = c.priorities[0];
+      if (!incoming.has(pref)) {
+        const fbEntry = c.dc > 0 ? 'left' : c.dc < 0 ? 'right' : (c.dr > 0 ? 'top' : 'bottom');
+        accepted = { exit: pref, entry: fbEntry, range: null };
+      }
     }
     if (!accepted) {
       accepted = { exit: r0.exitSide, entry: r0.entrySide, range: null };
@@ -638,12 +752,6 @@ export function computeLayout(flow) {
   // User preference: "有跟任何任務重疊時，都可以優先考慮改變起始端點或結束端點".
   // Try A first (target-side), then B (source-side), else keep default.
   const taskCrossLaneRouting = new Map();
-  const cellTaskId = {};
-  tasks.forEach(t => {
-    const r = taskRowOf[t.id], c = taskColOf[t.id];
-    if (r !== undefined && c !== undefined) cellTaskId[`${r}::${c}`] = t.id;
-  });
-  const taskAt = (r, c) => cellTaskId[`${r}::${c}`];
 
   tasks.forEach(task => {
     if (task.type === 'end' || task.type === 'start' || task.type === 'gateway') return;

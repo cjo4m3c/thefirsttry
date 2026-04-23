@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import HelpPanel from './HelpPanel.jsx';
 import ChangelogPanel from './ChangelogPanel.jsx';
 import DiagramRenderer from './DiagramRenderer.jsx';
+import BackToTop from './BackToTop.jsx';
 import { parseExcelToFlow } from '../utils/excelImport.js';
 import { exportDrawio } from '../utils/drawioExport.js';
 import { exportFlowToExcel } from '../utils/excelExport.js';
@@ -11,7 +12,18 @@ const SORT_OPTIONS = [
   { value: 'number-desc', label: 'L3 編號 ↓' },
   { value: 'updated-desc', label: '更新日期（最新）' },
   { value: 'updated-asc',  label: '更新日期（最舊）' },
+  { value: 'roles-desc',   label: '角色數（多 → 少）' },
+  { value: 'roles-asc',    label: '角色數（少 → 多）' },
+  { value: 'tasks-desc',   label: '任務數（多 → 少）' },
+  { value: 'tasks-asc',    label: '任務數（少 → 多）' },
 ];
+
+function roleCount(flow) {
+  return Array.isArray(flow?.roles) ? flow.roles.length : 0;
+}
+function taskCount(flow) {
+  return Array.isArray(flow?.tasks) ? flow.tasks.length : 0;
+}
 
 function sortFlows(flows, sortKey) {
   const arr = [...flows];
@@ -27,6 +39,22 @@ function sortFlows(flows, sortKey) {
       break;
     case 'updated-asc':
       arr.sort((a, b) => (a.updatedAt ?? a.createdAt ?? '').localeCompare(b.updatedAt ?? b.createdAt ?? ''));
+      break;
+    case 'roles-desc':
+      arr.sort((a, b) => (roleCount(b) - roleCount(a))
+        || String(a.l3Number ?? '').localeCompare(String(b.l3Number ?? ''), 'zh-TW', { numeric: true }));
+      break;
+    case 'roles-asc':
+      arr.sort((a, b) => (roleCount(a) - roleCount(b))
+        || String(a.l3Number ?? '').localeCompare(String(b.l3Number ?? ''), 'zh-TW', { numeric: true }));
+      break;
+    case 'tasks-desc':
+      arr.sort((a, b) => (taskCount(b) - taskCount(a))
+        || String(a.l3Number ?? '').localeCompare(String(b.l3Number ?? ''), 'zh-TW', { numeric: true }));
+      break;
+    case 'tasks-asc':
+      arr.sort((a, b) => (taskCount(a) - taskCount(b))
+        || String(a.l3Number ?? '').localeCompare(String(b.l3Number ?? ''), 'zh-TW', { numeric: true }));
       break;
     default:
       break;
@@ -74,10 +102,14 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
     const { png, drawio, excel } = bulkFormats;
     if (!png && !drawio && !excel) return;
 
-    // drawio + excel: synchronous with staggered timers to avoid browser dedup
-    selected.forEach((flow, i) => {
-      if (drawio) setTimeout(() => exportDrawio(flow),       i * 220);
-      if (excel)  setTimeout(() => exportFlowToExcel(flow),  i * 220 + 110);
+    // Chrome silently drops downloads when too many fire inside a short
+    // window. Serialize drawio + excel one flow at a time with a generous
+    // gap so even 30+ selections reliably download every file.
+    const STEP_MS = 450;
+    let slot = 0;
+    selected.forEach(flow => {
+      if (drawio) { setTimeout(() => exportDrawio(flow),       slot * STEP_MS); slot++; }
+      if (excel)  { setTimeout(() => exportFlowToExcel(flow),  slot * STEP_MS); slot++; }
     });
 
     // PNG: queue async rendering (one at a time via hidden renderer)
@@ -437,6 +469,8 @@ export default function Dashboard({ flows, onNew, onEdit, onView, onDelete, onIm
           />
         </div>
       )}
+
+      <BackToTop />
     </div>
   );
 }

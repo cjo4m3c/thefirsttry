@@ -85,11 +85,12 @@ FlowSprite/
     │   ├── FlowTable.jsx          # L4 任務明細表
     │   ├── DiagramRenderer.jsx    # SVG 泳道圖 + PNG/drawio 按鈕
     │   ├── ConnectionSection.jsx  # 任務卡的連線設定 UI
+    │   ├── BackToTop.jsx          # 右下角浮動回到頂端按鈕
     │   ├── HelpPanel.jsx          # 規則說明 Modal
     │   └── ChangelogPanel.jsx     # 版本更新紀錄 Modal（每次功能後加一筆）
     ├── diagram/
     │   ├── constants.js           # LAYOUT 尺寸 + COLORS 主題色
-    │   └── layout.js              # 核心：DAG 欄位分配 + smart routing + corridor slot 系統（~800 行，複雜度最高）
+    │   └── layout.js              # 核心：DAG 欄位分配 + smart routing + corridor slot 系統（~1000 行，複雜度最高）
     └── utils/
         ├── taskDefs.js            # 編號 regex、connectionType 常數、makeTask 等工廠函式
         ├── storage.js             # localStorage 讀寫 + 載入時遷移（點→橫線、閘道補 _g）
@@ -205,7 +206,7 @@ FlowSprite/
 
 - **無後端**：資料無法跨裝置、無版本歷史（只有使用者自己下載 Excel 當備份）
 - **瀏覽器限制**：Excel/PNG 匯出受 `html-to-image` + browser memory 限制，非常大的流程圖可能產出失敗
-- **`layout.js` 龐大**：連線路由有多個 phase（Phase 1 sibling 分配 → Phase 2 target entry 分配 → Phase 3 跨閘道衝突 → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 → 上下 corridor slot 分配），改動容易牽一髮動全身；改前先讀 PR #16~#40 的 description 建立脈絡
+- **`layout.js` 龐大**：連線路由有多個 phase（Phase 1 sibling 分配 → Phase 2 target entry 分配 → Phase 2b 預掃描 backward edge 目標 → Phase 3 跨閘道衝突 + sibling-sharing fallback → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 → 上下 corridor slot 分配），改動容易牽一髮動全身；改前先讀 PR #16~#40 的 description 建立脈絡
 - **中文 regex 敏感**：`excelImport.js` 用中文關鍵字（`條件分支至` 等），對全形/半形、多餘空白、標點符號變體敏感
 - **無自動化測試**：驗證靠 `npm run build` + 手動瀏覽器測試 + `node trace.mjs` 臨時腳本
 

@@ -65,11 +65,10 @@
 - 條目格式：
   ```js
   {
-    date: 'YYYY-MM-DD',
-    title: '簡短標題',
-    items: ['...', '...'],
-  },
-  ```
+date: 'YYYY-MM-DD',
+title: '簡短標題',
+items: ['...', '...'],
+},
 - 每次功能更新後必須新增一筆
 
 ## 5. 編碼與語言
@@ -96,9 +95,9 @@
 
 1. **Changelog 條目**：`src/components/ChangelogPanel.jsx` 最前面新增今天日期的記錄（格式見規則 4）
 2. **CLAUDE.md 同步**：若本次變動涉及下列規則範圍，更新對應章節：
-   - 改動編號格式 / regex → 規則 3（同步調整 regex 常數）
-   - 新增/刪除檔案 → 規則 9（孤兒檔案清單）
-   - 更改工作流程 / push 方式 → 規則 1 / 2
+ - 改動編號格式 / regex → 規則 3（同步調整 regex 常數）
+ - 新增/刪除檔案 → 規則 9（孤兒檔案清單）
+ - 更改工作流程 / push 方式 → 規則 1 / 2
 3. **程式碼品質**：本次變動是否引入了新的孤兒檔案？package.json 是否有新的未使用 deps？若有，列入 TODO 或當次清理
 4. **git 狀態**：`git status` working tree clean、無未 push commit
 5. **PR 流程**：用 `mcp__github__create_pull_request` 建 PR → `mcp__github__merge_pull_request` 以 **squash** 合併
@@ -136,10 +135,13 @@
 
 ### 10.2 技術 / 工程慣例
 
-- **`src/diagram/layout.js` 是路由主腦**：phase-based（Phase 1 sibling → Phase 2 target entry → Phase 3 跨閘道衝突 → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 → 上下 corridor slot 分配）。每個 phase 只處理一種情境，改動前先認清影響範圍。新 phase 要 reuse `hasIn / hasOut / isColInsideTopRange / useIn / useOut / taskAt` 等共用 helper，不要重複實作。
+- **`src/diagram/layout.js` 是路由主腦**：phase-based（Phase 1 sibling → Phase 2 target entry → Phase 2b 預掃描 backward edge 預期進入 TOP 的目標 → Phase 3 跨閘道衝突 + sibling-sharing fallback → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 → 上下 corridor slot 分配）。每個 phase 只處理一種情境，改動前先認清影響範圍。新 phase 要 reuse `hasIn / hasOut / isColInsideTopRange / taskAt / horizontalPathHasObstacle / corridorBlockedByFuturePhase3dVertical / useIn / useOut` 等共用 helper，不要重複實作。
 - **改 routing 必做 trace 驗證**：寫個 `/tmp/trace-*.mjs` 小腳本 mock flow 呼叫 `computeLayout`，印出所有 `connections` 的 `exitSide / entrySide`。**千萬別假設「build 過 = 邏輯對」**。歷史教訓：Phase 3d 混用判斷方向寫反、corridor 降級忘了檢查混用，兩次都是沒 trace 就報「完成」造成來回。
 - **端點混用檢查方向要對**：新增 OUT 時檢查 `hasIn`（source 同 port 是否已有 IN）；新增 IN 時檢查 `hasOut`（target 同 port 是否已有 OUT）。**同方向多條並不算混用**。
 - **Corridor 降級也要再檢查一次混用**：top 不行退到 bottom 前要檢查 bottom 是否也會混用；top / bottom 都會混用時，優先 top（視覺交叉屬規則 2、端點混用屬規則 1）。
+- **Sibling 共用 > 穿過任務 > 長垂直 corridor**：當 sibling 已佔用第一優先 exit，後續 sibling 優先用「橫向 L-path 不穿過任務」(`horizontalPathHasObstacle`) + 「top/bottom 垂直跨距 ≤1 列」檢查；都不成立就退回共用第一優先 exit + `entry=left`（forward）/ `right`（backward）。兩條線在閘道端共用一段、再各自彎向 target，比穿過任務矩形更可接受。
+- **Corridor 要考慮「未來垂直」會不會切斷橫向段**：top corridor 內側欄位若有任務在 Phase 3d 會用 TOP/BOTTOM 垂直出發，這個 corridor 的橫向段會被切。用 `corridorBlockedByFuturePhase3dVertical` 在 Phase 3 acceptance loop 裡先擋。
+- **Backward edge 預掃描**：Phase 3 gateway 選 top corridor 時預先知道 target TOP 會被 Phase 3b 佔住（`expectedBackwardTopEntry`），若 forward 條件會落在同 target TOP 中心點，自動改 `entry=left`（同一 corridor、落點 x 錯開），避免兩條 IN 從左右會師像「一進一出」。
 - **Excel I/O 向後相容**：匯出只產新格式；匯入用放寬的 regex 同時吃新舊格式（例如迴圈返回同時吃「迴圈返回，序列流向 X」、「迴圈返回至 X」、「迴圈返回 X」）。
 - **CJK / Latin 混合文字**：任何 wrap / truncate 都要 token-aware（CJK 逐字、Latin 整字不切），權重用 CJK = 2 / Latin = 1，maxChars 解讀為 CJK 等效寬度。
 - **文件同步三件組**：程式邏輯改動 → `ChangelogPanel.jsx` 加條目 + `HelpPanel.jsx` 改規則表 + `HANDOVER.md` 改 phase 清單 / PR 範圍。三者漏一都算沒做完。

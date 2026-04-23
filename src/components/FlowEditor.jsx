@@ -11,6 +11,7 @@ import { useState, useMemo, useEffect } from 'react';
 import DiagramRenderer from './DiagramRenderer.jsx';
 import ConnectionSection from './ConnectionSection.jsx';
 import FlowTable from './FlowTable.jsx';
+import BackToTop from './BackToTop.jsx';
 import {
   CONNECTION_TYPES, SHAPE_TYPES, CONN_BADGE, CONN_ROW_BG,
   makeTask, makeRole,
@@ -370,6 +371,8 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           )}
         </div>
       </main>
+
+      <BackToTop />
     </div>
   );
 }
