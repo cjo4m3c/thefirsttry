@@ -11,6 +11,16 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-23',
+    title: '回退情境 3：允許兩條 IN 共用同一端點',
+    items: [
+      '**規則澄清**：使用者：「還是可以維持原規則，讓同一個端點同時有進入，所以以這個情境為例，從排他閘道『一般出貨』條件指向 5-7-2-4 的連線，還是可以跟從 5-7-2-7 任務來的連線，從 5-7-2-4 的上方端點進入」',
+      '「端點不能同時有進有出」的規則**只禁止 IN + OUT 混用**；**兩條 IN 共用同一端點是 OK 的**。情境 3 的 `expectedBackwardTopEntry` pre-scan 會把 gateway forward 條件的 entry 從 `top` 強制改成 `left`，反而讓兩條 IN 分岔；回退這個行為',
+      '**移除 `expectedBackwardTopEntry` 集合與 Phase 3 內的 `testEntry = \'left\'` 覆寫**，恢復 Phase 3 的 `inferEntrySide` 自然判斷',
+      '驗證 5-7-2：`5-7-2-1_g → 5-7-2-4` 回到 `top → top`，與 `5-7-2-7 → 5-7-2-4` 共用 TOP port；1-1-7 情境 1 sibling-sharing 無影響',
+    ],
+  },
+  {
+    date: '2026-04-23',
     title: '連線路由優化（sibling 共用 / corridor 降級 / backward 預掃描）+ 批量下載序列化 + 回到頂端按鈕',
     items: [
       '**情境 1（sibling 共用同一端點）**：使用者：「第二條件連線時會被 1-1-7-4 擋住，我希望這種情況下可以容許部分線段重疊，讓連線走閘道的下方端點出發，並連到 1-1-7-5 的左側端點」。Phase 3 在 sibling-sharing fallback 前會先拒絕「會穿過任務的 `right`/`left`」和「垂直跨距 >1 列的 `top`/`bottom`」，走投無路時就回退到「共用第一優先端點、entry=left（forward）」，兩條線在閘道端共用一段、再各自彎向 target',
