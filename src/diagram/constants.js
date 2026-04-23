@@ -12,7 +12,7 @@ export const LAYOUT = {
 };
 
 export const COLORS = {
-  TITLE_BG: '#2A5598',
+  TITLE_BG: '#111827',
   TITLE_TEXT: '#FFFFFF',
   EXTERNAL_BG: '#4CAF50',
   EXTERNAL_TEXT: '#FFFFFF',

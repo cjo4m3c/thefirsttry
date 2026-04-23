@@ -44,7 +44,7 @@ description: Apply FlowSprite's UI conventions (blue color palette, button patte
 泳道圖內部色（在 `src/diagram/constants.js` `COLORS`）：
 | 常數 | 值 | 用途 |
 |---|---|---|
-| `TITLE_BG` | `#2A5598` | 流程圖標題列 |
+| `TITLE_BG` | `#111827` | 流程圖標題列（黑色，白字清楚對比） |
 | `INTERNAL_BG` | `#2A5598` | 內部角色泳道頭 |
 | `EXTERNAL_BG` | `#4CAF50` | 外部角色泳道頭（綠色，跟內部角色的深藍對比） |
 | `LANE_ODD` | `#F0F6FB` | 奇數列淡藍底 |
