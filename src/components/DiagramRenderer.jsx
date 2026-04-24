@@ -250,7 +250,8 @@ function ArrowMarkers() {
   );
 }
 
-function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey, onHover }) {
+function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey,
+  onHover, isSelected, onSelect, editable }) {
   const from = positions[conn.fromId];
   const to = positions[conn.toId];
   if (!from || !to) return null;
@@ -263,13 +264,19 @@ function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey, 
     : [(pts[0][0] + pts[pts.length - 1][0]) / 2, (pts[0][1] + pts[pts.length - 1][1]) / 2];
 
   // Highlight priority:
-  //   (1) This connection itself is hovered → neutral HOVER_STROKE (both
+  //   (1) Selected (via click for drag) → HOVER_STROKE + thicker stroke;
+  //       handles are rendered separately by the parent.
+  //   (2) This connection itself is hovered → neutral HOVER_STROKE (both
   //       endpoint elements will also highlight via hoveredConnKey below).
-  //   (2) An endpoint element is hovered → direction-aware coloring.
+  //   (3) An endpoint element is hovered → direction-aware coloring.
   let strokeColor = COLORS.ARROW_COLOR;
   let strokeW = 1.4;
   let markerId = 'ah';
-  if (hoveredConnKey === connKey) {
+  if (isSelected) {
+    strokeColor = HOVER_STROKE;
+    strokeW = 2.8;
+    markerId = 'ah-hover';
+  } else if (hoveredConnKey === connKey) {
     strokeColor = HOVER_STROKE;
     strokeW = 2.5;
     markerId = 'ah-hover';
@@ -285,11 +292,12 @@ function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey, 
     }
   }
 
-  return (
+    return (
     <g onMouseEnter={() => onHover?.(connKey)}
        onMouseLeave={() => onHover?.(null)}
-       style={{ cursor: 'pointer' }}>
-      {/* invisible wider stroke for easier hover targeting */}
+       onClick={editable ? (e) => { e.stopPropagation(); onSelect?.(connKey); } : undefined}
+       style={{ cursor: editable ? 'pointer' : 'default' }}>
+      {/* invisible wider stroke for easier hover / click targeting */}
       <polyline points={pointsStr} fill="none" stroke="transparent" strokeWidth={10} />
       <polyline points={pointsStr} fill="none" stroke={strokeColor}
         strokeWidth={strokeW} markerEnd={`url(#${markerId})`} />
@@ -304,6 +312,22 @@ function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey, 
           </text>
         </>
       )}
+    </g>
+  );
+}
+
+// Handle circle drawn on a selected connection's endpoint. Drag with pointer
+// events; snap to the nearest side of the anchor task on release.
+function EndpointHandle({ cx, cy, onPointerDown, isDragging }) {
+  const r = isDragging ? 7 : 6;
+  return (
+    <g style={{ cursor: 'grab' }} onPointerDown={onPointerDown}>
+      {/* Transparent wider target for easier pickup */}
+      <circle cx={cx} cy={cy} r={14} fill="transparent" />
+      <circle cx={cx} cy={cy} r={r}
+        fill="#FFFFFF" stroke={HOVER_STROKE} strokeWidth={2.5} />
+      <circle cx={cx} cy={cy} r={r - 3}
+        fill={HOVER_STROKE} />
     </g>
   );
 }
@@ -395,10 +419,20 @@ function LegendIcon({ type }) {
   return null;
 }
 
-export default function DiagramRenderer({ flow, showExport = true, autoExportPng = false, onExportDone = null }) {
+export default function DiagramRenderer({ flow, showExport = true, autoExportPng = false,
+  onExportDone = null, onUpdateOverride = null, onChangeTarget = null }) {
   const exportRef = useRef(null);
+  const svgRef = useRef(null);
   const [hoveredId, setHoveredId] = useState(null);
   const [hoveredConnKey, setHoveredConnKey] = useState(null);
+  // Drag-endpoint state for connection override:
+  //   selectedConnKey  — which connection shows handles
+  //   dragInfo         — { connKey, endpoint: 'source'|'target', pointerId,
+  //                         proposedSide: 'top'|'right'|'bottom'|'left',
+  //                         dropTargetId: task id under cursor (PR J), cursor:[x,y] }
+  const [selectedConnKey, setSelectedConnKey] = useState(null);
+  const [dragInfo, setDragInfo] = useState(null);
+  const editable = !!(onUpdateOverride || onChangeTarget);
 
   useEffect(() => {
     if (!autoExportPng || !exportRef.current) return;
@@ -413,6 +447,18 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
       .finally(() => onExportDone?.());
   }, [autoExportPng]);
 
+  // Esc key cancels active drag / clears selection.
+  useEffect(() => {
+    if (!editable) return;
+    function onKey(e) {
+      if (e.key !== 'Escape') return;
+      if (dragInfo) setDragInfo(null);
+      else if (selectedConnKey) setSelectedConnKey(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editable, dragInfo, selectedConnKey]);
+
   if (!flow || !flow.roles?.length || !flow.tasks?.length) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400 text-sm border border-dashed border-gray-300 rounded-lg">
@@ -422,6 +468,122 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
   }
 
   const { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights } = computeLayout(flow);
+
+  // Convert a pointer event's screen coord to SVG user-space coord.
+  function screenToSvg(evt) {
+    const svg = svgRef.current;
+    if (!svg) return [0, 0];
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const ctm = svg.getScreenCTM()?.inverse();
+    if (!ctm) return [0, 0];
+    const p = pt.matrixTransform(ctm);
+    return [p.x, p.y];
+  }
+
+  // Given the anchor task's position and a cursor coord in SVG space, find
+  // which of the 4 side-ports (top/right/bottom/left) is closest.
+  function nearestSide(taskPos, sx, sy) {
+    const sides = ['top', 'right', 'bottom', 'left'];
+    let best = sides[0], bestD = Infinity;
+    for (const s of sides) {
+      const pp = taskPos[s];
+      if (!pp) continue;
+      const d = Math.hypot(pp.x - sx, pp.y - sy);
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    return best;
+  }
+
+  // Bounding-box hit-test: return id of task whose rect contains (sx, sy),
+  // or null. Used by PR J target-change drag to detect drop target. Bounding
+  // box approximation is fine for diamonds (small false positive at corners
+  // is acceptable; alternatives: 30 px circle around port).
+  function findTaskAtPoint(sx, sy) {
+    for (const t of flow.tasks) {
+      const pos = positions[t.id];
+      if (!pos) continue;
+      if (sx >= pos.left.x && sx <= pos.right.x
+       && sy >= pos.top.y  && sy <= pos.bottom.y) return t.id;
+    }
+    return null;
+  }
+
+  function startDrag(evt, connKey, endpoint) {
+    if (!editable) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    const target = evt.currentTarget;
+    const pointerId = evt.pointerId;
+    try { target.setPointerCapture?.(pointerId); } catch {}
+    const [sx, sy] = screenToSvg(evt);
+    setDragInfo({ connKey, endpoint, pointerId, cursor: [sx, sy], proposedSide: null });
+  }
+
+  function moveDrag(evt) {
+    if (!dragInfo) return;
+    evt.preventDefault();
+    const [sx, sy] = screenToSvg(evt);
+    const idx = parseInt(dragInfo.connKey.slice(1), 10);
+    const conn = connections[idx];
+    if (!conn) return;
+    const anchorId = dragInfo.endpoint === 'source' ? conn.fromId : conn.toId;
+    const pos = positions[anchorId];
+    if (!pos) return;
+    const proposedSide = nearestSide(pos, sx, sy);
+    // For target-handle drag, also detect drop-on-different-task (PR J) for
+    // change-target. Highlighted in render so user sees where the new
+    // connection will land. Reject self-loop (drop on source) and start
+    // events (no incoming allowed). Drop on the original target task is
+    // NOT a "change target" — that falls through to the port-snap branch.
+    let dropTargetId = null;
+    if (dragInfo.endpoint === 'target' && onChangeTarget) {
+      const hitId = findTaskAtPoint(sx, sy);
+      if (hitId && hitId !== conn.fromId && hitId !== conn.toId) {
+        const hitTask = flow.tasks.find(t => t.id === hitId);
+        if (hitTask && hitTask.type !== 'start') dropTargetId = hitId;
+      }
+    }
+    setDragInfo({ ...dragInfo, cursor: [sx, sy], proposedSide, dropTargetId });
+  }
+
+  function endDrag(evt) {
+    if (!dragInfo) return;
+    evt.preventDefault();
+    const idx = parseInt(dragInfo.connKey.slice(1), 10);
+    const conn = connections[idx];
+    if (!conn) { setDragInfo(null); return; }
+
+    // Priority 1 — PR J: target handle dropped on a different valid task →
+    // change the connection's target. Snap port = nearest side of new target
+    // to the drop coordinate.
+    if (dragInfo.dropTargetId && dragInfo.endpoint === 'target' && onChangeTarget) {
+      const newTargetId = dragInfo.dropTargetId;
+      const newPos = positions[newTargetId];
+      const [sx, sy] = dragInfo.cursor;
+      const snapSide = newPos ? nearestSide(newPos, sx, sy) : 'left';
+      onChangeTarget(conn.fromId, conn.overrideKey, newTargetId, snapSide);
+      setDragInfo(null);
+      return;
+    }
+
+    // Priority 2 — PR G: snap to nearest port of the original anchor task.
+    if (dragInfo.proposedSide && onUpdateOverride) {
+      const currentSide = dragInfo.endpoint === 'source' ? conn.exitSide : conn.entrySide;
+      if (dragInfo.proposedSide !== currentSide) {
+        const partial = dragInfo.endpoint === 'source'
+          ? { exitSide: dragInfo.proposedSide }
+          : { entrySide: dragInfo.proposedSide };
+        onUpdateOverride(conn.fromId, conn.overrideKey, partial);
+      }
+    }
+    setDragInfo(null);
+  }
+
+  const selectedConn = selectedConnKey
+    ? connections[parseInt(selectedConnKey.slice(1), 10)]
+    : null;
 
   async function handleExport() {
     if (!exportRef.current) return;
@@ -469,11 +631,32 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
             </button>
           </div>
         </div>
+        </div>
+      )}
+
+      {editable && (
+        <div className="text-xs text-gray-500 -mt-1 flex items-center gap-2 flex-wrap">
+          <span>點選連線可拖曳端點（🔵 圓點）：拖到原本任務的其他 port = 覆寫端點；拖到別的任務 = 換目標任務</span>
+          {selectedConnKey && (
+            <>
+              <span className="text-blue-600">● 已選取連線</span>
+              <button
+                onClick={() => setSelectedConnKey(null)}
+                className="px-2 py-0.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">
+                取消選取 (Esc)
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       <div className="overflow-auto border border-gray-300 rounded-lg bg-white w-full">
         <div ref={exportRef} style={{ display: 'inline-block', background: '#fff' }}>
-        <svg width={svgWidth} height={svgHeight} xmlns="http://www.w3.org/2000/svg">
+        <svg ref={svgRef} width={svgWidth} height={svgHeight} xmlns="http://www.w3.org/2000/svg"
+          onPointerMove={editable && dragInfo ? moveDrag : undefined}
+          onPointerUp={editable && dragInfo ? endDrag : undefined}
+          onPointerCancel={editable && dragInfo ? endDrag : undefined}
+          onClick={editable ? () => setSelectedConnKey(null) : undefined}>
           <ArrowMarkers />
 
           <rect x={0} y={0} width={svgWidth} height={svgHeight} fill="#FFFFFF" />
@@ -526,7 +709,10 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
           {connections.map((conn, i) => (
             <ConnectionArrow key={i} conn={conn} connKey={`c${i}`} positions={positions}
               hoveredId={hoveredId} hoveredConnKey={hoveredConnKey}
-              onHover={setHoveredConnKey} />
+              onHover={setHoveredConnKey}
+              isSelected={selectedConnKey === `c${i}`}
+              onSelect={setSelectedConnKey}
+              editable={editable} />
           ))}
 
           {(() => {
@@ -562,6 +748,71 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
               </g>
             );
           });
+          })()}
+
+          {/* PR J: drop-target highlight. While dragging the target handle,
+              if the cursor is over a valid different task, draw a green
+              dashed ring around it to signal "release here to change
+              target". */}
+          {editable && dragInfo?.dropTargetId && (() => {
+            const pos = positions[dragInfo.dropTargetId];
+            if (!pos) return null;
+            const w = pos.right.x - pos.left.x;
+            const h = pos.bottom.y - pos.top.y;
+            return (
+              <rect x={pos.left.x - 5} y={pos.top.y - 5}
+                width={w + 10} height={h + 10}
+                fill="none" stroke="#10B981" strokeWidth={3}
+                strokeDasharray="6 3" rx={6} pointerEvents="none" />
+            );
+          })()}
+
+          {/* Drag preview: a dashed line from the anchor task's proposed
+              side to the other endpoint, so the user sees how the path
+              will redraw before releasing. */}
+          {editable && dragInfo && dragInfo.proposedSide && (() => {
+            const idx = parseInt(dragInfo.connKey.slice(1), 10);
+            const conn = connections[idx];
+            if (!conn) return null;
+            const from = positions[conn.fromId];
+            const to = positions[conn.toId];
+            if (!from || !to) return null;
+            const previewExit  = dragInfo.endpoint === 'source' ? dragInfo.proposedSide : conn.exitSide;
+            const previewEntry = dragInfo.endpoint === 'target' ? dragInfo.proposedSide : conn.entrySide;
+            const previewPts = routeArrow(from, to, previewExit, previewEntry,
+              conn.laneBottomY, conn.laneTopCorridorY);
+            const str = previewPts.map(p => `${p[0]},${p[1]}`).join(' ');
+            return (
+              <polyline points={str} fill="none" stroke={HOVER_STROKE}
+                strokeWidth={2} strokeDasharray="5 4" opacity={0.8}
+                markerEnd="url(#ah-dashed)" />
+            );
+          })()}
+
+          {/* Handles for the selected connection's endpoints (render last
+              so they're on top of tasks and connection lines). */}
+          {editable && selectedConn && (() => {
+            const from = positions[selectedConn.fromId];
+            const to = positions[selectedConn.toId];
+            if (!from || !to) return null;
+            const srcPort = from[selectedConn.exitSide];
+            const tgtPort = to[selectedConn.entrySide];
+            const srcDragging = dragInfo?.endpoint === 'source';
+            const tgtDragging = dragInfo?.endpoint === 'target';
+            return (
+              <>
+                {srcPort && (
+                  <EndpointHandle cx={srcPort.x} cy={srcPort.y}
+                    onPointerDown={(e) => startDrag(e, selectedConnKey, 'source')}
+                    isDragging={srcDragging} />
+                )}
+                {tgtPort && (
+                  <EndpointHandle cx={tgtPort.x} cy={tgtPort.y}
+                    onPointerDown={(e) => startDrag(e, selectedConnKey, 'target')}
+                    isDragging={tgtDragging} />
+                )}
+              </>
+            );
           })()}
         </svg>
         </div>
