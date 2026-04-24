@@ -1,10 +1,13 @@
 import { useRef, useEffect, useState } from 'react';
 import { toPng } from 'html-to-image';
 import { computeLayout, routeArrow } from '../diagram/layout.js';
+import { detectOverrideViolations } from '../diagram/violations.js';
 import { LAYOUT, COLORS } from '../diagram/constants.js';
 import { exportDrawio } from '../utils/drawioExport.js';
 import { todayYmd } from '../utils/storage.js';
 
+// PR H: red stroke / marker for override-induced violations.
+const VIOLATION_STROKE = '#EF4444';  // Tailwind red-500
 const { LANE_HEADER_W, COL_W, LANE_H, TITLE_H, NODE_W, NODE_H, DIAMOND_SIZE, CIRCLE_R } = LAYOUT;
 
 const HOVER_STROKE = '#2563EB'; // Tailwind blue-600
@@ -246,11 +249,16 @@ function ArrowMarkers() {
       <marker id="ah-dashed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill={COLORS.ARROW_COLOR} />
       </marker>
+      <marker id="ah-violation" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill={VIOLATION_STROKE} />
+      </marker>
+    </defs>
     </defs>
   );
 }
 
 function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey,
+  onHover, isSelected, onSelect, editable, isViolation }) {
   onHover, isSelected, onSelect, editable }) {
   const from = positions[conn.fromId];
   const to = positions[conn.toId];
@@ -263,7 +271,9 @@ function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey,
     ? [(pts[1][0] + pts[2][0]) / 2, (pts[1][1] + pts[2][1]) / 2]
     : [(pts[0][0] + pts[pts.length - 1][0]) / 2, (pts[0][1] + pts[pts.length - 1][1]) / 2];
 
-  // Highlight priority:
+   // Highlight priority:
+  //   (0) Violation (PR H: override causes IN+OUT mix or line-crosses-task)
+  //       → red stroke + red marker; overrides selection / hover.
   //   (1) Selected (via click for drag) → HOVER_STROKE + thicker stroke;
   //       handles are rendered separately by the parent.
   //   (2) This connection itself is hovered → neutral HOVER_STROKE (both
@@ -272,11 +282,11 @@ function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey,
   let strokeColor = COLORS.ARROW_COLOR;
   let strokeW = 1.4;
   let markerId = 'ah';
-  if (isSelected) {
-    strokeColor = HOVER_STROKE;
-    strokeW = 2.8;
-    markerId = 'ah-hover';
-  } else if (hoveredConnKey === connKey) {
+  if (isViolation) {
+    strokeColor = VIOLATION_STROKE;
+    strokeW = 2.5;
+    markerId = 'ah-violation';
+  } else if (isSelected) {
     strokeColor = HOVER_STROKE;
     strokeW = 2.5;
     markerId = 'ah-hover';
@@ -420,7 +430,8 @@ function LegendIcon({ type }) {
 }
 
 export default function DiagramRenderer({ flow, showExport = true, autoExportPng = false,
-  onExportDone = null, onUpdateOverride = null, onChangeTarget = null }) {
+  onExportDone = null, onUpdateOverride = null, onChangeTarget = null,
+  onResetOverride = null }) {
   const exportRef = useRef(null);
   const svgRef = useRef(null);
   const [hoveredId, setHoveredId] = useState(null);
@@ -468,6 +479,33 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
   }
 
   const { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights } = computeLayout(flow);
+
+  // PR H: detect override-induced violations so we can stroke the offending
+  // connections red in real time. Two categories (see violations.js):
+  //   - IN+OUT mix on same port  (rule 1, blocking at save time)
+  //   - line crosses other task  (rule 2, warning at save time)
+  const { violatingConnIdx } = detectOverrideViolations(flow);
+
+  // PR I: compute which endpoints of each connection have been manually
+  // overridden so we can draw a small indicator (🔧 dot) that's visible
+  // even when the connection isn't selected. Per-connection result:
+  //   { source: boolean, target: boolean }
+  // A source override exists iff `fromTask.connectionOverrides[overrideKey]
+  // .exitSide` is set (same for target with `.entrySide`).
+  const taskById = Object.fromEntries(flow.tasks.map(t => [t.id, t]));
+  const overrideFlagOf = (conn) => {
+    const fromTask = taskById[conn.fromId];
+    const ov = fromTask?.connectionOverrides?.[conn.overrideKey];
+    return { source: !!ov?.exitSide, target: !!ov?.entrySide };
+  };
+  const selectedConnHasOverride = (() => {
+    if (!selectedConnKey) return false;
+    const idx = parseInt(selectedConnKey.slice(1), 10);
+    const c = connections[idx];
+    if (!c) return false;
+    const f = overrideFlagOf(c);
+    return f.source || f.target;
+  })();
 
   // Convert a pointer event's screen coord to SVG user-space coord.
   function screenToSvg(evt) {
@@ -638,7 +676,21 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
           <span>點選連線可拖曳端點（🔵 圓點）：拖到原本任務的其他 port = 覆寫端點；拖到別的任務 = 換目標任務</span>
           {selectedConnKey && (
             <>
+          {selectedConnKey && (
+            <>
               <span className="text-blue-600">● 已選取連線</span>
+              {/* PR I: reset button for the selected connection's override. */}
+              {selectedConnHasOverride && onResetOverride && (
+                <button
+                  onClick={() => {
+                    const idx = parseInt(selectedConnKey.slice(1), 10);
+                    const c = connections[idx];
+                    if (c) onResetOverride(c.fromId, c.overrideKey);
+                  }}
+                  className="px-2 py-0.5 text-xs rounded border border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100">
+                  重設此連線端點
+                </button>
+              )}
               <button
                 onClick={() => setSelectedConnKey(null)}
                 className="px-2 py-0.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50">
@@ -646,8 +698,6 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
               </button>
             </>
           )}
-        </div>
-      )}
 
       <div className="overflow-auto border border-gray-300 rounded-lg bg-white w-full">
         <div ref={exportRef} style={{ display: 'inline-block', background: '#fff' }}>
@@ -711,7 +761,8 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
               onHover={setHoveredConnKey}
               isSelected={selectedConnKey === `c${i}`}
               onSelect={setSelectedConnKey}
-              editable={editable} />
+              editable={editable}
+              isViolation={violatingConnIdx.has(i)} />
           ))}
 
           {(() => {
@@ -765,6 +816,46 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
                 strokeDasharray="6 3" rx={6} pointerEvents="none" />
             );
           })()}
+                    {editable && dragInfo?.dropTargetId && (() => {
+            const pos = positions[dragInfo.dropTargetId];
+            if (!pos) return null;
+            const w = pos.right.x - pos.left.x;
+            const h = pos.bottom.y - pos.top.y;
+            return (
+              <rect x={pos.left.x - 5} y={pos.top.y - 5}
+                width={w + 10} height={h + 10}
+                fill="none" stroke="#10B981" strokeWidth={3}
+                strokeDasharray="6 3" rx={6} pointerEvents="none" />
+            );
+          })()}
+
+          {/* PR I: override indicators. A small amber dot on every manually
+              overridden endpoint (source and/or target). Visible all the
+              time so users can spot which connections have been hand-routed
+              at a glance — unlike the handles, which only show on selection. */}
+          {editable && connections.map((conn, i) => {
+            const flag = overrideFlagOf(conn);
+            if (!flag.source && !flag.target) return null;
+            const from = positions[conn.fromId];
+            const to = positions[conn.toId];
+            if (!from || !to) return null;
+            const srcPort = from[conn.exitSide];
+            const tgtPort = to[conn.entrySide];
+            return (
+              <g key={`ov${i}`} pointerEvents="none">
+                {flag.source && srcPort && (
+                  <circle cx={srcPort.x} cy={srcPort.y} r={3.5}
+                    fill="#F59E0B" stroke="#FFFFFF" strokeWidth={1.2} />
+                )}
+                {flag.target && tgtPort && (
+                  <circle cx={tgtPort.x} cy={tgtPort.y} r={3.5}
+                    fill="#F59E0B" stroke="#FFFFFF" strokeWidth={1.2} />
+                )}
+              </g>
+            );
+          })}
+
+          {/* Drag preview: a dashed line from the anchor task's proposed
 
           {/* Drag preview: a dashed line from the anchor task's proposed
               side to the other endpoint, so the user sees how the path
