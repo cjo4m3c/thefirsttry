@@ -76,7 +76,11 @@ FlowSprite/
 │       └── deploy.yml             ← push main 自動部署到 GitHub Pages
 ├── .claude/
 │   └── skills/
-│       └── ship-feature.md        ← AI 工作 skill（PR 前檢查清單）
+│       ├── ship-feature.md        ← PR 前檢查清單 + squash merge + 回報
+│       ├── sync-main.md           ← 使用者合併後本地同步 + 清 branch
+│       ├── doc-audit.md           ← Changelog / HelpPanel / README / HANDOVER 對齊性檢查
+│       ├── trace-layout.md        ← 流程圖路由 node trace 樣板
+│       └── ui-rules.md            ← 藍色主題色票、按鈕 / banner / modal pattern
 ├── public/                        ← 靜態資源（logo 等）
 └── src/
     ├── main.jsx                   ← React entry point
@@ -84,11 +88,13 @@ FlowSprite/
     ├── index.css                  ← Tailwind directives + logo 動畫 + 捲軸樣式
     ├── components/
     │   ├── Dashboard.jsx          ← 首頁：L3 清單、Excel 上傳、批量操作
-    │   ├── Wizard.jsx             ← 新增 L3 的四步驟精靈
-    │   ├── FlowEditor.jsx         ← 編輯既有 L3（流程圖 + 頁籤式編輯）
+    │   ├── Wizard.jsx             ← 新增 L3 的 2 步驟精靈（L3 資訊 → 角色 → 進入 FlowEditor）
+    │   ├── FlowEditor.jsx         ← 編輯既有 L3（流程圖 + 頁籤式編輯 + 儲存前檢核）
     │   ├── FlowTable.jsx          ← L4 任務明細表（詳細 Excel 清單頁籤）
     │   ├── DiagramRenderer.jsx    ← SVG 泳道圖 + PNG / Draw.io 匯出按鈕
     │   ├── ConnectionSection.jsx  ← 任務卡片內的連線設定 UI
+    │   ├── BackToTop.jsx          ← 右下角浮動回到頂端按鈕
+    │   ├── dragReorder.jsx        ← 共用的 `useDragReorder` hook + `DragHandle` 元件
     │   ├── HelpPanel.jsx          ← 規則說明 Modal
     │   └── ChangelogPanel.jsx     ← 版本更新紀錄 Modal（功能後新增條目）
     ├── diagram/
@@ -104,7 +110,7 @@ FlowSprite/
 
 ### 關鍵檔案
 
-- `src/diagram/layout.js` — 複雜度最高的檔案（~500 行）。負責把 flow 物件轉成 SVG 座標、計算連線路由
+- `src/diagram/layout.js` — 複雜度最高的檔案（~1100 行）。負責把 flow 物件轉成 SVG 座標、計算連線路由
 - `src/utils/taskDefs.js` — 所有編號 regex 的單一來源（修改編號規則只改這裡的常數）
 - `src/utils/storage.js` — localStorage 為唯一儲存層；載入時自動遷移舊資料格式
 - `src/utils/excelImport.js` — Excel 匯入的 parser + validator，是業務規則落地的地方
