@@ -466,7 +466,6 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         {/* Diagram — always visible */}
         <DiagramRenderer flow={liveFlow} showExport={true}
           onUpdateOverride={updateConnectionOverride}
-          onUpdateOverride={updateConnectionOverride}
           onChangeTarget={changeConnectionTarget}
           onResetOverride={resetConnectionOverride} />
 
