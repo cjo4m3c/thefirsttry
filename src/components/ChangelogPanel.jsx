@@ -11,6 +11,18 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-24',
+    title: 'Phase 3d 跨邊連線重疊偵測（保守擴充規則 2）',
+    items: [
+      '**情境**：使用者：「1-1-7-5 出發要連到 1-1-7-9 的連線，會跟從 1-1-7-8 相關的兩條連線重疊」',
+      '**原因**：Phase 3d 的 `defaultBad` 原本只檢查「任務矩形」擋住 default midX 路徑，沒檢查「另一條 Phase 3d 連線的垂直段」會不會與我的 default 橫向段交叉',
+      '**保守擴充**：pre-collect 所有 Phase 3d-eligible 邊 → 新增 `defaultPathCrossesOtherEdge` 檢查：若其他邊的 midX col 落在我的 [fc, tc] 範圍內，且其 row 範圍覆蓋我的 fr 或 tr（或反之），視為交叉；觸發 Option A / B',
+      '**規則 2 擴充**：CLAUDE.md 規則 10.1 的規則 2 加上「也不應與其他連線的垂直/橫向段交叉」；10.2 技術慣例加實作說明',
+      '驗證 1-1-7：`1-1-7-5 → 1-1-7-9`、`1-1-7-8 → 1-1-7-99`、`1-1-7-9 → 1-1-7-99` 三條各自用 Option A（垂直段在 tc），不再共用 midX；5-3-3 / 5-2-6 / 5-7-2 無 regression',
+      '不動「先發生優先」原則（保守方案，低風險）；未來若需要 backtracking 可再擴充',
+    ],
+  },
+  {
+    date: '2026-04-24',
     title: '精靈步驟指引加第 3 步「流程編輯」',
     items: [
       '**情境**：使用者：「現在只有兩步驟，我希望把 Flow editor 那頁也加入成第三步，這樣使用者才知道最後要去編輯流程」',
