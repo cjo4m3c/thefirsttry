@@ -144,6 +144,7 @@ items: ['...', '...'],
 - **Phase 3 corridor guard 要真實模擬 Phase 3d**：`corridorBlockedByFuturePhase3dVertical` 不能只看「內側有任務的 cross-row forward next」就擋，因為 Phase 3d 可能走預設（垂直在 midX）或 Option A（垂直在 tc），都不切 corridor。必須同時滿足 `defaultBad`（Phase 3d 會觸發）+ `optionABlocked`（fall through 到 Option B）才判定 corridor 被切。
 - **Corridor 要考慮「未來垂直」會不會切斷橫向段**：top corridor 內側欄位若有任務在 Phase 3d 會用 TOP/BOTTOM 垂直出發，這個 corridor 的橫向段會被切。用 `corridorBlockedByFuturePhase3dVertical` 在 Phase 3 acceptance loop 裡先擋。
 - **兩條 IN 共用同一端點 OK**：「端點不能同時有進有出」只禁止 IN + OUT 混用；IN + IN 是允許的（2026-04-23 回退 `expectedBackwardTopEntry` pre-scan 的原因）。Phase 3 選 entry 時不必刻意閃 backward edge 的同 port。
+- **Phase 3d cross-edge 重疊偵測**：除了任務矩形 obstacle，也要檢查「default midX 路徑會不會跟其他 Phase 3d 連線的 midX 垂直段交叉」。做法：pre-collect 所有 Phase 3d-eligible 邊 → 對每條邊的 default，檢查其他邊的 midX 垂直段是否落在我的橫向範圍內，且其他邊的 row 範圍覆蓋我的 fr / tr（反之亦然）。若會交叉 → `defaultBad = true` 觸發 Option A / B，避開視覺交叉。
 - **Excel I/O 向後相容**：匯出只產新格式；匯入用放寬的 regex 同時吃新舊格式（例如迴圈返回同時吃「迴圈返回，序列流向 X」、「迴圈返回至 X」、「迴圈返回 X」）。
 - **CJK / Latin 混合文字**：任何 wrap / truncate 都要 token-aware（CJK 逐字、Latin 整字不切），權重用 CJK = 2 / Latin = 1，maxChars 解讀為 CJK 等效寬度。
 - **文件同步三件組**：程式邏輯改動 → `ChangelogPanel.jsx` 加條目 + `HelpPanel.jsx` 改規則表 + `HANDOVER.md` 改 phase 清單 / PR 範圍。三者漏一都算沒做完。
