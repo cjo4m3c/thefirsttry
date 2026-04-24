@@ -19,7 +19,6 @@ import {
   normalizeTask, applyConnectionType, applySequentialDefaults,
   computeDisplayLabels,
 } from '../utils/taskDefs.js';
-} from '../utils/taskDefs.js';
 
 // ── Pre-save validation ──────────────────────────────────────
 // Split into two tiers so the user can still save an imperfect draft:
