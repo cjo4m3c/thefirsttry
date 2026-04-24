@@ -258,6 +258,71 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     if (liveFlow.tasks.length <= 1) return;
     patch({ tasks: liveFlow.tasks.filter(t => t.id !== id) });
   }
+  
+  // Merge a partial endpoint override into task.connectionOverrides. Called
+  // by DiagramRenderer when the user drags a connection endpoint to a new
+  // port. `partial` holds either { exitSide } (source drag) or
+  // { entrySide } (target drag); any unmentioned side keeps its previous
+  // override (if any) so the two sides can be set independently.
+  function updateConnectionOverride(taskId, key, partial) {
+    const task = liveFlow.tasks.find(t => t.id === taskId);
+    if (!task || !key) return;
+    const currentOverrides = task.connectionOverrides || {};
+    const currentForKey = currentOverrides[key] || {};
+    const newForKey = { ...currentForKey, ...partial };
+    updateTask(taskId, {
+      ...task,
+      connectionOverrides: { ...currentOverrides, [key]: newForKey },
+    });
+  }
+
+  // PR J — change a connection's TARGET task by dragging the target handle
+  // onto a different task. Updates the underlying graph data (`nextTaskIds`
+  // for regular tasks, `conditions[i].nextTaskId` for gateway conditions);
+  // this is the source of truth for the diagram, FlowTable, Excel export
+  // and drawio export, so all four views auto-sync from the same change.
+  //
+  // Override migration:
+  //   - Regular task: override key was oldTargetId → migrate to newTargetId
+  //     (preserving exitSide if any), set entrySide to the snap side
+  //   - Gateway condition: key is condId (immutable across target change),
+  //     so no migration — just update entrySide
+  //
+  // Self-loop guard: refuse to make a task connect to itself.
+  function changeConnectionTarget(fromTaskId, oldKey, newTargetId, snapSide) {
+    if (!fromTaskId || !newTargetId || newTargetId === fromTaskId) return;
+    const task = liveFlow.tasks.find(t => t.id === fromTaskId);
+    if (!task) return;
+    const newTarget = liveFlow.tasks.find(t => t.id === newTargetId);
+    if (!newTarget || newTarget.type === 'start') return;  // start has no incoming
+
+    let updated;
+    if (task.type === 'gateway') {
+      const currentOverrides = task.connectionOverrides || {};
+      const prevOv = currentOverrides[oldKey] || {};
+      updated = {
+        ...task,
+        conditions: (task.conditions || []).map(c =>
+          c.id === oldKey ? { ...c, nextTaskId: newTargetId } : c
+        ),
+        connectionOverrides: {
+          ...currentOverrides,
+          [oldKey]: { ...prevOv, entrySide: snapSide },
+        },
+      };
+    } else {
+      const newOverrides = { ...(task.connectionOverrides || {}) };
+      const prevOv = newOverrides[oldKey] || {};
+      delete newOverrides[oldKey];
+      newOverrides[newTargetId] = { ...prevOv, entrySide: snapSide };
+      updated = {
+        ...task,
+        nextTaskIds: (task.nextTaskIds || []).map(id => id === oldKey ? newTargetId : id),
+        connectionOverrides: newOverrides,
+      };
+    }
+    updateTask(fromTaskId, updated);
+  }
 
       function doSave(flow) {
     onSave(flow);
@@ -343,7 +408,9 @@ export default function FlowEditor({ flow, onBack, onSave }) {
 
       <main className="px-4 py-6 w-full max-w-full">
         {/* Diagram — always visible */}
-        <DiagramRenderer flow={liveFlow} showExport={true} />
+        <DiagramRenderer flow={liveFlow} showExport={true}
+          onUpdateOverride={updateConnectionOverride}
+          onChangeTarget={changeConnectionTarget} />
 
         {/* Tabs */}
         <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
