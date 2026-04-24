@@ -190,6 +190,9 @@ export function applyConnectionType(task, newCT) {
     ...task, connectionType: newCT, shapeType: st,
     type: typeMap[newCT] || 'task', gatewayType: gwMap[newCT] || task.gatewayType || 'xor',
     conditions, nextTaskIds,
+    // PR H: connectionType change invalidates all manual overrides because
+    // key semantics flip — gateway uses condId, regular task uses targetId.
+    connectionOverrides: {},
   };
 }
 
