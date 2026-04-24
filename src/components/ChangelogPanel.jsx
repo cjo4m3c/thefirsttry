@@ -9,6 +9,23 @@ import { useState } from 'react';
  */
 
 const CHANGELOG = [
+    {
+    date: '2026-04-24',
+    title: '拖曳連線：違規檢核 + 自動清除 + 視覺指示 + 重設工具（PR H + PR I）',
+    items: [
+      '**情境**：PR G+J 讓使用者可以拖曳端點 / 換目標，但沒有規則檢核、沒有視覺指示、沒有還原工具 → 拖錯了沒人提醒、事後也不知道哪些連線被動過',
+      '**新檔 `src/diagram/violations.js`**：`detectOverrideViolations(flow)` 回傳 `{ blocking, warnings, violatingConnIdx }`。Blocking = 同 port 同時有 IN+OUT；Warning = 路由線段跨過其他任務矩形。IN+IN 或 OUT+OUT 同 port 不算違反（符合規則 1 原定義）',
+      '**FlowEditor `validateFlow` 擴充**：儲存前把 override 違規併進現有 blocking / warnings，接現有兩層檢核 UI — IN+OUT 混用會擋儲存（紅 modal）、穿越任務會跳黃 modal 由使用者決定',
+      '**DiagramRenderer 即時紅高亮**：每次 render 呼叫 detector，違規連線 stroke 改紅（`#EF4444` Tailwind red-500）+ 紅色箭頭 marker，讓使用者拖完當下就看到問題',
+      '**PR I — override 視覺指示**：被手動拖過的端點顯示 🟡 琥珀色小圓點（固定顯示，不用選取連線），來源端／目標端各自獨立標記。視覺優先序：violation 紅線 > selected 藍粗線 > hover > override 小圓點（固定）',
+      '**PR I — 個別重設**：選中帶 override 的連線時，提示列多出「重設此連線端點」按鈕；清除該連線的 `connectionOverrides[overrideKey]`，兩側同時還原成 auto routing',
+      '**PR I — 全域重設**：FlowEditor 頁首多一顆「重設所有手動端點」按鈕（僅當此 flow 有 override 時顯示），按下跳確認 modal → 確認後清空所有 task 的 `connectionOverrides`',
+      '**自動清除 override（必清情境）**：① `removeTask` 一併刪掉其他 task 指向被刪任務的 override 鍵；② `applyConnectionType` 改連線類型時清空該 task 的所有 override（key 語意從 targetId 翻成 condId）；③ `storage.loadFlows` 載入時 `cleanStaleOverrides` sanity check — 移除指向已不存在任務 / condId 的 key',
+      '**路徑交叉判定**：路由線段都是軸對齊（`routeArrow` 輸出 L-path），水平段檢查 y 跟 rect 的 y 範圍 + x 跨越 rect 寬度、垂直段反之。Rect 兩邊 inset 2 px 避免「剛好擦到邊」的誤判',
+      '驗證 4 違規情境 pass：無 override 無違規、IN+OUT 混用被抓到、線穿過 B 被抓到、兩條 IN 共用同 port 不誤判',
+      '**保留情境**（不清除 override）：改目標任務（`changeConnectionTarget` 已在 PR J 遷移 key）、改角色 / 順序 / 名稱 / 任務內容 — override 仍跟著同一 task / condId / targetId 走',
+    ],
+  },
   {
     date: '2026-04-24',
     title: '拖曳連線：覆寫端點 + 換目標任務（PR G + PR J）',
