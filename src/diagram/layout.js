@@ -876,6 +876,66 @@ export function computeLayout(flow) {
       // Else: keep default (both alternatives have their own obstacles).
     });
   });
+  
+  // ── 4g. Phase 3e: apply user-defined manual endpoint overrides ────
+  //
+  // User can drag a connection's source/target endpoint to a different port
+  // in DiagramRenderer; the override is stored on the SOURCE task as
+  // `task.connectionOverrides[key]` where
+  //   key = target's task id         (regular task → anything)
+  //   key = condition.id             (gateway → any condition target)
+  // value = { exitSide?, entrySide? } (either may be missing to keep auto)
+  //
+  // Applying overrides last (after all auto-phases) ensures that:
+  //   1. Slot allocation in sections 5–8 sees the FINAL routing and puts
+  //      overridden top→top / bottom→bottom edges into corridor slots.
+  //   2. Auto-routing's port-mix tracking (portIn / portOut) is complete;
+  //      override violations are detected in PR H via `validateFlow`.
+  //
+  // For non-gateway tasks we funnel overrides into `taskCrossLaneRouting`
+  // (clearing any earlier entry in the other two maps) so section 5/6b and
+  // section 10 — which already consult all three maps in order — find the
+  // override regardless of which auto-phase first placed the edge.
+  tasks.forEach(task => {
+    const overrides = task.connectionOverrides;
+    if (!overrides || typeof overrides !== 'object') return;
+    const keys = Object.keys(overrides);
+    if (keys.length === 0) return;
+
+    if (task.type === 'gateway') {
+      (task.conditions || []).forEach(cond => {
+        const ov = overrides[cond.id];
+        if (!ov || !cond.nextTaskId) return;
+        const key = `${task.id}::${cond.id}`;
+        const base = condRouting.get(key) || { exitSide: 'right', entrySide: 'left' };
+        condRouting.set(key, {
+          exitSide:  ov.exitSide  ?? base.exitSide,
+          entrySide: ov.entrySide ?? base.entrySide,
+        });
+      });
+    } else if (task.type !== 'end' && task.type !== 'start') {
+      const nextIds = task.nextTaskIds?.length
+        ? task.nextTaskIds
+        : (task.nextTaskId ? [task.nextTaskId] : []);
+      nextIds.forEach(toId => {
+        const ov = overrides[toId];
+        if (!ov || !toId || !taskIdSetAll.has(toId)) return;
+        const key = `${task.id}::${toId}`;
+        const base = taskBackwardRouting.get(key)
+                  ?? taskForwardRouting.get(key)
+                  ?? taskCrossLaneRouting.get(key)
+                  ?? { exitSide: 'right', entrySide: 'left' };
+        const final = {
+          exitSide:  ov.exitSide  ?? base.exitSide,
+          entrySide: ov.entrySide ?? base.entrySide,
+        };
+        taskBackwardRouting.delete(key);
+        taskForwardRouting.delete(key);
+        taskCrossLaneRouting.set(key, final);
+      });
+    }
+  });
+
 
   // ── 5. Count bottom-routing slots needed per lane ─────────────
   const bottomConnsByRow = roles.map(() => []);
@@ -900,12 +960,14 @@ export function computeLayout(flow) {
         }
       });
     } else if (task.type !== 'end' && task.type !== 'start') {
-      // Non-gateway edges pushed to bottom corridor by Phase 3b (backward)
-      // or Phase 3c (forward with dc>1 where top corridor was already taken).
+      // Non-gateway edges pushed to bottom corridor by Phase 3b (backward),
+      // Phase 3c (forward with dc>1 where top corridor was already taken),
+      // or Phase 3e (user override routed to bottom→bottom).
       const nextIds = task.nextTaskIds?.length ? task.nextTaskIds : (task.nextTaskId ? [task.nextTaskId] : []);
       nextIds.forEach(toId => {
         const routing = taskBackwardRouting.get(`${task.id}::${toId}`)
-                     ?? taskForwardRouting.get(`${task.id}::${toId}`);
+                     ?? taskForwardRouting.get(`${task.id}::${toId}`)
+                     ?? taskCrossLaneRouting.get(`${task.id}::${toId}`);
         if (!routing) return;
         if (routing.exitSide === 'bottom' && routing.entrySide === 'bottom') {
           const fr = taskRowOf[task.id];
@@ -973,8 +1035,9 @@ export function computeLayout(flow) {
       const nextIds = task.nextTaskIds?.length ? task.nextTaskIds : (task.nextTaskId ? [task.nextTaskId] : []);
       nextIds.forEach(toId => {
         if (!toId || taskRowOf[toId] === undefined) return;
-        const routing = taskBackwardRouting.get(`${task.id}::${toId}`)
-                     ?? taskForwardRouting.get(`${task.id}::${toId}`);
+         const routing = taskBackwardRouting.get(`${task.id}::${toId}`)
+                     ?? taskForwardRouting.get(`${task.id}::${toId}`)
+                     ?? taskCrossLaneRouting.get(`${task.id}::${toId}`);
         if (!routing) return;
         if (routing.exitSide === 'top' && routing.entrySide === 'top') {
           const fr = taskRowOf[task.id], tr = taskRowOf[toId];
@@ -1067,7 +1130,15 @@ export function computeLayout(flow) {
           laneTopCorridorY = topYMap[`${task.id}::${cond.nextTaskId}`];
         }
 
-        connections.push({ fromId: task.id, toId: toTask.id, label: cond.label, exitSide, entrySide, laneBottomY, laneTopCorridorY });
+           connections.push({
+          fromId: task.id, toId: toTask.id, label: cond.label,
+          exitSide, entrySide, laneBottomY, laneTopCorridorY,
+          // `overrideKey` tells DiagramRenderer's drag handler which slot in
+          // `task.connectionOverrides` to write to on drop. For gateway
+          // conditions it's cond.id (one condition may be one of several
+          // pointing at the same target); for regular tasks it's toId.
+          overrideKey: cond.id, condId: cond.id,
+        });
       });
 
     } else if (task.type !== 'end' && task.type !== 'gateway') {
@@ -1082,7 +1153,8 @@ export function computeLayout(flow) {
         // bottom based on top corridor occupancy) / forward long (Phase 3c:
         // top corridor to skip over intermediate elements) / cross-lane
         // with obstacle avoidance (Phase 3d: source top/bottom exit or
-        // target top/bottom entry to skip around tasks at source/target rows).
+        // target top/bottom entry to skip around tasks at source/target rows)
+        // / user override (Phase 3e: manual endpoint drag in UI).
         const routing = taskBackwardRouting.get(`${task.id}::${nextId}`)
                      ?? taskForwardRouting.get(`${task.id}::${nextId}`)
                      ?? taskCrossLaneRouting.get(`${task.id}::${nextId}`);
@@ -1100,7 +1172,11 @@ export function computeLayout(flow) {
           exitSide = 'right';
           entrySide = 'left';
         }
-        connections.push({ fromId: task.id, toId: toTask.id, label: '', exitSide, entrySide, laneBottomY, laneTopCorridorY });
+        connections.push({
+          fromId: task.id, toId: toTask.id, label: '',
+          exitSide, entrySide, laneBottomY, laneTopCorridorY,
+          overrideKey: nextId,
+        });
       });
     }
   });

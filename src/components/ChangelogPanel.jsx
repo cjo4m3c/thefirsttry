@@ -11,6 +11,22 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-24',
+    title: '拖曳連線：覆寫端點 + 換目標任務（PR G + PR J）',
+    items: [
+      '**情境**：使用者：「使用者可以在流程圖上直接拖曳連線的起點/終點到任務元件的其他 port，覆寫自動路由」+「如果是把連線換目標」',
+      '**資料模型**：task 新增 `connectionOverrides`；key 為 target task id（一般連線）或 condition.id（閘道條件），value 為 `{ exitSide?, entrySide? }`，兩側可獨立覆寫',
+      '**layout.js Phase 3e**：所有 auto-phase（1 / 2 / 3 / 3b / 3c / 3d）完成後套用 override，把結果寫回 `condRouting` / `taskCrossLaneRouting`；slot allocation（sections 5 / 6b）也同步擴充為讀取 `taskCrossLaneRouting`，讓 override 改成 top→top / bottom→bottom 時進入 corridor slot 分配',
+      '**連線物件新增 `overrideKey`**：一般連線 = toId、閘道條件 = cond.id，供 DiagramRenderer 拖曳結束後寫回正確 slot',
+      '**DiagramRenderer 拖曳 UX**：點選連線 → 端點顯示藍色 handle → Pointer Events 拖曳;放開時 hit-test：①拖到原任務的其他 port → 覆寫端點（PR G）、②拖到別的任務（target handle 限定）→ 換目標任務（PR J）；綠色虛線框提示候選 drop target，藍色虛線預覽路徑；Esc 取消、點 SVG 空白清除選取',
+      '**FlowEditor wire up**：`updateConnectionOverride(taskId, key, partial)` 處理端點覆寫；`changeConnectionTarget(fromTaskId, oldKey, newTargetId, snapSide)` 改 `task.nextTaskIds` / `task.conditions[i].nextTaskId`，並遷移 override key（一般任務）或更新 entrySide（閘道用 condId 不變），自動拒絕自連與 start event 當 target',
+      '**Downstream sync 確認**：FlowTable、Excel 匯出（`generateFlowAnnotation`）、drawio 匯出全部從 `nextTaskIds` / `conditions[].nextTaskId` 衍生 → 拖曳改連線後「序列流向 X」、「條件分支至 Y」等敘述自動跟著變，不用另寫同步',
+      '**Fix（順帶）**：使用者：「新增任務的編號一直保持「5-1-1-1」，會變成有兩個 5-1-1-1 任務」。`computeDisplayLabels` 原本 auto-generate 時 `taskCounter=1` 起跳，沒避開已匯入 `l4Number` 佔的號碼。修正：pre-scan 收集 used counters → auto-generate 時 `while (usedCounters.has(taskCounter)) taskCounter++` 跳過。驗證 5 情境（新在後 / 新在前 / 有 gap 補最低空位 / 純 auto / 閘道 _g 混合）',
+      '**CLAUDE.md 新規則**：§4 加「一 PR 一條 changelog」—— 同 PR 內 feature + bug fix + UI 調整合併同筆，用 `**主題**：...` 分段',
+      '此 PR 範圍：拖曳互動 + 換目標 + 上述 fix；violation 檢核（IN+OUT 混用 blocking、線穿過任務 warning）、自動清除 override、重設按鈕、override 小圖示等留給 PR H / PR I',
+    ],
+  },  
+  {
+    date: '2026-04-24',
     title: 'Phase 3d 跨邊連線重疊偵測（保守擴充規則 2）',
     items: [
       '**情境**：使用者：「1-1-7-5 出發要連到 1-1-7-9 的連線，會跟從 1-1-7-8 相關的兩條連線重疊」',

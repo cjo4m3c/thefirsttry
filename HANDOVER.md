@@ -200,6 +200,13 @@ FlowSprite/
 - [ ] 告知 `main` push 自動部署、只能 squash merge
 - [ ] 告知 backlog：
   - 閘道 >4 條件分支時 port 共享（需要 port 子位置偏移架構）
+  - **[bug] 包容閘道（OR）、並行閘道（AND）邏輯** — 需具體重現情境
+  - **[bug] 批量下載 Excel 數量多時後面的會漏檔案** — 可能是並發 / browser download throttle
+  - **[feat] Excel Tab 可編輯性優化** — 需範圍釐定（哪些欄位要能直接編）
+  - **[feat] 端點拖曳 PR H** — violation 檢核（IN+OUT mix = blocking、線穿過任務 = warning）+ override 自動清除
+  - **[feat] 端點拖曳 PR I** — override 小圖示 + 個別 / 全域重設按鈕
+  - [nice-to-have] Hover 顯示詳細資訊
+  - [nice-to-have] 只匯入＋覆蓋 Excel 部分欄位
 
 ---
 
@@ -207,7 +214,7 @@ FlowSprite/
 
 - **無後端**：資料無法跨裝置、無版本歷史（只有使用者自己下載 Excel 當備份）
 - **瀏覽器限制**：Excel/PNG 匯出受 `html-to-image` + browser memory 限制，非常大的流程圖可能產出失敗
-- **`layout.js` 龐大（~1100 行）**：連線路由有多個 phase（Phase 1 sibling 分配 → Phase 2 target entry 分配 → Phase 3 跨閘道衝突 + Pass 2 sibling-sharing fallback + corridor guard → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 + cross-edge 重疊偵測 → 上下 corridor slot 分配），改動容易牽一髮動全身；改前先讀 PR #16~#55 的 description 建立脈絡
+- **`layout.js` 龐大（~1200 行）**：連線路由有多個 phase（Phase 1 sibling 分配 → Phase 2 target entry 分配 → Phase 3 跨閘道衝突 + Pass 2 sibling-sharing fallback + corridor guard → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 + cross-edge 重疊偵測 → **Phase 3e 使用者手動 override** → 上下 corridor slot 分配），改動容易牽一髮動全身；改前先讀 PR #16~#57 的 description 建立脈絡
 - **中文 regex 敏感**：`excelImport.js` 用中文關鍵字（`條件分支至` 等），對全形/半形、多餘空白、標點符號變體敏感
 - **無自動化測試**：驗證靠 `npm run build` + 手動瀏覽器測試 + `node trace.mjs` 臨時腳本
 
