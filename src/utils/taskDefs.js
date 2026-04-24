@@ -230,6 +230,24 @@ export function computeDisplayLabels(tasks, l3Number) {
     'parallel-merge', 'conditional-merge',
   ]);
 
+  // Pre-scan stored l4Numbers so auto-generated counters don't collide
+  // with imported tasks. A stored label like "5-1-1-3" or "5-1-1-3_g"
+  // claims counter 3 (the `_g` suffix doesn't consume a new counter —
+  // gateways share their preceding task's counter). Start / end events
+  // (counters 0 / 99) are reserved and excluded.
+  //
+  // Without this, adding a new task in FlowEditor after Excel import
+  // would pick `taskCounter=1` and collide with imported "5-1-1-1".
+  const usedCounters = new Set();
+  tasks.forEach(task => {
+    if (!task.l4Number) return;
+    const base = String(task.l4Number).replace(/_g\d*$/, '');
+    if (base.startsWith(prefix + '-')) {
+      const n = parseInt(base.slice(prefix.length + 1), 10);
+      if (!Number.isNaN(n) && n !== 0 && n !== 99) usedCounters.add(n);
+    }
+  });
+
   let taskCounter = 1;
   let lastTaskBase = null;  // last regular task's L4 number (base for _g)
   let gwConsec = 0;         // consecutive gateways after lastTaskBase
@@ -268,6 +286,8 @@ export function computeDisplayLabels(tasks, l3Number) {
       gwConsec += 1;
       labels[task.id] = gwConsec === 1 ? `${base}_g` : `${base}_g${gwConsec}`;
     } else {
+      // Skip any counter slot already claimed by an imported l4Number.
+      while (usedCounters.has(taskCounter)) taskCounter++;
       const num = `${prefix}-${taskCounter++}`;
       labels[task.id] = num;
       lastTaskBase = num;
