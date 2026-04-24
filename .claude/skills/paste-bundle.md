@@ -67,7 +67,7 @@ description: Generate manual-paste instructions for files that can't be pushed v
 
 - **小檔（1-2 hunk）**：一則訊息給全部，使用者一次做完
 - **中檔（3-5 hunk）**：一則訊息給全部，但**排列從最簡單到最複雜**，給使用者信心
-- **大檔（>5 hunk）**：選一種：
+- **大檔（>5 hunk）**：選一種:
   - **(a)** 一則訊息全給，使用者自己跟節奏（適合經驗使用者）
   - **(b)** 一次給 1-3 hunk，使用者說 OK 再下一批（適合新手 / 複雜 JSX 改動）
 
@@ -81,6 +81,9 @@ description: Generate manual-paste instructions for files that can't be pushed v
 | 搜尋錨點不唯一，找錯位置 | 挑**檔案內只出現一次**的字串當錨點（function name、comment 標記、特定變數） |
 | 縮排跑掉（tab vs space） | 在貼上指引最後加「⚠️ 注意縮排用 2 空格，不是 tab」 |
 | 漏掉「Preview」一步就 Commit | 每檔步驟 C 都明寫要先 Preview |
+| **重複貼**（常見）：使用者「整段換成」時，把舊行留著 + 又插入新行 → 同一 prop / 同一 tag 出現兩次 | **Before / After 必須完整閉合**：每個 `**搜尋** anchor` + `會看到：`（before 完整片段）+ `改成：`（after 完整片段）。**before 跟 after 的「頭尾」要相同錨點**（例如兩者都從 `function X({` 開頭、都從 `}) {` 結尾），讓使用者能明確圈選前者、整體覆寫成後者。不要只給「改從這行起」的開放結尾 |
+| **被誤刪的分支**：使用者 find-replace 範圍比我給的 before 大，把下一個 `} else if` / `</tag>` 一併刪掉 | Before 片段**必須涵蓋到下一個穩定錨點**（下一個空行、下一個 function 開頭、下一個 `</Component>`）。不要只給「到第 X 行為止」這種可能被誤讀的界線。如果 after 不需要改後面的部分，在 after 片段結尾把後面那 1-2 行**原樣重複**，當 boundary marker |
+| 貼完後**一次**出 6 個 syntax 錯（同一輪） | 每個大 hunk 貼完後讓使用者說 `OK` 再下一個 — 發現時是單點錯，不是複合錯。**不要一次把所有 hunk 都放進一則訊息**（除非檔案很小） |
 
 ### 5. 檔案之間的排序
 
@@ -130,3 +133,23 @@ description: Generate manual-paste instructions for files that can't be pushed v
 ## 備註：本 skill 誕生於 PR G+J（2026-04-24）
 
 PR G+J 合併過程做 5 個檔的手動貼上（CLAUDE.md 小、ChangelogPanel / FlowEditor / layout / DiagramRenderer 大），反覆走同樣的 pattern。DiagramRenderer 貼錯一個 `</div>` 擋 build，reinforce 了「每檔結束要 `git fetch + build` 驗證」的必要。
+
+## 2026-04-24 更新：PR H+I 的 6 次 paste 失誤歸納
+
+PR H+I 一輪貼了 3 個大檔，build 連續失敗 6 次，每次都是同一類型的結構錯誤。所有錯誤可歸成兩個 root cause：
+
+1. **「整段換成」被使用者讀成「整段接在後面」**（5/6 案例） — 出現 duplicate：
+   - `onUpdateOverride={...}` 被貼 2 行
+   - `updateTask(fromTaskId, updated);` + `}` 被貼 2 次
+   - `</defs>` 兩個
+   - `ConnectionArrow({...})` 簽名 2 行
+   - `{selectedConnKey && (` + `<>` 貼 2 次
+2. **Before 範圍不完整 → 下個穩定錨點被吞掉**（1/6 案例） — `} else if (hoveredConnKey === connKey) {` 整個分支被誤刪；`</div>` + `)}` 結尾被吞
+
+**新增的防禦措施**（見 §4 表格）：
+- Before / After 必須完整閉合（頭尾錨點相同）
+- Before 涵蓋到下個穩定錨點（空行 / function 開頭 / `</Component>`）
+- After 不改後面部分時，把後面 1-2 行原樣重複當 boundary
+- 大檔案 hunk 要一次一個（等 `OK` 再下一個），避免失誤複合成 6 個錯
+
+回顧這輪：若當時走「一 hunk 一訊息 + 等 OK」 + before/after 都完整閉合，應該不會全壞。
