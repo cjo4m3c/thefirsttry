@@ -436,6 +436,14 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
   onResetOverride = null }) {
   const exportRef = useRef(null);
   const svgRef = useRef(null);
+  // Sticky-role-header support: when the diagram is wider than the viewport,
+  // the user scrolls horizontally — but the role-header column on the left
+  // should stay visible so they can always see whose lane each task is in.
+  // We watch the scroll container's scrollLeft and apply a counter-translate
+  // to the sticky <g> that holds the role-header rects + names + the vertical
+  // separator at x=LANE_HEADER_W.
+  const scrollContainerRef = useRef(null);
+  const stickyHeadersRef = useRef(null);
   const [hoveredId, setHoveredId] = useState(null);
   const [hoveredConnKey, setHoveredConnKey] = useState(null);
   // Drag-endpoint state for connection override:
@@ -449,6 +457,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
 
   useEffect(() => {
     if (!autoExportPng || !exportRef.current) return;
+    resetStickyForExport();
     toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' })
       .then(dataUrl => {
         const a = document.createElement('a');
@@ -471,6 +480,24 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [editable, dragInfo, selectedConnKey]);
+
+  // Sticky role header: keep the left column anchored to the viewport as the
+  // user scrolls horizontally. Direct DOM mutation (not React state) — runs
+  // every scroll tick so we avoid forcing a re-render of the whole SVG.
+  function handleScrollLeft() {
+    const sl = scrollContainerRef.current?.scrollLeft || 0;
+    if (stickyHeadersRef.current) {
+      stickyHeadersRef.current.setAttribute('transform', `translate(${sl}, 0)`);
+    }
+  }
+
+  // Before PNG export, reset sticky transform so the captured image has the
+  // role header at its natural x=0 position (otherwise the export would show
+  // the header offset by whatever scrollLeft the user happened to be at).
+  function resetStickyForExport() {
+    if (stickyHeadersRef.current) stickyHeadersRef.current.setAttribute('transform', 'translate(0, 0)');
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollLeft = 0;
+  }
 
   if (!flow || !flow.roles?.length || !flow.tasks?.length) {
     return (
@@ -627,6 +654,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
 
   async function handleExport() {
     if (!exportRef.current) return;
+    resetStickyForExport();
     try {
       const dataUrl = await toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
       const a = document.createElement('a');
@@ -701,7 +729,8 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
         </div>
       )}
 
-      <div className="overflow-auto border border-gray-300 rounded-lg bg-white w-full">
+      <div ref={scrollContainerRef} onScroll={handleScrollLeft}
+        className="overflow-auto border border-gray-300 rounded-lg bg-white w-full">
         <div ref={exportRef} style={{ display: 'inline-block', background: '#fff' }}>
         <svg ref={svgRef} width={svgWidth} height={svgHeight} xmlns="http://www.w3.org/2000/svg"
           onPointerMove={editable && dragInfo ? moveDrag : undefined}
