@@ -298,6 +298,19 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     }
   );
 
+  // Separate hook instance for the role list inside the drawer's "roles"
+  // tab. Reorder = swimlane top-to-bottom order; no extra side effects
+  // (task.roleId is stable UUID-based, unaffected by lane index).
+  const {
+    dragIdx: roleDragIdx,
+    overIdx: roleOverIdx,
+    dropAfter: roleDropAfter,
+    rowProps: roleRowProps,
+  } = useDragReorder(
+    liveFlow.roles || [],
+    newRoles => patch({ roles: newRoles })
+  );
+
   function patch(updates) {
     setLiveFlow(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
@@ -700,27 +713,42 @@ export default function FlowEditor({ flow, onBack, onSave }) {
 
         {drawerTab === 'roles' && (
           <div>
-            <p className="text-sm text-gray-500 mb-3">設定流程中的參與角色，變更後請點右上角「儲存」</p>
+            <p className="text-sm text-gray-500 mb-1">設定流程中的參與角色，變更後請點右上角「儲存」</p>
+            <p className="text-xs text-gray-400 mb-3 flex items-center gap-1">
+              <span className="text-gray-400">⠿</span> 可拖曳左側圓點改變泳道順序（由上到下）
+            </p>
             <div className="flex flex-col gap-2">
-              {(liveFlow.roles || []).map((role, i) => (
-                <div key={role.id} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-5 flex-shrink-0">#{i + 1}</span>
-                  <input type="text" placeholder="角色名稱" value={role.name}
-                    onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, name: e.target.value } : r) })}
-                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
-                  <select value={role.type}
-                    onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, type: e.target.value } : r) })}
-                    className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
-                    style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
-                    <option value="internal">內部角色</option>
-                    <option value="external">外部角色</option>
-                  </select>
-                  <button
-                    onClick={() => { if (liveFlow.roles.length > 1) patch({ roles: liveFlow.roles.filter(r => r.id !== role.id) }); }}
-                    disabled={liveFlow.roles.length <= 1}
-                    className="text-red-400 hover:text-red-600 disabled:opacity-20 text-lg leading-none">✕</button>
-                </div>
-              ))}
+              {(liveFlow.roles || []).map((role, i) => {
+                const isOver = roleOverIdx === i && roleDragIdx !== i;
+                const dropEdgeClass = isOver
+                  ? (roleDropAfter ? 'border-b-2 border-blue-500' : 'border-t-2 border-blue-500')
+                  : 'border-gray-200';
+                return (
+                  <div
+                    key={role.id}
+                    {...roleRowProps(i)}
+                    className={`flex items-center gap-2 p-2 bg-gray-50 border rounded-lg transition-all select-none
+                      ${roleDragIdx === i ? 'opacity-40 scale-95' : ''}
+                      ${dropEdgeClass}`}>
+                    <DragHandle />
+                    <span className="text-xs text-gray-400 w-5 flex-shrink-0">#{i + 1}</span>
+                    <input type="text" placeholder="角色名稱" value={role.name}
+                      onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, name: e.target.value } : r) })}
+                      className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                    <select value={role.type}
+                      onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, type: e.target.value } : r) })}
+                      className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
+                      style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
+                      <option value="internal">內部角色</option>
+                      <option value="external">外部角色</option>
+                    </select>
+                    <button
+                      onClick={() => { if (liveFlow.roles.length > 1) patch({ roles: liveFlow.roles.filter(r => r.id !== role.id) }); }}
+                      disabled={liveFlow.roles.length <= 1}
+                      className="text-red-400 hover:text-red-600 disabled:opacity-20 text-lg leading-none">✕</button>
+                  </div>
+                );
+              })}
             </div>
             <button
               onClick={() => patch({ roles: [...(liveFlow.roles || []), makeRole()] })}
