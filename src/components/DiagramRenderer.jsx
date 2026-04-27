@@ -433,7 +433,7 @@ function LegendIcon({ type }) {
 
 export default function DiagramRenderer({ flow, showExport = true, autoExportPng = false,
   onExportDone = null, onUpdateOverride = null, onChangeTarget = null,
-  onResetOverride = null, onTaskClick = null }) {
+  onResetOverride = null, onTaskClick = null, highlightedTaskId = null }) {
   const exportRef = useRef(null);
   const svgRef = useRef(null);
   // Sticky-role-header support: when the diagram is wider than the viewport,
@@ -446,6 +446,9 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
   const stickyHeadersRef = useRef(null);
   const [hoveredId, setHoveredId] = useState(null);
   const [hoveredConnKey, setHoveredConnKey] = useState(null);
+  // Tooltip state for hover-on-task description preview.
+  // { taskId, x, y } where x/y anchor the tooltip *above* the task shape.
+  const [tooltip, setTooltip] = useState(null);
   // Drag-endpoint state for connection override:
   //   selectedConnKey  — which connection shows handles
   //   dragInfo         — { connKey, endpoint: 'source'|'target', pointerId,
@@ -799,7 +802,9 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
             if (task.type === 'l3activity' && task.subprocessName?.trim()) {
               num = task.subprocessName.trim();
             }
-            const isHovered = hoveredId === task.id || (hoveredConnEndpoints?.has(task.id) ?? false);
+            const isHovered = hoveredId === task.id
+              || (hoveredConnEndpoints?.has(task.id) ?? false)
+              || highlightedTaskId === task.id;
             const props = { pos, l4Number: num, task, isHovered };
             let shape;
             if (task.type === 'start')           shape = <StartShape {...props} />;
@@ -809,8 +814,25 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
             else                                  shape = <TaskShape {...props} />;
             return (
               <g key={task.id}
-                onMouseEnter={() => setHoveredId(task.id)}
-                onMouseLeave={() => setHoveredId(null)}
+                onMouseEnter={(e) => {
+                  setHoveredId(task.id);
+                  // Show tooltip only when the task has a description
+                  // ("任務重點說明") to avoid empty popovers.
+                  if (task.description?.trim()) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setTooltip({
+                      taskId: task.id,
+                      // Anchor center-X above the shape (stable, doesn't
+                      // chase the cursor).
+                      x: rect.left + rect.width / 2,
+                      y: rect.top,
+                    });
+                  }
+                }}
+                onMouseLeave={() => {
+                  setHoveredId(null);
+                  setTooltip(null);
+                }}
                 onClick={onTaskClick ? (e) => {
                   // Stop propagation so the SVG's clear-selection handler
                   // doesn't fire. Pass viewport coordinates so ContextMenu
@@ -967,6 +989,28 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
       </div>
 
       <LegendSection />
+
+      {/* Hover tooltip — shows task.description anchored above the shape.
+          Only rendered when the user hovers a task that has a description. */}
+      {tooltip && (() => {
+        const t = (flow.tasks || []).find(x => x.id === tooltip.taskId);
+        if (!t || !t.description?.trim()) return null;
+        return (
+          <div
+            className="fixed z-30 pointer-events-none bg-white shadow-xl border border-gray-200 rounded-lg p-2.5 max-w-xs"
+            style={{
+              left: tooltip.x,
+              top: tooltip.y - 12,
+              transform: 'translate(-50%, -100%)',
+            }}
+          >
+            <div className="text-xs font-semibold text-gray-700 mb-1">任務重點說明</div>
+            <div className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
+              {t.description}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
