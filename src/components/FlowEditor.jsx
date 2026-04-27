@@ -247,7 +247,19 @@ export default function FlowEditor({ flow, onBack, onSave }) {
 
   const { dragIdx, overIdx, rowProps } = useDragReorder(
     liveFlow.tasks,
-    newTasks => patch({ tasks: applySequentialDefaults(newTasks) })
+    newTasks => {
+      // Drop stored l4Number on reorder so computeDisplayLabels falls back
+      // to its sequential auto-generation. Otherwise imported tasks keep
+      // their original numbers and don't re-sequence with the new order
+      // (e.g. dragging a new task between imported 5-1-1-1 and 5-1-1-2
+      // would still show NEW=5-1-1-4, B=5-1-1-1 — order ≠ numbers).
+      const renumbered = newTasks.map(t => {
+        if (!t.l4Number) return t;
+        const { l4Number, ...rest } = t;
+        return rest;
+      });
+      patch({ tasks: applySequentialDefaults(renumbered) });
+    }
   );
 
   function patch(updates) {
