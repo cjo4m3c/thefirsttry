@@ -10,9 +10,20 @@ import { useState } from 'react';
 
 const CHANGELOG = [
   {
-    date: '2026-04-25',
-    title: '凍結流程圖角色 header 欄位（橫向 scroll 時保持可見）',
+    date: '2026-04-27',
+    title: '拖曳重排任務時自動重新編號',
     items: [
+      '**情境**：使用者：「我發現新增任務之後，當任務移動改變順序時，編號沒有同步調整」',
+      '**Root cause**：`computeDisplayLabels` 對有 stored `task.l4Number` 的任務直接使用儲存值（為了保留 Excel 匯入的原始編號），不依當前陣列順序重排。匯入過 + 新增的混合情境拖曳後，stored 編號保持不動 → 顯示順序與編號順序對不上（如：拖 NEW 到 B 之前後仍顯示 `A=-0, NEW=-4, B=-1, C=-2, D=-3`）',
+      '**修正**：`FlowEditor.jsx` 的 `useDragReorder` callback 在套用 `applySequentialDefaults` 之前，先把每個 task 的 `l4Number` 屬性 strip 掉，讓 `computeDisplayLabels` 全部走動態 auto-generation 路徑',
+      '**Trade-off**：拖曳一次後，所有匯入時保留的「跳號編號」（如 1, 3, 7）會被磨平成連續編號（1, 2, 3）。換取「拖曳就是順序意圖，編號跟著走」的一致直覺。若要保留特定編號，使用者可在 Wizard 手動填回',
+      '**未動範圍**：純新增、Excel 匯入後未拖曳、`addTask`、`removeTask` 行為不變；只在使用者主動拖曳時觸發清除',
+      '驗證 5 trace 情境：① 純新增拖曳 ② 匯入 + 新增 + 拖曳（主 bug 場景）③ 閘道 `_g` 跟隨前置 task 重編 ④ 多閘道 `_g`/`_g2` 連續 ⑤ 開始/結束事件 `-0`/`-99` 不受影響',
+    ],
+  },
+  {
+    date: '2026-04-25',
+    title: '凍結流程圖角色 header 欄位（橫向 scroll 時保持可見）',    items: [
       '**情境**：使用者：「凍結流程圖角色欄位，這樣左右滑動的時候就可以一直知道這個泳道是誰的」',
       '**作法**：DiagramRenderer 把每個 lane 的「左側 header bg + 角色名字」+ 垂直分隔線（x=LANE_HEADER_W）抽到一個 `<g ref={stickyHeadersRef}>`，渲染在 SVG 最後（疊在連線、任務之上）；scroll 容器加 `onScroll` listener，直接寫 `transform=translate(scrollLeft, 0)` 到那個 `<g>` 上 — 不走 React state 避免每次 scroll 都 re-render',
       '**Lane body 維持原狀**：lane 背景 rect（x=LANE_HEADER_W, width=svgWidth-LANE_HEADER_W）跟底部 lane 分隔線都還在原本的 roles map 裡，跟著內容滾動',
