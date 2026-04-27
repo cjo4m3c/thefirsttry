@@ -649,7 +649,8 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           onUpdateOverride={updateConnectionOverride}
           onChangeTarget={changeConnectionTarget}
           onResetOverride={resetConnectionOverride}
-          onTaskClick={(task, x, y) => setContextMenu({ task, x, y })} />
+          onTaskClick={(task, x, y) => setContextMenu({ task, x, y })}
+          highlightedTaskId={contextMenu?.task?.id || null} />
 
         {/* Excel table — always visible (used to be a tab) */}
         <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden p-4">
