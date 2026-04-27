@@ -4,6 +4,7 @@
  */
 import * as XLSX from 'xlsx';
 import { todayYmd } from './storage.js';
+import { computeDisplayLabels } from './taskDefs.js';
 
 export const EXCEL_HEADERS = [
   'L3 活動編號',
@@ -33,17 +34,22 @@ const COL_WIDTHS = [
 
 /**
  * Build a map from task ID → L4 task number.
- * Uses stored task.l4Number (from import) when available,
- * otherwise assigns sequential numbers to ALL tasks (including start/end/gateway).
+ *
+ * Single source of truth: defers to `computeDisplayLabels` (taskDefs.js) so
+ * Excel export, FlowTable display, and the on-canvas labels all use the same
+ * numbering rule:
+ *   - start event   → L3-0
+ *   - end event     → L3-99
+ *   - gateway       → ${prevTask}_g (or _g2, _g3 for consecutive)
+ *   - regular task  → L3-{counter}, counter only increments on regular tasks
+ *   - stored task.l4Number wins (preserves imported numbering)
+ *
+ * Before 2026-04-27 this was a separate `counter++` loop that gave EVERY task
+ * a sequential number including start/end/gateway, producing wrong labels
+ * (e.g. start=L3-1 instead of L3-0) in any flow without stored l4Number.
  */
 export function buildTableL4Map(l3Number, tasks) {
-  const map = {};
-  let counter = 1;
-  tasks.forEach(task => {
-    const stored = task.l4Number ? String(task.l4Number).replace(/\./g, '-') : null;
-    map[task.id] = stored || `${l3Number}-${counter++}`;
-  });
-  return map;
+  return computeDisplayLabels(tasks, l3Number);
 }
 
 /**
