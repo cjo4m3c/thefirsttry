@@ -73,7 +73,8 @@ FlowSprite/
 │       ├── sync-main.md       # 使用者合併後本地同步 + 清 branch
 │       ├── doc-audit.md       # Changelog / HelpPanel / README / HANDOVER 對齊性檢查
 │       ├── trace-layout.md    # 流程圖路由 node trace 樣板
-│       └── ui-rules.md        # 藍色主題色票、按鈕 / banner / modal pattern
+│       ├── ui-rules.md        # 藍色主題色票、按鈕 / banner / modal pattern
+│       └── paste-bundle.md    # 大檔（>15KB）走 GitHub 網頁手工貼上的 SOP
 └── src/
     ├── main.jsx                   # React entry
     ├── App.jsx                    # Route: Dashboard / Wizard / FlowEditor
@@ -81,13 +82,15 @@ FlowSprite/
     ├── components/
     │   ├── Dashboard.jsx          # 首頁清單、Excel 上傳、批量操作
     │   ├── Wizard.jsx             # 新增 L3 的 2 步驟精靈（L3 資訊 → 角色），完成後進 FlowEditor
-    │   ├── FlowEditor.jsx         # 編輯 L3（流程圖 + 頁籤式編輯 + 儲存前檢核兩層）
-    │   ├── FlowTable.jsx          # L4 任務明細表
-    │   ├── DiagramRenderer.jsx    # SVG 泳道圖 + PNG/drawio 按鈕
-    │   ├── ConnectionSection.jsx  # 任務卡的連線設定 UI
+    │   ├── FlowEditor.jsx         # 編輯 L3（流程圖 + 右側 drawer 編輯 + ContextMenu + 儲存前檢核兩層）
+    │   ├── FlowTable.jsx          # L4 任務明細表（流程圖下方常駐顯示）
+    │   ├── DiagramRenderer.jsx    # SVG 泳道圖 + PNG/drawio 按鈕 + hover tooltip + onTaskClick
+    │   ├── RightDrawer.jsx        # 右側滑出面板（hosts 設定流程 + 設定泳道角色 tabs）
+    │   ├── ContextMenu.jsx        # 點任務元件彈出的編輯選單（inline name/role/desc + 新增/刪除/連線/閘道）
+    │   ├── ConnectionSection.jsx  # 任務卡的連線設定 UI（drawer flow tab 內）
     │   ├── BackToTop.jsx          # 右下角浮動回到頂端按鈕
-    │   ├── dragReorder.jsx        # 共用的 useDragReorder hook + DragHandle（Wizard / FlowEditor 共用）
-    │   ├── HelpPanel.jsx          # 規則說明 Modal
+    │   ├── dragReorder.jsx        # 共用的 useDragReorder hook（dropAfter 指示器）+ DragHandle（Wizard / FlowEditor 共用）
+    │   ├── HelpPanel.jsx          # 規則說明 Modal（使用者可編輯操作 + 不能違反的規則）
     │   └── ChangelogPanel.jsx     # 版本更新紀錄 Modal（每次功能後加一筆）
     ├── diagram/
     │   ├── constants.js           # LAYOUT 尺寸 + COLORS 主題色
@@ -99,6 +102,45 @@ FlowSprite/
         ├── excelExport.js         # 匯出 .xlsx
         └── drawioExport.js        # 匯出 .drawio
 ```
+
+### 2.5 layout.js 內部路由規則（開發者參考）
+
+> 這段內容原本在 HelpPanel.jsx，後來改成讓使用者可以直接拖端點 / 換目標，所以從使用者面板搬到這裡作為內部技術參考。動 `layout.js` 前要先讀懂這部分。
+
+**dr / dc 定義**
+- `dr = 目標角色列 − 來源角色列`（正 = 下方角色, 負 = 上方角色）
+- `dc = 目標欄 − 來源欄`（正 = 右側往後, 負 = 左側往前）
+
+**Routing 條件 → exit/entry 決策表**
+
+| 條件 | 出口 → 入口 | 備註 |
+|---|---|---|
+| dr=0, dc=1（同列相鄰向右）| 右 → 左 | 主要順向連線，水平 midX 折線 |
+| dr=0, dc>1（同列跳欄向右）| 上 → 上 | 走上方 corridor 跳過中間元件；slot 系統分配不同 y-level |
+| dr=0, dc<0（同列往前 / loop-back）| 上 → 上 | 走上方 corridor 回到前面任務；slot 系統避免與其他 top 連線重疊 |
+| dr<0, dc=0 / 相鄰（目標在上方同欄）| 上 → 對側 | 簡單 1-bend 折線 |
+| dr<0, dc>0（上方右側）| 右 → 左 | L 形繞上 |
+| dr>0, dc=0 / 相鄰（目標在下方同欄）| 下 → 對側 | 簡單 1-bend 折線 |
+| dr>0, dc>0（下方右側）| 右 → 左 | L 形繞下 |
+| 同閘道多出口衝突 | 依優先順序分散 | Phase 1：每條件挑第一個未被 sibling 佔用的側；4 條件以上會補上未列側邊避免同 port 重疊 |
+| 目標閘道有多條 incoming | 入口分散 | Phase 2：按來源方向把 entry 分到 4 個 port |
+| 閘道自身 incoming 端點已被佔用 | 避開 | outgoing 會跳過 incoming 已佔的側，避免共用 port |
+| 跨列 forward 預設路徑會穿過任務矩形 | 改端點避障 | Phase 3d：優先改 target 上/下端點（垂直段放 target 欄）；失敗改 source 上/下端點（垂直段放 source 欄）|
+| Top / bottom corridor 回退衝突 | 擇優先 rule 1 | Top 交叉時退到 bottom 前先檢查是否會混用；若 top 和 bottom 都有問題，優先 top（視覺交叉屬規則 2、端點混用屬規則 1）|
+
+**Corridor slot 系統**
+
+| 通道 | 適用情境 | Slot 規則 |
+|---|---|---|
+| 上方 corridor（top→top）| 閘道 top-skip、task backward（迴圈返回）、task forward 長跳欄（dc>1 同列）| 自動 slot：每條連線一個 y-level，最長 span 放最外側；row 0 會動態預留空間避免壓到標題列 |
+| 下方 corridor（bottom→bottom）| 同列跨欄下方繞行（少數情境）| 自動 slot：在泳道底部往上堆疊，最長 span 放最外側，泳道高度自動擴張 |
+| 平行走廊（left→left / right→right）| 較罕見，用於特殊反向或跨區位連線 | 目前未做 slot，依 min/max 座標加固定偏移 |
+
+**規則 1 / 規則 2**（CLAUDE.md §10.1）
+- 規則 1：端點不能 IN+OUT 混用（violation detector blocking）
+- 規則 2：避免線段穿過任務矩形（violation detector warning）
+
+使用者拖曳端點 / 換目標時 violation detector 會即時抓出問題並紅色高亮。
 
 ---
 
@@ -126,6 +168,7 @@ FlowSprite/
 |---|---|
 | `條件分支至 A、B、C` | XOR fork |
 | `並行分支至 A、B、C` | AND fork |
+| `包容分支至 A、B、C` 或 `可能分支至 A、B、C` | OR fork |
 
 ### 3.3 哪些**不是**獨立閘道（是一般任務，不用 `_g`）
 
@@ -133,6 +176,7 @@ FlowSprite/
 |---|---|
 | `條件合併來自多個分支、序列流向 Z` | 該任務是 XOR merge target，收到 ≥2 條分支匯入 |
 | `並行合併來自 X、Y、序列流向 Z` | 該任務是 AND join target |
+| `包容合併來自多個分支，序列流向 Z` | 該任務是 OR join target |
 | `迴圈返回至 X`（新）| 該任務有 back-edge 指回 X |
 | `若未通過則返回 X，若通過則序列流向 Y`（舊）| 同上，legacy 語法 |
 
@@ -143,7 +187,8 @@ FlowSprite/
 - **觸發條件**：push `main` 分支
 - **流程**：`actions/checkout@v4` → Node 22 → `npm install` → `npm run build` → upload `dist/` → Pages
 - **Vite base path**：`/FlowSprite/`（跟 repo 名稱綁定；repo 改名須同步改 `vite.config.js`）
-- **無環境變數**：所有設定都在程式碼裡，部署不需要 secrets
+- **`VITE_BASE_PATH` 環境變數**：可選 override；給未來 preview branch 部署到子路徑用（例如 `/FlowSprite/preview-foo/`）
+- **無 secrets**：所有設定都在程式碼裡，部署不需要
 
 ---
 
@@ -156,7 +201,7 @@ FlowSprite/
 1. GitHub `cjo4m3c/FlowSprite` 新增接手人為 collaborator（或 transfer ownership）
 2. 接手人安裝 Claude Code 或同類工具
 3. 把 `CLAUDE.md` + `HANDOVER.md` + `src/components/ChangelogPanel.jsx`（變更歷史）給他
-4. 提醒他 `.claude/skills/` 底下的 5 個重用流程（`/ship-feature`、`/sync-main`、`/doc-audit`、`/trace-layout`、`/ui-rules`）
+4. 提醒他 `.claude/skills/` 底下的 6 個重用流程（`/ship-feature`、`/sync-main`、`/doc-audit`、`/trace-layout`、`/ui-rules`、`/paste-bundle`）
 
 **限制**：他的 AI 設定中應保留「只能操作 `cjo4m3c/FlowSprite`」的 scope 限制、squash merge 預設、不改 deploy workflow。
 
@@ -198,15 +243,7 @@ FlowSprite/
 - [ ] 把這份 HANDOVER.md 交給接手人（repo 裡已有）
 - [ ] 告知「此工具無後端 / 無帳號 / 無同步」，最終使用者備份唯一管道是 Excel 下載
 - [ ] 告知 `main` push 自動部署、只能 squash merge
-- [ ] 告知 backlog：
-  - 閘道 >4 條件分支時 port 共享（需要 port 子位置偏移架構）
-  - **[bug] 包容閘道（OR）、並行閘道（AND）邏輯** — 需具體重現情境
-  - **[bug] 批量下載 Excel 數量多時後面的會漏檔案** — 可能是並發 / browser download throttle
-  - **[feat] Excel Tab 可編輯性優化** — 需範圍釐定（哪些欄位要能直接編）
-  - **[feat] 端點拖曳 PR H** — violation 檢核（IN+OUT mix = blocking、線穿過任務 = warning）+ override 自動清除
-  - **[feat] 端點拖曳 PR I** — override 小圖示 + 個別 / 全域重設按鈕
-  - [nice-to-have] Hover 顯示詳細資訊
-  - [nice-to-have] 只匯入＋覆蓋 Excel 部分欄位
+- [ ] 告知 backlog（最新狀態看 `ChangelogPanel.jsx` 跟 GitHub issues）
 
 ---
 
@@ -214,7 +251,7 @@ FlowSprite/
 
 - **無後端**：資料無法跨裝置、無版本歷史（只有使用者自己下載 Excel 當備份）
 - **瀏覽器限制**：Excel/PNG 匯出受 `html-to-image` + browser memory 限制，非常大的流程圖可能產出失敗
-- **`layout.js` 龐大（~1200 行）**：連線路由有多個 phase（Phase 1 sibling 分配 → Phase 2 target entry 分配 → Phase 3 跨閘道衝突 + Pass 2 sibling-sharing fallback + corridor guard → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 + cross-edge 重疊偵測 → **Phase 3e 使用者手動 override** → 上下 corridor slot 分配），改動容易牽一髮動全身；改前先讀 PR #16~#57 的 description 建立脈絡
+- **`layout.js` 龐大（~1200 行）**：連線路由有多個 phase（Phase 1 sibling 分配 → Phase 2 target entry 分配 → Phase 3 跨閘道衝突 + Pass 2 sibling-sharing fallback + corridor guard → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 + cross-edge 重疊偵測 → **Phase 3e 使用者手動 override** → 上下 corridor slot 分配），改動容易牽一髮動全身；改前先讀 §2.5 內部路由規則 + 最近 10 筆 PR 的 description
 - **中文 regex 敏感**：`excelImport.js` 用中文關鍵字（`條件分支至` 等），對全形/半形、多餘空白、標點符號變體敏感
 - **無自動化測試**：驗證靠 `npm run build` + 手動瀏覽器測試 + `node trace.mjs` 臨時腳本
 
