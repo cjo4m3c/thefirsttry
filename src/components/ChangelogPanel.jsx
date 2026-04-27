@@ -11,6 +11,19 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-27',
+    title: '修復 Excel 下載編號不符規則（單一 source of truth）',
+    items: [
+      '**情境**：使用者：「我希望先修正現在下載出來的 excel 沒有遵守編號規則的問題，畫面上的編號規則是對的」',
+      '**Root cause**：`excelExport.js` 的 `buildTableL4Map` 是**自己一套** counter 邏輯（純流水給每一個 task 包含 start/end/gateway 通通遞增），跟 `computeDisplayLabels`（畫面 / 流程圖 / 編輯下拉用的）兩套並存。當 task 沒 stored `l4Number`（純新增流程）時，Excel L4 編號欄就完全沒套規則 → 例如 `start=L3-1`（應為 `-0`）、`end=L3-6`（應為 `-99`）、閘道 `L3-3`（應為 `_g`）',
+      '**影響範圍**：①Excel 下載的「L4 任務編號」欄位 ②Excel 下載的「任務關聯說明」欄裡引用的編號（`generateFlowAnnotation` 用同一個 l4Map）③ FlowTable Tab 顯示的編號（`FlowTable.jsx:63`）— 都是錯的',
+      '**修正**：`buildTableL4Map(l3Number, tasks)` 直接 wrap `computeDisplayLabels(tasks, l3Number)`，移除自己的 counter 邏輯。從此**整個系統只有一個編號函式**，畫面 / 流程圖 / Excel / FlowTable 共用同一個 source of truth',
+      '**保留行為**：stored `task.l4Number` 仍然優先（不破壞 Excel 匯入時保留原始編號的設計）；只有純新增 / 拖曳重排後的純動態編號路徑被修正',
+      '驗證 3 trace 情境：① 純新增（start=-0, gw=_g, end=-99 ✓）② 連續閘道 _g/_g2 ✓ ③ 匯入有 stored l4Number 不變 ✓',
+      '**順帶發現（未修，留下次 PR）**：`buildExcelRows` 仍用 `task.flowAnnotation || generateFlowAnnotation(...)`，匯入過的 task 即使後來改連線，匯出仍用 stored 原始文字 → FlowTable 顯示（永遠重算）跟 Excel 匯出（優先 stored）不一致。建議下次改成永遠重算',
+    ],
+  },
+  {
+    date: '2026-04-27',
     title: '包容閘道（OR）完整支援 + 並行閘道條件標籤可選填 + 閘道下拉可見性修正',
     items: [
       '**情境**：使用者：「我現在測試可以顯示並行閘道，但並行閘道似乎無法正確編號，所以在新增的時候沒辦法從其他任務連過去；另外，包容閘道現在完全無法使用」+「condition label 都顯示、不強制要寫內容」',
