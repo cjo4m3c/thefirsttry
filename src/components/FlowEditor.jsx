@@ -7,7 +7,7 @@
  *   1. From scratch (via Wizard → redirected here after save)
  *   2. From Excel import (opened directly in view/edit mode)
  */
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import DiagramRenderer from './DiagramRenderer.jsx';
 import ConnectionSection from './ConnectionSection.jsx';
 import FlowTable from './FlowTable.jsx';
@@ -103,7 +103,8 @@ function validateFlow(flow) {
       warnings.push(`${label}：閘道未指定泳道角色`);
     }
 
-    // 4. Every node except start must have incoming (already blocking for end,    //    this catches orphan middle nodes).
+    // 4. Every node except start must have incoming (already blocking for end,
+    //    this catches orphan middle nodes).
     if (!isStart(t) && !(incoming[t.id] > 0)) {
       warnings.push(`${label}：沒有任何任務連接到此節點`);
     }
@@ -126,7 +127,7 @@ function validateFlow(flow) {
 }
 
 // ── TaskCard ────────────────────────────────────────────────
-function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove, dragHandlers, isDragging, isOver, dropAfter }) {
+function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove, dragHandlers, isDragging, dropEdge }) {
   const ct = task.connectionType || 'sequence';
   const badge = CONN_BADGE[ct];
   const num = displayLabels[task.id];
@@ -135,11 +136,16 @@ function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, ca
   const showShape = ct === 'sequence' || ct === 'subprocess';
   const [expanded, setExpanded] = useState(false);
 
-  // Drop indicator: thin blue line on top edge (drop above this row) or
-  // bottom edge (drop below). Falls back to neutral border otherwise.
-  const dropEdgeClass = isOver
-    ? (dropAfter ? 'border-b-2 border-blue-500' : 'border-t-2 border-blue-500')
-    : 'border-gray-200';
+  // dropEdge marks this row as adjacent to the drop slot:
+  //   'top'    → drop slot is above this row    (top edge highlighted)
+  //   'bottom' → drop slot is below this row    (bottom edge highlighted)
+  //   null     → not adjacent
+  // The DropLine sibling rendered between rows shows the actual insertion line.
+  const dropEdgeClass = dropEdge === 'top'
+    ? 'border-t-2 border-blue-500'
+    : dropEdge === 'bottom'
+      ? 'border-b-2 border-blue-500'
+      : 'border-gray-200';
 
   return (
     <div
@@ -683,33 +689,61 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         activeTab={drawerTab}
         onTabChange={setDrawerTab}
       >
-        {drawerTab === 'flow' && (
-          <div>
-            <p className="text-xs text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位</p>
-            <div className="flex flex-col gap-2">
-              {liveFlow.tasks.map((task, i) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  roles={liveFlow.roles || []}
-                  allTasks={liveFlow.tasks}
-                  displayLabels={displayLabels}
-                  onUpdate={updated => updateTask(task.id, updated)}
-                  onRemove={() => removeTask(task.id)}
-                  canRemove={liveFlow.tasks.length > 1}
-                  dragHandlers={rowProps(i)}
-                  isDragging={dragIdx === i}
-                  isOver={overIdx === i && dragIdx !== i}
-                  dropAfter={dropAfter}
-                />
-              ))}
+        {drawerTab === 'flow' && (() => {
+          // Compute the future insertion slot (0..tasks.length) so we can
+          // light up BOTH adjacent rows AND draw a dedicated drop-line
+          // between them — far less ambiguous than highlighting just one.
+          const dropTargetSlot = (dragIdx === null || overIdx === null) ? null
+            : (dropAfter ? overIdx + 1 : overIdx);
+          const adjacentTopIdx    = dropTargetSlot !== null ? dropTargetSlot - 1 : null;
+          const adjacentBottomIdx = dropTargetSlot;
+          const getDropEdge = (i) => {
+            if (dragIdx === null || dragIdx === i) return null;
+            if (i === adjacentTopIdx)    return 'bottom';
+            if (i === adjacentBottomIdx) return 'top';
+            return null;
+          };
+          // Don't draw the line if it would land at the dragged row's own
+          // index (a no-op drop) — feedback should reflect a real change.
+          const showLineAt = (slot) => dropTargetSlot === slot
+            && dragIdx !== null
+            && slot !== dragIdx
+            && slot !== dragIdx + 1;
+          const DropLine = () => (
+            <div className="relative h-0 my-[-4px]" aria-hidden="true">
+              <div className="absolute inset-x-2 -translate-y-1/2 h-1.5 bg-blue-500 rounded-full shadow-md shadow-blue-300" />
             </div>
-            <button onClick={addTask}
-              className="mt-3 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
-              + 新增任務
-            </button>
-          </div>
-        )}
+          );
+          return (
+            <div>
+              <p className="text-xs text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位</p>
+              <div className="flex flex-col gap-2">
+                {liveFlow.tasks.map((task, i) => (
+                  <Fragment key={task.id}>
+                    {showLineAt(i) && <DropLine />}
+                    <TaskCard
+                      task={task}
+                      roles={liveFlow.roles || []}
+                      allTasks={liveFlow.tasks}
+                      displayLabels={displayLabels}
+                      onUpdate={updated => updateTask(task.id, updated)}
+                      onRemove={() => removeTask(task.id)}
+                      canRemove={liveFlow.tasks.length > 1}
+                      dragHandlers={rowProps(i)}
+                      isDragging={dragIdx === i}
+                      dropEdge={getDropEdge(i)}
+                    />
+                  </Fragment>
+                ))}
+                {showLineAt(liveFlow.tasks.length) && <DropLine />}
+              </div>
+              <button onClick={addTask}
+                className="mt-3 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                + 新增任務
+              </button>
+            </div>
+          );
+        })()}
 
         {drawerTab === 'roles' && (
           <div>

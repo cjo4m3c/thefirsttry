@@ -11,6 +11,26 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-27',
+    title: '編輯體驗大改造：drawer + ContextMenu + hover tooltip + 拖曳線條 + 文件整理',
+    items: [
+      '**版面重構**：流程圖下方原 3 tab（設流程 / Excel 清單 / 設角色）改成「流程圖 + Excel 表格直顯」+ 右側 drawer（點 ✏️ 編輯按鈕滑出，內含「設定流程」「設定泳道角色」兩個 tab）。Excel 表格不再藏在 tab 裡',
+      '**ContextMenu**（點任務元件出編輯選單）：使用者：「點選流程圖上的所有元件時，可以出現一個小選單」。可 inline 編輯名稱 / 角色 / 任務重點說明，以及前後插入任務、新增一條連線、新增閘道（XOR/AND/OR + 兩條連線目標）、刪除元件。新元件自動 reconnect 避免孤兒（addTaskBefore / addTaskAfter / insertGatewayAfter）',
+      '**Hover tooltip**（hover 任務看重點說明）：使用者：「hover 到任務時可顯示任務重點說明」。`DiagramRenderer` 加 tooltip state，hover task shape 上方彈出（只有有填 description 才顯示），訪談快查 / 詳細編輯雙場景滿足（持續顯示走 ContextMenu）',
+      '**Click 任務時亮起**：使用者：「希望編輯元件點開來時，要編輯的那個元件也會亮起來」。FlowEditor 把 `contextMenu.task.id` 傳 `highlightedTaskId` 給 DiagramRenderer，reuse hover 樣式',
+      '**拖曳 drop indicator 升級**：使用者：「拖曳到哪裡就哪裡的中間位置亮起來」。`useDragReorder` hook 加 `dropAfter`（依滑鼠 Y 對 row 中線判定）；TaskCard 改 `dropEdge` prop（top/bottom/null），讓**插入位置上下兩 row 都亮藍邊** + 中間插入明顯藍色 DropLine 條',
+      '**Drawer 角色拖曳**：drawer「設定泳道角色」tab 接 `useDragReorder`，可拖排序泳道；`Wizard` 同步接 `dropAfter` indicator',
+      '**TaskCard 2-row layout**（drawer 名稱欄擠扁修復）：drawer 寬度 ~528px 下原本一行排 7 個元素導致 name input 被擠到 ~50px。改成 Row 1（drag + badge + role + name + actions）+ Row 2（連線類型 + 形狀），name 有 ~280px 寬',
+      '**ContextMenu 加 description textarea**：menu 內可直接編輯任務重點說明（rows=3，可 resize）',
+      '**Excel 匯出 annotation 一致性（技術債 D）**：`buildExcelRows` 從 `task.flowAnnotation || generateFlowAnnotation()` 改成永遠重算，匯入後改連線下載 Excel 不再用舊文字',
+      '**HelpPanel 規則改寫**：移除「判斷框指向規則 Gateway Routing + Corridor slot」table（這些是內部 layout 細節，使用者已能直接拖端點不需要看）→ 改成「可編輯操作 Editable Actions」+「不能違反的規則 Forbidden Rules」（IN+OUT 混用 / 線跨任務 / 開始結束必須有連線 / L4 編號規則）。原 ROUTING / CORRIDOR 表搬到 `HANDOVER.md` §2.5 作為內部開發者參考',
+      '**Cosmetic 黏行清理（技術債 A）**：FlowEditor.jsx:106 `// 4.` 兩行擠成一行修正；HelpPanel.jsx:145 `},  },` 黏行修正',
+      '**清理死 workflow**：刪 `.github/workflows/deploy-preview.yml`（trigger 是已 merge 的 `claude/drawer-experiment` branch，永遠不會跑）。`vite.config.js` `VITE_BASE_PATH` env override 保留（給未來 preview branch 重用）',
+      '**README + HANDOVER 更新**：加入 `RightDrawer.jsx` / `ContextMenu.jsx` 元件、`paste-bundle.md` skill；HANDOVER §2.5 加 `layout.js` 內部路由規則參考；§3.2 加 OR fork 關鍵字；§3.3 加 OR join 關鍵字',
+      '本 PR 涵蓋 4 個 merged PR（#66 drawer 重構 → #67 drawer 名稱欄寬 + 拖曳線條 + tooltip + ContextMenu desc → #68 drawer 角色拖曳）的 changelog 補登 + 本次「flow tab DropLine 升級 + 文件整理 + 技術債」一次發。下次按 §4 規則一 PR 一筆',
+    ],
+  },
+  {
+    date: '2026-04-27',
     title: '修復 Excel 下載編號不符規則（單一 source of truth）',
     items: [
       '**情境**：使用者：「我希望先修正現在下載出來的 excel 沒有遵守編號規則的問題，畫面上的編號規則是對的」',

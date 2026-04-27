@@ -80,7 +80,8 @@ FlowSprite/
 │       ├── sync-main.md           ← 使用者合併後本地同步 + 清 branch
 │       ├── doc-audit.md           ← Changelog / HelpPanel / README / HANDOVER 對齊性檢查
 │       ├── trace-layout.md        ← 流程圖路由 node trace 樣板
-│       └── ui-rules.md            ← 藍色主題色票、按鈕 / banner / modal pattern
+│       ├── ui-rules.md            ← 藍色主題色票、按鈕 / banner / modal pattern
+│       └── paste-bundle.md        ← 大檔（>15KB）走 GitHub 網頁手工貼上的 SOP
 ├── public/                        ← 靜態資源（logo 等）
 └── src/
     ├── main.jsx                   ← React entry point
@@ -89,13 +90,15 @@ FlowSprite/
     ├── components/
     │   ├── Dashboard.jsx          ← 首頁：L3 清單、Excel 上傳、批量操作
     │   ├── Wizard.jsx             ← 新增 L3 的 2 步驟精靈（L3 資訊 → 角色 → 進入 FlowEditor）
-    │   ├── FlowEditor.jsx         ← 編輯既有 L3（流程圖 + 頁籤式編輯 + 儲存前檢核）
-    │   ├── FlowTable.jsx          ← L4 任務明細表（詳細 Excel 清單頁籤）
-    │   ├── DiagramRenderer.jsx    ← SVG 泳道圖 + PNG / Draw.io 匯出按鈕
+    │   ├── FlowEditor.jsx         ← 編輯既有 L3（流程圖 + 右側 drawer 編輯 + ContextMenu + 儲存前檢核）
+    │   ├── FlowTable.jsx          ← L4 任務明細表（流程圖下方常駐顯示）
+    │   ├── DiagramRenderer.jsx    ← SVG 泳道圖 + PNG / Draw.io 匯出按鈕 + hover tooltip + 點任務觸發 ContextMenu
+    │   ├── RightDrawer.jsx        ← 右側滑出面板（hosts 設定流程 + 設定泳道角色 tabs）
+    │   ├── ContextMenu.jsx        ← 點任務元件彈出的編輯選單（inline 編輯 + 新增/刪除/連線/閘道）
     │   ├── ConnectionSection.jsx  ← 任務卡片內的連線設定 UI
     │   ├── BackToTop.jsx          ← 右下角浮動回到頂端按鈕
-    │   ├── dragReorder.jsx        ← 共用的 `useDragReorder` hook + `DragHandle` 元件
-    │   ├── HelpPanel.jsx          ← 規則說明 Modal
+    │   ├── dragReorder.jsx        ← 共用的 `useDragReorder` hook（dropAfter 指示器）+ `DragHandle` 元件
+    │   ├── HelpPanel.jsx          ← 規則說明 Modal（可編輯操作 + 不能違反的規則）
     │   └── ChangelogPanel.jsx     ← 版本更新紀錄 Modal（功能後新增條目）
     ├── diagram/
     │   ├── constants.js           ← LAYOUT 尺寸 + COLORS 主題色

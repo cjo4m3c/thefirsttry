@@ -142,7 +142,8 @@ const VALIDATION = [
   {
     tier: 'import',
     rule: '條件分支標籤可選填',
-    detail: 'XOR / AND / OR 三類閘道的每個分支都顯示「標籤」欄位但**不強制必填**。XOR / OR 標籤代表觸發條件；AND 標籤僅作註記用（規格上不評估條件）。Excel 匯入時兩種寫法都吃：`條件分支至 X（標籤）、Y` 或 `條件分支至 X、Y`。',  },
+    detail: 'XOR / AND / OR 三類閘道的每個分支都顯示「標籤」欄位但**不強制必填**。XOR / OR 標籤代表觸發條件；AND 標籤僅作註記用（規格上不評估條件）。Excel 匯入時兩種寫法都吃：`條件分支至 X（標籤）、Y` 或 `條件分支至 X、Y`。',
+  },
   {
     tier: 'import',
     rule: '閘道 L4 編號必須以 `_g` 結尾',
@@ -206,35 +207,64 @@ const CONNECTIONS = [
   },
 ];
 
-/**
- * ROUTING RULES — sync with getExitPriority / inferEntrySide in layout.js.
- *
- * dr = toRow - fromRow (正 = 下方角色, 負 = 上方角色)
- * dc = toCol - fromCol (正 = 右邊欄位, 負 = 左邊 / 往前)
- *
- * Smart routing picks each閘道 outgoing 端點 from a priority list; the top
- * and bottom corridors use slot allocation so multiple parallel
- * connections share the same corridor region at distinct y-levels.
- */
-const ROUTING = [
-  { condition: 'dr=0, dc=1（同列相鄰向右）',         exit: '右 → 左',       note: '主要順向連線，水平 midX 折線' },
-  { condition: 'dr=0, dc>1（同列跳欄向右）',         exit: '上 → 上',       note: '走上方 corridor 跳過中間元件；slot 系統分配不同 y-level' },
-  { condition: 'dr=0, dc<0（同列往前 / loop-back）',  exit: '上 → 上',       note: '走上方 corridor 回到前面任務；slot 系統避免與其他 top 連線重疊' },
-  { condition: 'dr<0, dc=0 / 相鄰（目標在上方同欄）', exit: '上 → 對側',      note: '簡單 1-bend 折線' },
-  { condition: 'dr<0, dc>0（上方右側）',              exit: '右 → 左',       note: 'L 形繞上' },
-  { condition: 'dr>0, dc=0 / 相鄰（目標在下方同欄）', exit: '下 → 對側',      note: '簡單 1-bend 折線' },
-  { condition: 'dr>0, dc>0（下方右側）',              exit: '右 → 左',       note: 'L 形繞下' },
-  { condition: '同閘道多出口衝突',                    exit: '依優先順序分散', note: 'Phase 1：每條件挑第一個未被 sibling 佔用的側；4 條件以上會補上未列側邊避免同 port 重疊' },
-  { condition: '目標閘道有多條 incoming',             exit: '入口分散',       note: 'Phase 2：按來源方向把 entry 分到 4 個 port' },
-  { condition: '閘道自身 incoming 端點已被佔用',      exit: '避開',           note: 'outgoing 會跳過 incoming 已佔的側，避免共用 port' },
-  { condition: '跨列 forward 預設路徑會穿過任務矩形', exit: '改端點避障',     note: 'Phase 3d：優先改 target 上/下端點（垂直段放 target 欄）；失敗改 source 上/下端點（垂直段放 source 欄）' },
-  { condition: 'Top / bottom corridor 回退衝突',       exit: '擇優先 rule 1', note: 'Top 交叉時退到 bottom 前先檢查是否會混用；若 top 和 bottom 都有問題，優先 top（視覺交叉屬規則 2、端點混用屬規則 1）' },
+// User-facing list of in-canvas / drawer edit actions.
+// Internal routing / corridor rules moved to HANDOVER.md (developer reference)
+// because users now drag endpoints / change targets directly — exposing the
+// auto-routing matrix only added noise.
+const EDITABLE_ACTIONS = [
+  {
+    title: '拖曳排序任務',
+    desc: '在右側「✏️ 編輯」面板的「設定流程」分頁，按住任務左側的 ⠿ 拖曳改變順序。中間會出現一條藍色橫線指示**插入位置**。順序改了之後 L4 編號自動重排（除非曾經 Excel 匯入帶入特定編號）。',
+  },
+  {
+    title: '拖曳排序泳道角色',
+    desc: '「設定泳道角色」分頁同樣可拖曳 ⠿ 改變泳道由上到下的順序。任務的角色綁定（task.roleId）不變，只是視覺位置調整。',
+  },
+  {
+    title: '點任務元件 → 彈出編輯選單',
+    desc: '在流程圖上**點任務矩形 / 開始 / 結束 / 閘道**會彈出小選單，可直接編輯名稱 / 角色 / 重點說明（hover 時顯示），以及在前面新增、在後面新增、新增一條連線、新增閘道（兩條連線）、刪除元件。新增的元件會自動接好連線避免孤兒。',
+  },
+  {
+    title: 'Hover 任務看重點說明',
+    desc: '滑鼠懸停在任務上會在上方彈出「任務重點說明」浮層（只有有填說明的任務才顯示）。訪談時可作快速提示。',
+  },
+  {
+    title: '拖曳連線端點覆寫起點 / 終點 port',
+    desc: '點選連線後，端點會出現藍色 handle，可拖曳到該任務的其他 port（top / right / bottom / left）覆寫自動路徑。覆寫過的端點顯示琥珀色小圓點。',
+  },
+  {
+    title: '拖曳連線端點換目標任務',
+    desc: '把目標 handle 拖到別的任務上會直接換 target；綠色虛線框提示候選目標、藍色虛線預覽路徑。原 connectionOverrides 會自動跟著遷移。',
+  },
+  {
+    title: '重設手動端點',
+    desc: '若覆寫端點造成違規（紅線），選中該連線後右上角提示列會多「重設此連線端點」按鈕；流程圖上方還有「重設所有手動端點」全清按鈕（僅當有 override 時顯示）。',
+  },
 ];
 
-const CORRIDOR = [
-  { corridor: '上方 corridor（top→top）',  usage: '閘道 top-skip、task backward（迴圈返回）、task forward 長跳欄（dc>1 同列）', slot: '自動 slot：每條連線一個 y-level，最長 span 放最外側；row 0 會動態預留空間避免壓到標題列' },
-  { corridor: '下方 corridor（bottom→bottom）', usage: '同列跨欄下方繞行（少數情境）', slot: '自動 slot：在泳道底部往上堆疊，最長 span 放最外側，泳道高度自動擴張' },
-  { corridor: '平行走廊（left→left / right→right）', usage: '較罕見，用於特殊反向或跨區位連線', slot: '目前未做 slot，依 min/max 座標加固定偏移' },
+// User-facing list of "rules you must not break" — surfaces the violation
+// detector logic so users know what triggers red lines / save warnings.
+const FORBIDDEN_RULES = [
+  {
+    title: '端點不能同時有進入和出發（IN + OUT）',
+    impact: 'Blocking',
+    desc: '同一個任務的同一個 port 不能同時是 incoming + outgoing 端點。違反會在儲存時擋下並用紅色高亮該連線。',
+  },
+  {
+    title: '連線不能跨過任務矩形',
+    impact: 'Warning',
+    desc: '線段壓在其他任務矩形上面會在儲存時跳黃色 modal，可選「仍然儲存」但建議重新拖端點避開。',
+  },
+  {
+    title: '必須有開始事件 + 結束事件，且各自有正確連線',
+    impact: 'Blocking',
+    desc: '流程必須有「流程開始」（outgoing 不為空）+「流程結束」/「流程斷點」（incoming 不為空）。',
+  },
+  {
+    title: 'L4 編號規則（Excel 匯入時強制）',
+    impact: 'Blocking（匯入時）',
+    desc: '一般任務 `1-1-1-1`、開始 `-0`、結束 `-99`、閘道 `1-1-1-X_g`（單 / 連續加 _g1 _g2）、僅接受橫線分隔。詳見上方「編號規則」表。',
+  },
 ];
 
 const EXPORTS = [
@@ -409,51 +439,34 @@ export default function HelpPanel() {
                 </div>
               </Section>
 
-              {/* ── 5. Gateway Routing ── */}
-              <Section title="判斷框指向規則 Gateway Routing">
+              {/* ── 5. Editable Actions + Forbidden Rules ── */}
+              <Section title="可編輯操作 Editable Actions">
                 <p className="text-xs text-gray-400 mb-2">
-                  dr = 目標角色列 − 來源角色列（正 = 下方）　dc = 目標欄 − 來源欄（正 = 右側，往前 = 負）
+                  畫面上可直接操作的編輯動作（不必再回到 Excel 修改）
                 </p>
-                <table className="w-full text-xs mb-4">
-                  <thead>
-                    <tr className="text-left text-gray-500">
-                      <th className="pb-1">條件</th>
-                      <th className="pb-1 w-28 text-center">出口 → 入口</th>
-                      <th className="pb-1">備註</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ROUTING.map((r, i) => (
-                      <tr key={i} className="border-t border-gray-100">
-                        <td className="py-1.5 font-mono text-gray-700">{r.condition}</td>
-                        <td className="py-1.5 text-center font-medium text-indigo-600">{r.exit}</td>
-                        <td className="py-1.5 text-gray-500">{r.note}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="grid gap-2 mb-4">
+                  {EDITABLE_ACTIONS.map((a, i) => (
+                    <div key={i} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                      <div className="font-medium text-blue-800 mb-0.5">{a.title}</div>
+                      <div className="text-gray-600 text-xs leading-relaxed">{a.desc}</div>
+                    </div>
+                  ))}
+                </div>
 
-                <p className="text-xs text-gray-500 font-medium mb-1">Corridor slot 系統</p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-gray-500">
-                      <th className="pb-1 w-40">通道</th>
-                      <th className="pb-1">適用情境</th>
-                      <th className="pb-1">Slot 規則</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {CORRIDOR.map((c, i) => (
-                      <tr key={i} className="border-t border-gray-100">
-                        <td className="py-1.5 font-medium text-indigo-600">{c.corridor}</td>
-                        <td className="py-1.5 text-gray-600">{c.usage}</td>
-                        <td className="py-1.5 text-gray-500">{c.slot}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <p className="text-xs text-gray-500 font-medium mb-1 mt-3">不能違反的規則 Forbidden Rules</p>
+                <div className="grid gap-2">
+                  {FORBIDDEN_RULES.map((r, i) => (
+                    <div key={i} className="bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                      <div className="flex gap-2 items-baseline">
+                        <span className="font-medium text-red-800">{r.title}</span>
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-red-100 text-red-700">{r.impact}</span>
+                      </div>
+                      <div className="text-gray-600 text-xs mt-0.5 leading-relaxed">{r.desc}</div>
+                    </div>
+                  ))}
+                </div>
                 <p className="text-xs text-gray-400 mt-2">
-                  同角色多條下繞線採 slot 制排列（長距離者排於最外側），泳道高度自動擴展以防重疊。
+                  自動路由細節（exit / entry side、corridor slot 分配）已轉為內部開發者文件，請參考 HANDOVER.md。
                 </p>
               </Section>
 

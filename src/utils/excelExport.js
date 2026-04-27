@@ -180,7 +180,14 @@ function buildExcelRows(flow) {
   const l4Map = buildTableL4Map(l3Number, tasks);
 
   return (tasks || []).map(task => {
-    const annotation = task.flowAnnotation || generateFlowAnnotation(task, tasks, l4Map);
+    // Always recompute the annotation from the latest task graph instead of
+    // honoring `task.flowAnnotation` (the stored Excel-import string).
+    // Previously `task.flowAnnotation || generateFlowAnnotation(...)` made
+    // imported flows freeze their original annotation text, so editing a
+    // connection would update the diagram + FlowTable but NOT the Excel
+    // download — three views, two truths. FlowTable already always
+    // recomputes; this aligns Excel export with it.
+    const annotation = generateFlowAnnotation(task, tasks, l4Map);
     return [
       l3Number,
       l3Name,
