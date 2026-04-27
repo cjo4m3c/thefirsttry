@@ -299,13 +299,31 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     patch({ tasks: applySequentialDefaults([...liveFlow.tasks, newTask]) });
   }
 
-  // Insert a new (sequence) task before / after the given anchor task.
-  // Used by ContextMenu's "在前面新增" / "在後面新增" actions.
+  // Insert a new (sequence) task before / after the given anchor task,
+  // and rewire connections so the new task is NOT orphaned:
+  //   addTaskAfter:  anchor → NEW → (anchor's old nextTaskIds)
+  //   addTaskBefore: (everyone who pointed at anchor) → NEW → anchor
+  // Gateway anchors skip auto-reconnect for `addTaskAfter` (multiple outgoing
+  // paths — can't safely pick one); user gets a warning to wire it manually.
   function addTaskBefore(anchorId) {
     const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
     if (idx < 0) return;
     const newTask = makeTask();
-    const next = [...liveFlow.tasks];
+    // Rewire: every task that pointed at anchor → point at newTask
+    // (covers regular task.nextTaskIds and gateway conditions[].nextTaskId).
+    const rewired = liveFlow.tasks.map(t => {
+      if (t.type === 'gateway') {
+        const conds = (t.conditions || []).map(c =>
+          c.nextTaskId === anchorId ? { ...c, nextTaskId: newTask.id } : c
+        );
+        return { ...t, conditions: conds };
+      }
+      const nexts = (t.nextTaskIds || []).map(id => id === anchorId ? newTask.id : id);
+      return { ...t, nextTaskIds: nexts };
+    });
+    // newTask points at anchor (single sequence connection).
+    newTask.nextTaskIds = [anchorId];
+    const next = [...rewired];
     next.splice(idx, 0, newTask);
     // Strip stored l4Number on insertion so numbering stays sequential
     // (same rationale as the drag-reorder fix from the earlier PR).
@@ -320,8 +338,27 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   function addTaskAfter(anchorId) {
     const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
     if (idx < 0) return;
+    const anchor = liveFlow.tasks[idx];
     const newTask = makeTask();
-    const next = [...liveFlow.tasks];
+
+    let rewired;
+    if (anchor.type === 'gateway') {
+      // Gateway has multiple outgoing conditions — can't pick one safely.
+      // Insert without auto-reconnect; user wires it manually in the drawer.
+      rewired = liveFlow.tasks;
+      // Surface the limitation as a save-time blocking-style warning via
+      // a quick alert. Rare action, lightweight feedback is fine.
+      alert('閘道後方新增的任務需要手動到編輯面板（右側 ✏️ 編輯）連接到對應分支。已為您插入新任務。');
+    } else {
+      // Regular task / start / interaction / l3activity — move anchor's
+      // outgoing to newTask, anchor → newTask sole sequence connection.
+      newTask.nextTaskIds = (anchor.nextTaskIds || []).filter(Boolean);
+      rewired = liveFlow.tasks.map(t =>
+        t.id === anchorId ? { ...t, nextTaskIds: [newTask.id] } : t
+      );
+    }
+
+    const next = [...rewired];
     next.splice(idx + 1, 0, newTask);
     const renumbered = next.map(t => {
       if (!t.l4Number) return t;
