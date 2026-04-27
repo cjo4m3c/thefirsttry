@@ -109,16 +109,8 @@ export function generateFlowAnnotation(task, tasks, l4Map) {
       return l4Map[c.nextTaskId] || null;
     }).filter(Boolean);
 
-    if (gType === 'and') {
-      // AND join: single outgoing
-      if (isMergeNode && outNums.length === 1) {
-        return `並行合併來自多個分支，序列流向 ${outNums[0]}`;
-      }
-      // AND fork: parallel branches
-      return outNums.length ? `並行分支至 ${outNums.join('、')}` : '';
-    }
-
-    // XOR / OR gateway
+    // Build labelled fork parts (every gateway type uses the same shape now —
+    // condition labels are optional but always rendered if present).
     const outParts = conds.map(c => {
       if (!c.nextTaskId || !taskById[c.nextTaskId]) return null;
       if (taskById[c.nextTaskId].type === 'end') {
@@ -129,6 +121,21 @@ export function generateFlowAnnotation(task, tasks, l4Map) {
       return c.label ? `${num}（${c.label}）` : num;
     }).filter(Boolean);
 
+    if (gType === 'and') {
+      if (isMergeNode && outNums.length === 1) {
+        return `並行合併來自多個分支，序列流向 ${outNums[0]}`;
+      }
+      return outParts.length ? `並行分支至 ${outParts.join('、')}` : '';
+    }
+
+    if (gType === 'or') {
+      if (isMergeNode && outNums.length === 1) {
+        return `包容合併來自多個分支，序列流向 ${outNums[0]}`;
+      }
+      return outParts.length ? `包容分支至 ${outParts.join('、')}` : '';
+    }
+
+    // XOR
     if (isMergeNode && outParts.length === 1) {
       return `條件合併來自多個分支，序列流向 ${outParts[0]}`;
     }

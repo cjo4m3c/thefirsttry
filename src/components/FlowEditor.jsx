@@ -84,8 +84,23 @@ function validateFlow(flow) {
       warnings.push(`${label}：條件合併至少需要 2 個來源`);
     }
 
-    // 4. Every node except start must have incoming (already blocking for end,
-    //    this catches orphan middle nodes).
+    // 3b. Inclusive-merge needs ≥2 incoming.
+    if (ct === 'inclusive-merge' && (incoming[t.id] || 0) < 2) {
+      warnings.push(`${label}：包容合併至少需要 2 個來源`);
+    }
+
+    // 3c. Inclusive-branch needs ≥2 conditions wired up.
+    if (ct === 'inclusive-branch' && (t.conditions || []).filter(c => c.nextTaskId).length < 2) {
+      warnings.push(`${label}：包容分支至少需要 2 個目標`);
+    }
+
+    // 3d. Gateway without roleId — soft warning. Since gateway is shown in
+    // dropdowns regardless of roleId, this catches the user before save.
+    if (t.type === 'gateway' && !t.roleId) {
+      warnings.push(`${label}：閘道未指定泳道角色`);
+    }
+
+    // 4. Every node except start must have incoming (already blocking for end,    //    this catches orphan middle nodes).
     if (!isStart(t) && !(incoming[t.id] > 0)) {
       warnings.push(`${label}：沒有任何任務連接到此節點`);
     }

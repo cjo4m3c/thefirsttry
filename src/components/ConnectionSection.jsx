@@ -8,7 +8,10 @@ import { makeCondition, taskOptionLabel } from '../utils/taskDefs.js';
 
 export default function ConnectionSection({ task, allTasks, displayLabels, onUpdate }) {
   const ct = task.connectionType || 'sequence';
-  const opts = allTasks.filter(t => t.id !== task.id && t.roleId);
+  // Gateways skip the roleId filter — a freshly added gateway often has no
+  // role yet, but other tasks should still be able to point at it. validateFlow
+  // surfaces "gateway without roleId" as a save-time warning.
+  const opts = allTasks.filter(t => t.id !== task.id && (t.type === 'gateway' || t.roleId));
   const sel = 'flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400';
   const inp = 'flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400';
   const lbl = 'text-xs text-gray-500 w-16 flex-shrink-0';
@@ -102,6 +105,11 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
         {conds.map((cond, idx) => (
           <div key={cond.id} className="flex items-center gap-2 mt-1">
             <span className="text-xs text-green-600 flex-shrink-0">+{idx + 1}</span>
+            <input
+              className="w-20 flex-shrink-0 px-2 py-1 border border-green-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+              value={cond.label} placeholder="標籤（選填）"
+              onChange={e => updCond(idx, 'label', e.target.value)} />
+            <span className="text-xs text-gray-400 flex-shrink-0">→</span>
             <select value={cond.nextTaskId} className={sel}
               onChange={e => updCond(idx, 'nextTaskId', e.target.value)}>
               <option value="">選擇並行目標</option>{renderOpts()}
@@ -114,12 +122,50 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
           className="mt-1.5 text-xs text-green-700 hover:text-green-900">
           + 新增並行目標
         </button>
+        <p className="text-xs text-gray-400 mt-1 pl-1">
+          ℹ AND 並行閘道不評估條件（標籤僅作註記用），所有目標都會建立並行路徑
+        </p>
       </div>
     );
   }
 
-  if (ct === 'parallel-merge' || ct === 'conditional-merge') {
-    const mergeType = ct === 'parallel-merge' ? '並行' : '條件';
+  if (ct === 'inclusive-branch') {
+    const conds = task.conditions || [];
+    return (
+      <div className="mt-1.5">
+        {conds.map((cond, idx) => (
+          <div key={cond.id} className="flex items-center gap-2 mt-1">
+            <span className="text-xs flex-shrink-0" style={{ color: '#854D0E' }}>◇⊙</span>
+            <input
+              className="w-20 flex-shrink-0 px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1"
+              style={{ borderColor: '#FDE68A' }}
+              value={cond.label} placeholder="條件標籤"
+              onChange={e => updCond(idx, 'label', e.target.value)} />
+            <span className="text-xs text-gray-400 flex-shrink-0">→</span>
+            <select value={cond.nextTaskId} className={sel}
+              onChange={e => updCond(idx, 'nextTaskId', e.target.value)}>
+              <option value="">選擇包容目標</option>{renderOpts()}
+            </select>
+            <button onClick={() => remCond(idx)} disabled={conds.length <= 1}
+              className="text-red-400 hover:text-red-600 text-xs flex-shrink-0 disabled:opacity-20">✕</button>
+          </div>
+        ))}
+        <button onClick={() => addCond()}
+          className="mt-1.5 text-xs"
+          style={{ color: '#854D0E' }}>
+          + 新增包容分支
+        </button>
+        <p className="text-xs text-gray-400 mt-1 pl-1">
+          ℹ OR 包容閘道：每個條件獨立評估，凡為真者建立並行路徑（可同時觸發 1~N 條）
+        </p>
+      </div>
+    );
+  }
+
+  if (ct === 'parallel-merge' || ct === 'conditional-merge' || ct === 'inclusive-merge') {
+    const mergeType = ct === 'parallel-merge' ? '並行'
+                     : ct === 'inclusive-merge' ? '包容'
+                     : '條件';
     const c0 = task.conditions?.[0];
     return (
       <div className="mt-1.5">

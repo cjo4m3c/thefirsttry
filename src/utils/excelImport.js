@@ -61,12 +61,37 @@ function parseFlowAnnotations(flowText) {
     });
   }
 
-  // ── 並行分支至 X、Y、Z ─────────────────────────────────────
-  let parallelToNumbers = [];
-  const parallelForkM = text.match(/並行分支至\s*([\d.,、\s_g]+)/);
-  if (parallelForkM) {
-    parallelToNumbers = parallelForkM[1]
-      .split(/[,、\s]+/).map(s => s.trim()).filter(s => /^[\d.-]+(?:_g\d*)?$/.test(s) && s !== '-');
+  // ── 並行分支至 X（A 條件）、Y（B 條件） ─────────────────────
+  // AND 規格上「不評估條件」，但 UI 仍允許填 condition label 作為註記，
+  // 所以 parser 跟 XOR 同格式（容忍中括號內任意字串）。
+  const parallelToNumbers = [];
+  const parallelLabels    = [];
+  const parallelForkSection = text.match(/並行分支至\s*([^\n]+)/);
+  if (parallelForkSection) {
+    parallelForkSection[1].split(/[,、]/).forEach(entry => {
+      const numM = entry.trim().match(/^([\d.-]+(?:_g\d*)?)/);
+      const lblM = entry.match(/[(（]([^)）]+)[)）]/);
+      if (numM) {
+        parallelToNumbers.push(numM[1]);
+        parallelLabels.push(lblM ? lblM[1].trim() : '');
+      }
+    });
+  }
+
+  // ── 包容分支至 / 可能分支至 X（A）、Y（B） ─── OR fork
+  // 兩種動詞都吃進去：使用者實際 Excel 用「可能分支至」、規格寫的是「包容分支至」。
+  const inclusiveToNumbers = [];
+  const inclusiveLabels    = [];
+  const inclusiveForkSection = text.match(/(?:包容|可能)分支至\s*([^\n]+)/);
+  if (inclusiveForkSection) {
+    inclusiveForkSection[1].split(/[,、]/).forEach(entry => {
+      const numM = entry.trim().match(/^([\d.-]+(?:_g\d*)?)/);
+      const lblM = entry.match(/[(（]([^)）]+)[)）]/);
+      if (numM) {
+        inclusiveToNumbers.push(numM[1]);
+        inclusiveLabels.push(lblM ? lblM[1].trim() : '');
+      }
+    });
   }
 
   // ── 並行合併來自 ...，序列流向 Z ───────────────────────────
@@ -78,6 +103,11 @@ function parseFlowAnnotations(flowText) {
   let condMergeNextNums = [];
   const condMergeM = text.match(/條件合併來自多個分支[^，,\n]*[，,]\s*序列流向\s*([\d.-]+(?:_g\d*)?)/);
   if (condMergeM) condMergeNextNums = [condMergeM[1].trim()];
+
+  // ── 包容合併來自多個分支，序列流向 Z ─── OR join
+  let inclusiveMergeNextNums = [];
+  const inclusiveMergeM = text.match(/包容合併來自[^，,\n]*[，,]\s*序列流向\s*([\d.-]+(?:_g\d*)?)/);
+  if (inclusiveMergeM) inclusiveMergeNextNums = [inclusiveMergeM[1].trim()];
 
   // ── 調用子流程 5-3-2 / 調用子流程 5-3-2，返回後序列流向 5-3-1-5 ──
   // Extracts the called L3 number (three-segment, e.g. "5-3-2"). The return
@@ -107,8 +137,12 @@ function parseFlowAnnotations(flowText) {
     branchToNumbers,    // XOR gateway fork targets
     branchLabels,       // XOR condition labels (parallel array)
     parallelToNumbers,  // AND gateway fork targets
-    parallelMergeNextNums, // AND join: outgoing target
-    condMergeNextNums,  // XOR/OR join: outgoing target
+    parallelLabels,     // AND condition labels (parallel array, optional)
+    inclusiveToNumbers, // OR gateway fork targets
+    inclusiveLabels,    // OR condition labels (parallel array)
+    parallelMergeNextNums,   // AND join: outgoing target
+    condMergeNextNums,       // XOR join: outgoing target
+    inclusiveMergeNextNums,  // OR join: outgoing target
     loopBackNumbers,    // back-edge targets (new simple syntax, non-gateway)
     loopConditions,     // legacy loop annotation targets (non-gateway, both back + forward)
     subprocessL3,       // called L3 activity number (e.g. "5-3-2"), empty if not a subprocess
@@ -127,8 +161,9 @@ function parseFlowAnnotations(flowText) {
  * a back-edge on a regular task, merged into nextTaskIds.
  */
 function detectGatewayType(ann) {
-  if (ann.parallelToNumbers.length > 0) return 'and';
-  if (ann.branchToNumbers.length > 0)   return 'xor';
+  if (ann.parallelToNumbers.length > 0)  return 'and';
+  if (ann.inclusiveToNumbers.length > 0) return 'or';
+  if (ann.branchToNumbers.length > 0)    return 'xor';
   return null;
 }
 
@@ -214,8 +249,11 @@ function buildFlow(rows) {
       };
 
       if (task.gatewayType === 'and') {
-        ann.parallelToNumbers.forEach(n => addCond(taskByNumber[n]?.id));
+        ann.parallelToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.parallelLabels[i] || ''));
         ann.parallelMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
+      } else if (task.gatewayType === 'or') {
+        ann.inclusiveToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.inclusiveLabels[i] || ''));
+        ann.inclusiveMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
       } else {
         ann.branchToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.branchLabels[i] || ''));
         ann.condMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
@@ -305,8 +343,9 @@ function buildFlow(rows) {
  *   - 若未通過則返回 X、若通過則序列流向 Y → legacy loop-back, same as above
  */
 function detectGatewayFromText(flowText) {
-  if (/並行分支至/.test(flowText)) return 'and';
-  if (/條件分支至/.test(flowText)) return 'xor';
+  if (/並行分支至/.test(flowText))     return 'and';
+  if (/(?:包容|可能)分支至/.test(flowText)) return 'or';
+  if (/條件分支至/.test(flowText))     return 'xor';
   return null;
 }
 
@@ -362,7 +401,9 @@ function validateNumbering(allRows) {
       errors.push(`• 第 ${excelRow} 列為「結束事件」，L4 編號「${l4}」尾碼應為 99（範例:1-1-7-99）`);
     }
     if (gatewayType && !L4_GATEWAY_PATTERN.test(l4)) {
-      const label = gatewayType === 'and' ? 'AND（並行）' : 'XOR（排他）';
+      const label = gatewayType === 'and' ? 'AND（並行）'
+                  : gatewayType === 'or'  ? 'OR（包容）'
+                  : 'XOR（排他）';
       errors.push(`• 第 ${excelRow} 列為閘道 ${label}，L4 編號「${l4}」應加「_g」後綴（單一 _g；連續多個用 _g1/_g2/_g3… 範例:1-1-9-5_g 或 1-1-9-5_g1）`);
     }
     // Gateway prefix-must-match-task: 1-1-9-5_g / _g1 / _g2… 的前綴 1-1-9-5 必為 L4 任務
