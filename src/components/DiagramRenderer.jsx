@@ -433,7 +433,7 @@ function LegendIcon({ type }) {
 
 export default function DiagramRenderer({ flow, showExport = true, autoExportPng = false,
   onExportDone = null, onUpdateOverride = null, onChangeTarget = null,
-  onResetOverride = null }) {
+  onResetOverride = null, onTaskClick = null }) {
   const exportRef = useRef(null);
   const svgRef = useRef(null);
   // Sticky-role-header support: when the diagram is wider than the viewport,
@@ -811,6 +811,13 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
               <g key={task.id}
                 onMouseEnter={() => setHoveredId(task.id)}
                 onMouseLeave={() => setHoveredId(null)}
+                onClick={onTaskClick ? (e) => {
+                  // Stop propagation so the SVG's clear-selection handler
+                  // doesn't fire. Pass viewport coordinates so ContextMenu
+                  // can position itself near the cursor.
+                  e.stopPropagation();
+                  onTaskClick(task, e.clientX, e.clientY);
+                } : undefined}
                 style={{ cursor: 'pointer' }}>
                 {shape}
               </g>

@@ -12,6 +12,8 @@ import DiagramRenderer from './DiagramRenderer.jsx';
 import ConnectionSection from './ConnectionSection.jsx';
 import FlowTable from './FlowTable.jsx';
 import BackToTop from './BackToTop.jsx';
+import RightDrawer from './RightDrawer.jsx';
+import ContextMenu from './ContextMenu.jsx';
 import { useDragReorder, DragHandle } from './dragReorder.jsx';
 import {
   CONNECTION_TYPES, SHAPE_TYPES, CONN_BADGE, CONN_ROW_BG,
@@ -19,6 +21,7 @@ import {
   normalizeTask, applyConnectionType, applySequentialDefaults,
   computeDisplayLabels,
 } from '../utils/taskDefs.js';
+import { generateId } from '../utils/storage.js';
 import { detectOverrideViolations } from '../diagram/violations.js';
 
 // ── Pre-save validation ──────────────────────────────────────
@@ -243,7 +246,13 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     }),
   }));
   const [hasChanges, setHasChanges] = useState(false);
-  const [activeTab, setActiveTab] = useState('flow'); // 'flow' | 'table' | 'roles'
+  // Drawer state: tabs inside drawer are 'flow' (流程) / 'roles' (角色).
+  // Excel table moves out of tabs entirely → always shown below diagram.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState('flow'); // 'flow' | 'roles'
+  // Context menu state: { task, x, y } when open, null when closed.
+  // Triggered by clicking a shape on the diagram.
+  const [contextMenu, setContextMenu] = useState(null);
   const [logoReaction, setLogoReaction] = useState(null); // 'wave' | null
     const [saveModal, setSaveModal] = useState(null); // { type: 'blocking'|'warning', messages: [] }
   // PR I: confirm-before-clear modal for "重設所有手動端點" global reset.
@@ -289,6 +298,132 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   function addTask() {
     const newTask = makeTask();
     patch({ tasks: applySequentialDefaults([...liveFlow.tasks, newTask]) });
+  }
+
+  // Insert a new (sequence) task before / after the given anchor task,
+  // and rewire connections so the new task is NOT orphaned:
+  //   addTaskAfter:  anchor → NEW → (anchor's old nextTaskIds)
+  //   addTaskBefore: (everyone who pointed at anchor) → NEW → anchor
+  // Gateway anchors skip auto-reconnect for `addTaskAfter` (multiple outgoing
+  // paths — can't safely pick one); user gets a warning to wire it manually.
+  function addTaskBefore(anchorId) {
+    const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
+    if (idx < 0) return;
+    const newTask = makeTask();
+    // Rewire: every task that pointed at anchor → point at newTask
+    // (covers regular task.nextTaskIds and gateway conditions[].nextTaskId).
+    const rewired = liveFlow.tasks.map(t => {
+      if (t.type === 'gateway') {
+        const conds = (t.conditions || []).map(c =>
+          c.nextTaskId === anchorId ? { ...c, nextTaskId: newTask.id } : c
+        );
+        return { ...t, conditions: conds };
+      }
+      const nexts = (t.nextTaskIds || []).map(id => id === anchorId ? newTask.id : id);
+      return { ...t, nextTaskIds: nexts };
+    });
+    // newTask points at anchor (single sequence connection).
+    newTask.nextTaskIds = [anchorId];
+    const next = [...rewired];
+    next.splice(idx, 0, newTask);
+    // Strip stored l4Number on insertion so numbering stays sequential
+    // (same rationale as the drag-reorder fix from the earlier PR).
+    const renumbered = next.map(t => {
+      if (!t.l4Number) return t;
+      const { l4Number, ...rest } = t;
+      return rest;
+    });
+    patch({ tasks: applySequentialDefaults(renumbered) });
+  }
+
+  function addTaskAfter(anchorId) {
+    const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
+    if (idx < 0) return;
+    const anchor = liveFlow.tasks[idx];
+    const newTask = makeTask();
+
+    let rewired;
+    if (anchor.type === 'gateway') {
+      // Gateway has multiple outgoing conditions — can't pick one safely.
+      // Insert without auto-reconnect; user wires it manually in the drawer.
+      rewired = liveFlow.tasks;
+      // Surface the limitation as a save-time blocking-style warning via
+      // a quick alert. Rare action, lightweight feedback is fine.
+      alert('閘道後方新增的任務需要手動到編輯面板（右側 ✏️ 編輯）連接到對應分支。已為您插入新任務。');
+    } else {
+      // Regular task / start / interaction / l3activity — move anchor's
+      // outgoing to newTask, anchor → newTask sole sequence connection.
+      newTask.nextTaskIds = (anchor.nextTaskIds || []).filter(Boolean);
+      rewired = liveFlow.tasks.map(t =>
+        t.id === anchorId ? { ...t, nextTaskIds: [newTask.id] } : t
+      );
+    }
+
+    const next = [...rewired];
+    next.splice(idx + 1, 0, newTask);
+    const renumbered = next.map(t => {
+      if (!t.l4Number) return t;
+      const { l4Number, ...rest } = t;
+      return rest;
+    });
+    patch({ tasks: applySequentialDefaults(renumbered) });
+  }
+
+  // ContextMenu: append a new outgoing connection from `fromTaskId` to
+  // `toTaskId`. Regular tasks just push to nextTaskIds (multi-target =
+  // parallel rendering). Gateways append a new condition.
+  function addConnection(fromTaskId, toTaskId) {
+    const task = liveFlow.tasks.find(t => t.id === fromTaskId);
+    if (!task || !toTaskId || fromTaskId === toTaskId) return;
+    if (task.type === 'gateway') {
+      const newCond = { id: generateId(), label: '', nextTaskId: toTaskId };
+      updateTask(fromTaskId, {
+        ...task,
+        conditions: [...(task.conditions || []), newCond],
+      });
+    } else {
+      const nexts = (task.nextTaskIds || []).filter(Boolean);
+      updateTask(fromTaskId, { ...task, nextTaskIds: [...nexts, toTaskId] });
+    }
+  }
+
+  // ContextMenu: insert a gateway after `anchorId` with two outgoing
+  // conditions to `targetId1` / `targetId2`. anchor → newGateway →
+  // [target1, target2]. anchor's old nextTaskIds are overwritten — if the
+  // user wanted to preserve them, they should pick them as one of the
+  // targets via the menu's dropdowns.
+  function insertGatewayAfter(anchorId, gatewayType, targetId1, targetId2) {
+    const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
+    if (idx < 0) return;
+    const anchor = liveFlow.tasks[idx];
+    const ctMap = {
+      xor: 'conditional-branch',
+      and: 'parallel-branch',
+      or:  'inclusive-branch',
+    };
+    const newGateway = makeTask({
+      type: 'gateway',
+      gatewayType,
+      connectionType: ctMap[gatewayType] || 'conditional-branch',
+      roleId: anchor.roleId || '',
+      conditions: [
+        { id: generateId(), label: '', nextTaskId: targetId1 || '' },
+        { id: generateId(), label: '', nextTaskId: targetId2 || '' },
+      ],
+      nextTaskIds: [],
+    });
+    // anchor's outgoing now points solely at the new gateway (overwrite).
+    const rewired = liveFlow.tasks.map(t =>
+      t.id === anchorId ? { ...t, nextTaskIds: [newGateway.id] } : t
+    );
+    const next = [...rewired];
+    next.splice(idx + 1, 0, newGateway);
+    const renumbered = next.map(t => {
+      if (!t.l4Number) return t;
+      const { l4Number, ...rest } = t;
+      return rest;
+    });
+    patch({ tasks: applySequentialDefaults(renumbered) });
   }
 
   function removeTask(id) {
@@ -479,6 +614,15 @@ export default function FlowEditor({ flow, onBack, onSave }) {
             </svg>
           </button>
           <button
+            onClick={() => setDrawerOpen(true)}
+            title="開啟編輯面板"
+            className="px-3 py-1.5 text-sm rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 flex items-center gap-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            編輯
+          </button>
+          <button
             onClick={handleSave}
             className="px-4 py-1.5 text-sm rounded font-medium transition-colors"
             style={{ background: hasChanges ? '#7AB5DD' : '#6B7280', color: hasChanges ? '#1E4677' : 'white' }}>
@@ -492,99 +636,109 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         <DiagramRenderer flow={liveFlow} showExport={true}
           onUpdateOverride={updateConnectionOverride}
           onChangeTarget={changeConnectionTarget}
-          onResetOverride={resetConnectionOverride} />
+          onResetOverride={resetConnectionOverride}
+          onTaskClick={(task, x, y) => setContextMenu({ task, x, y })} />
 
-        {/* Tabs */}
-        <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* Tab bar */}
-          <div className="flex border-b border-gray-200">
-            {[
-              { key: 'flow',  label: '設定流程' },
-              { key: 'table', label: '詳細 Excel 清單' },
-              { key: 'roles', label: '設定泳道角色' },
-            ].map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.key
-                    ? 'border-blue-600 text-blue-700 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab: 設定流程 */}
-          {activeTab === 'flow' && (
-            <div className="p-4">
-              <p className="text-xs text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位</p>
-              <div className="flex flex-col gap-2">
-                {liveFlow.tasks.map((task, i) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    roles={liveFlow.roles || []}
-                    allTasks={liveFlow.tasks}
-                    displayLabels={displayLabels}
-                    onUpdate={updated => updateTask(task.id, updated)}
-                    onRemove={() => removeTask(task.id)}
-                    canRemove={liveFlow.tasks.length > 1}
-                    dragHandlers={rowProps(i)}
-                    isDragging={dragIdx === i}
-                    isOver={overIdx === i && dragIdx !== i}
-                  />
-                ))}
-              </div>
-              <button onClick={addTask}
-                className="mt-3 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
-                + 新增任務
-              </button>
-            </div>
-          )}
-
-          {/* Tab: 詳細 Excel 清單 */}
-          {activeTab === 'table' && (
-            <div className="p-4">
-              <FlowTable flow={liveFlow} onSave={handleTableSave} />
-            </div>
-          )}
-
-          {/* Tab: 設定泳道角色 */}
-          {activeTab === 'roles' && (
-            <div className="p-4">
-              <p className="text-sm text-gray-500 mb-3">設定流程中的參與角色，變更後請點右上角「儲存」</p>
-              <div className="flex flex-col gap-2">
-                {(liveFlow.roles || []).map((role, i) => (
-                  <div key={role.id} className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 w-5 flex-shrink-0">#{i + 1}</span>
-                    <input type="text" placeholder="角色名稱" value={role.name}
-                      onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, name: e.target.value } : r) })}
-                      className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
-                    <select value={role.type}
-                      onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, type: e.target.value } : r) })}
-                      className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
-                      style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
-                      <option value="internal">內部角色</option>
-                      <option value="external">外部角色</option>
-                    </select>
-                    <button
-                      onClick={() => { if (liveFlow.roles.length > 1) patch({ roles: liveFlow.roles.filter(r => r.id !== role.id) }); }}
-                      disabled={liveFlow.roles.length <= 1}
-                      className="text-red-400 hover:text-red-600 disabled:opacity-20 text-lg leading-none">✕</button>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => patch({ roles: [...(liveFlow.roles || []), makeRole()] })}
-                className="mt-3 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
-                + 新增角色
-              </button>
-            </div>
-          )}
+        {/* Excel table — always visible (used to be a tab) */}
+        <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden p-4">
+          <FlowTable flow={liveFlow} onSave={handleTableSave} />
         </div>
       </main>
+
+      {/* Drawer — hosts 設定流程 / 設定泳道角色 tabs */}
+      <RightDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="編輯流程"
+        tabs={[
+          { key: 'flow',  label: '設定流程' },
+          { key: 'roles', label: '設定泳道角色' },
+        ]}
+        activeTab={drawerTab}
+        onTabChange={setDrawerTab}
+      >
+        {drawerTab === 'flow' && (
+          <div>
+            <p className="text-xs text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位</p>
+            <div className="flex flex-col gap-2">
+              {liveFlow.tasks.map((task, i) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  roles={liveFlow.roles || []}
+                  allTasks={liveFlow.tasks}
+                  displayLabels={displayLabels}
+                  onUpdate={updated => updateTask(task.id, updated)}
+                  onRemove={() => removeTask(task.id)}
+                  canRemove={liveFlow.tasks.length > 1}
+                  dragHandlers={rowProps(i)}
+                  isDragging={dragIdx === i}
+                  isOver={overIdx === i && dragIdx !== i}
+                />
+              ))}
+            </div>
+            <button onClick={addTask}
+              className="mt-3 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+              + 新增任務
+            </button>
+          </div>
+        )}
+
+        {drawerTab === 'roles' && (
+          <div>
+            <p className="text-sm text-gray-500 mb-3">設定流程中的參與角色，變更後請點右上角「儲存」</p>
+            <div className="flex flex-col gap-2">
+              {(liveFlow.roles || []).map((role, i) => (
+                <div key={role.id} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-5 flex-shrink-0">#{i + 1}</span>
+                  <input type="text" placeholder="角色名稱" value={role.name}
+                    onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, name: e.target.value } : r) })}
+                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                  <select value={role.type}
+                    onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, type: e.target.value } : r) })}
+                    className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
+                    style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
+                    <option value="internal">內部角色</option>
+                    <option value="external">外部角色</option>
+                  </select>
+                  <button
+                    onClick={() => { if (liveFlow.roles.length > 1) patch({ roles: liveFlow.roles.filter(r => r.id !== role.id) }); }}
+                    disabled={liveFlow.roles.length <= 1}
+                    className="text-red-400 hover:text-red-600 disabled:opacity-20 text-lg leading-none">✕</button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => patch({ roles: [...(liveFlow.roles || []), makeRole()] })}
+              className="mt-3 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+              + 新增角色
+            </button>
+          </div>
+        )}
+      </RightDrawer>
+
+      {/* ContextMenu — shown when user clicks a shape on the diagram */}
+      {contextMenu && (
+        <ContextMenu
+          task={contextMenu.task}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          roles={liveFlow.roles || []}
+          allTasks={liveFlow.tasks}
+          displayLabels={displayLabels}
+          onUpdate={(updated) => {
+            updateTask(contextMenu.task.id, updated);
+            // Reflect the edit in the menu's local task copy too.
+            setContextMenu(prev => prev ? { ...prev, task: updated } : prev);
+          }}
+          onAddBefore={addTaskBefore}
+          onAddAfter={addTaskAfter}
+          onAddConnection={addConnection}
+          onAddGateway={insertGatewayAfter}
+          onDelete={removeTask}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
 
             <BackToTop />
 
