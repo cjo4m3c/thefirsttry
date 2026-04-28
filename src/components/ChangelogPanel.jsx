@@ -10,6 +10,23 @@ import { useState } from 'react';
 
 const CHANGELOG = [
   {
+    date: '2026-04-28',
+    title: '流程圖字級 +40% 放大（會議室遠看）+ 編輯頁 +1 級 + 標題 em-dash 對稱 + 七視圖檢核升格',
+    items: [
+      '**情境**（使用者：「我的目的是確保從會議室比較遠的位置也可以看清楚流程圖上的內容」）：流程圖上所有字（編號、元件內字、元件下方說明）整體放大；同步把編輯頁字級放大一級；元件等比放大避免擠字',
+      '**K. 標題 em-dash 對稱**：`DiagramRenderer.jsx:751` 標題 `1-1-1 活動名稱　— 業務活動泳道圖` em-dash 左側全形空格、右側半形空格 → 改成兩側都全形空格 `　—　`（CJK 慣例）',
+      '**L. 流程圖元件 / 字級 +40%**（`src/diagram/constants.js`）：`NODE_W` 128→180、`NODE_H` 52→72、`COL_W` 168→224、`LANE_H` 140→196、`DIAMOND_SIZE` 38→54、`CIRCLE_R` 22→32、`LANE_HEADER_W` 130→180、`TITLE_H` 54→74、`PADDING_RIGHT/BOTTOM` 40→56。`drawioExport.js` 與 `layout.js` 都讀 LAYOUT，自動跟進',
+      '**L. 流程圖字級 +40%**（`DiagramRenderer.jsx`）：標題 16→22、泳道角色 13→18（lineH 16→22，wrap 5→7 CJK）、任務名 11.5→16、L4 編號 9→13、閘道下標 10.5→15、連線標籤 10→14、Start/End 名稱 10→14、Start/End 描述 9→13、子流程標 10→14',
+      '**L. 任務名截斷規則**（使用者：「最多 12-15 字，可接受超過 15 字者不顯示」→ 採總數 16 字 hard cap）：`wrapText` 加 `maxTotal` 參數，超過自動截斷加「…」；`SvgLabel` 預設 `maxTotal=16`、`maxChars=10`（NODE_W=180 / 16px CJK 字寬約 10 字一行，2 行最多 16 字）；閘道下標也用同 cap',
+      '**L. 編輯頁字級 +1 Tailwind 級**（`FlowEditor.jsx` / `Wizard.jsx` / `FlowTable.jsx`）：text-xs → text-sm、text-sm → text-base、text-base → text-lg、text-lg → text-xl、text-xl → text-2xl，整體往上一階保持 `ui-rules` §8 字級表相對比例。Dashboard 不在本次範圍（保持原級，未來可再單獨 bump）',
+      '**ui-rules §8 同步**：補上「+1 級」欄位（編輯/Wizard/Table 用）與「原級」欄位（Dashboard 仍用），新元件依 +1 級欄。註明 2026-04-28 起雙級並存',
+      '**七視圖一致性檢核 升格為 PR 前第 1 步**（`CLAUDE.md` §8）：使用者明確要求「現在開始所有的更新都要再更新後，同步確認包含網頁中流程圖、網頁首頁、網頁表格欄位、編輯器、下載的三種資料，都有同步資訊」。原 4 視圖 invariant 升格為 7 視圖（首頁卡片 / 流程圖 / 編輯器 / 表格 / Excel 下載 / drawio 下載 / PNG 下載），列為硬性檢核 step 1，遞延既有 1-7 步為 2-8',
+      '**Push SOP 強化**（`CLAUDE.md` §2 + `paste-bundle.md`）：使用者：「push 如果檔案太大會導致 timeout，試過一次失敗後就請改手動」+「commit message 請放在後面，不然要再滑上去不符合使用習慣」→ §2 改成「>15KB 直接走手動，不要試 MCP；MCP 失敗一次立即切手動，禁止重試」；`paste-bundle.md` 步驟 C 改成 commit message 放在貼上指引最尾端',
+      '**驗證**：`npm run build` pass；`/tmp/trace-wraptext.mjs` 6 個情境驗 wrapText：短任務不截、14/16 CJK 不截、23 CJK 截到 16+「…」、Latin 26 字不截、空字串、CJK+Latin 混合都正確',
+      '**七視圖檢核**：① 流程圖（DiagramRenderer 字級 +40% ✓）② 編輯器（FlowEditor / Wizard 字級 +1 ✓）③ 表格（FlowTable 字級 +1 ✓）④ Excel / drawio / PNG（drawioExport / excelExport 用 LAYOUT 常數，等比例放大 ✓）⑤ 首頁 Dashboard（本次未動，未來可再 bump）',
+    ],
+  },
+  {
     date: '2026-04-27',
     title: '閘道種類切換 + FlowTable 同步修 + 四視圖一致性 invariant + skill 整理',
     items: [
