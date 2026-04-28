@@ -102,6 +102,36 @@ export function makeCondition(label = '') {
   return { id: generateId(), label, nextTaskId: '' };
 }
 
+// Display labels for the three gateway types (used in task name prefix
+// like "[排他閘道] 判斷客戶心情" so the FlowTable / Excel rows stay readable
+// without having to look at the diagram).
+export const GATEWAY_LABELS = {
+  xor: '排他閘道',
+  and: '並行閘道',
+  or:  '包容閘道',
+};
+
+const GATEWAY_PREFIX_RE = /^\[(?:排他|並行|包容)閘道\]\s*/;
+
+/** Build the display prefix `[XX閘道] ` for a given gateway type. */
+export function gatewayPrefix(gatewayType) {
+  const label = GATEWAY_LABELS[gatewayType] || '閘道';
+  return `[${label}] `;
+}
+
+/**
+ * Apply / refresh the gateway-type prefix on a task name. Strips any existing
+ * "[排他/並行/包容閘道]" prefix first, then prepends the new one. Idempotent.
+ *   ""                     + 'or'  → "[包容閘道] "
+ *   "[排他閘道] 判斷"        + 'or'  → "[包容閘道] 判斷"
+ *   "[包容閘道] 判斷"        + 'or'  → "[包容閘道] 判斷"
+ *   "判斷"                  + 'and' → "[並行閘道] 判斷"
+ */
+export function applyGatewayPrefix(name, gatewayType) {
+  const stripped = (name || '').replace(GATEWAY_PREFIX_RE, '');
+  return `${gatewayPrefix(gatewayType)}${stripped}`;
+}
+
 // ── Task normalization ────────────────────────────────────────────
 /** Infer connectionType from legacy task data (for existing saved flows) */
 export function normalizeTask(task) {
