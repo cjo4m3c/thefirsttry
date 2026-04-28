@@ -423,7 +423,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   // [target1, target2]. anchor's old nextTaskIds are overwritten — if the
   // user wanted to preserve them, they should pick them as one of the
   // targets via the menu's dropdowns.
-  function insertGatewayAfter(anchorId, gatewayType, targetId1, targetId2) {
+  function insertGatewayAfter(anchorId, gatewayType, targetId1, targetId2, label1 = '', label2 = '') {
     const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
     if (idx < 0) return;
     const anchor = liveFlow.tasks[idx];
@@ -441,8 +441,8 @@ export default function FlowEditor({ flow, onBack, onSave }) {
       // are immediately readable. User extends after the space.
       name: applyGatewayPrefix('', gatewayType),
       conditions: [
-        { id: generateId(), label: '', nextTaskId: targetId1 || '' },
-        { id: generateId(), label: '', nextTaskId: targetId2 || '' },
+        { id: generateId(), label: label1 || '', nextTaskId: targetId1 || '' },
+        { id: generateId(), label: label2 || '', nextTaskId: targetId2 || '' },
       ],
       nextTaskIds: [],
     });

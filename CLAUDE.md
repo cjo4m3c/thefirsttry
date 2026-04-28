@@ -89,6 +89,7 @@ items: ['...', '...'],
 - 除非使用者明確要求，不新增文件檔 (*.md)
 - 不添加無意義註解（只在 WHY 非顯而易見時才加）
 - 任務若太大會造成 timeout，**先用 TodoWrite 拆成多個小步驟**再執行
+- **文件批次更新規則**（2026-04-28 立，使用者：「累積 3-5 個修改後，一起重新抽換內容」）：每完成 N 個小修改（N=3 大改 / N=5 小改）後，主動提醒使用者「現在要不要停下來更新 changelog / 修文件 / 清 redundant 程式碼」。使用者可選「現在更新」或「再做幾個再說」。**目的**：減少 manual paste-bundle 次數（每個 changelog / CLAUDE.md / handover 更新都要手動貼，累積批次推一次更省力）。**適用範圍**：純文件類（changelog / CLAUDE.md / README / HANDOVER / 規則說明），程式邏輯改動還是一個 feature 一個 PR
 
 ## 7. 對話狀態維護
 
@@ -199,9 +200,7 @@ items: ['...', '...'],
 
 ### 規格已明確、可排程
 
-- **Q. 新增閘道時自動補閘道名稱到任務說明**（使用者：「新增閘道時，任務說明自動補上閘道名稱」）— 已有 `applyGatewayPrefix` 補 `task.name`；需同步補 `task.description`（如「[並行閘道] 用於同時處理多個分支」自動填入）
 - **R. 新增 L3 流程顯示編號規則**（使用者：「新增 L3 流程的時候，要直接顯示 L3 編號，不可以有 L4 編號出現」）— Wizard 新增頁應只顯示 L3 編號，目前混入 L4 編號預覽要去掉
-- **T. 新增閘道時可同步編輯分支條件**（使用者：「新增閘道時，要可以同步編輯分支條件（現在不行）」）— `ContextMenu` 新增閘道 sub-form 加 condition 編輯欄位（目前只能新增閘道殼，再去主編輯區改條件）
 - **U. 插入閘道操作邏輯拉齊**（使用者：「拉齊插入閘道的操作邏輯（現在圖上是插入閘道、編輯器是序列規則）」）— `DiagramRenderer` ContextMenu「插入閘道」與 `FlowEditor` 編輯器內的插入流程不一致，要統一
 - **V. 儲存事件閃亮提醒**（使用者：「新增儲存事件閃亮提醒」）— 儲存按鈕被按下後加 logo 閃光 / 按鈕短暫變綠等視覺回饋（取代原 J「儲存提醒優化」的待選方向）
 - **C. Phase 3.5 gateway obstacle avoidance**（`src/diagram/layout.js`）— 閘道作為跨列 forward obstacle 時走 vertical-detour
@@ -224,3 +223,5 @@ items: ['...', '...'],
 - **K. 標題 em-dash 間距修** — DONE，`DiagramRenderer.jsx:751` 改成 `　—　`（兩側全形）
 - **L. 編輯頁字級放大一級** — DONE，擴大為流程圖 +40% + 編輯頁 Tailwind +1 step
 - **J. 儲存提醒優化（規格不明）** — 由 V 取代
+- **Q. 編輯器路徑閘道前綴補齊** — DONE，`taskDefs.applyConnectionType` 加 name auto-prefix；`applyGatewayPrefix(name, null)` 表示 strip-only
+- **T. tooltip 新增閘道時可同步編輯條件標籤** — DONE，`ContextMenu` 新增閘道 sub-form 加兩個 label input；`FlowEditor.insertGatewayAfter` 多 label1/label2 參數

@@ -122,13 +122,17 @@ export function gatewayPrefix(gatewayType) {
 /**
  * Apply / refresh the gateway-type prefix on a task name. Strips any existing
  * "[排他/並行/包容閘道]" prefix first, then prepends the new one. Idempotent.
- *   ""                     + 'or'  → "[包容閘道] "
- *   "[排他閘道] 判斷"        + 'or'  → "[包容閘道] 判斷"
- *   "[包容閘道] 判斷"        + 'or'  → "[包容閘道] 判斷"
- *   "判斷"                  + 'and' → "[並行閘道] 判斷"
+ * If `gatewayType` is null/undefined, only strips (used when converting a
+ * gateway back into a regular task).
+ *   ""                     + 'or'   → "[包容閘道] "
+ *   "[排他閘道] 判斷"        + 'or'   → "[包容閘道] 判斷"
+ *   "[包容閘道] 判斷"        + 'or'   → "[包容閘道] 判斷"
+ *   "判斷"                  + 'and'  → "[並行閘道] 判斷"
+ *   "[排他閘道] 判斷"        + null   → "判斷"
  */
 export function applyGatewayPrefix(name, gatewayType) {
   const stripped = (name || '').replace(GATEWAY_PREFIX_RE, '');
+  if (!gatewayType) return stripped;
   return `${gatewayPrefix(gatewayType)}${stripped}`;
 }
 
@@ -229,9 +233,11 @@ export function applyConnectionType(task, newCT) {
     const back = (task.nextTaskIds?.[0]) || (task.conditions?.[0]?.nextTaskId) || '';
     nextTaskIds = [back];
   }
+  const newGwType = gwMap[newCT] || null;
   return {
     ...task, connectionType: newCT, shapeType: st,
-    type: typeMap[newCT] || 'task', gatewayType: gwMap[newCT] || task.gatewayType || 'xor',
+    type: typeMap[newCT] || 'task', gatewayType: newGwType || task.gatewayType || 'xor',
+    name: applyGatewayPrefix(task.name, newGwType),
     conditions, nextTaskIds,
     // PR H: connectionType change invalidates all manual overrides because
     // key semantics flip — gateway uses condId, regular task uses targetId.

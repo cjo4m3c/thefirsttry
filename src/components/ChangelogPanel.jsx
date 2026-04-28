@@ -11,6 +11,18 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-28',
+    title: '閘道前綴補齊（Q：編輯器路徑也補）+ tooltip 新增閘道時可同步編輯條件標籤（T）',
+    items: [
+      '**Q. 編輯器路徑閘道前綴補齊**（使用者：「不管是從圖上還是從編輯器中新增，L4 任務名稱欄位自動補上前綴 [排他閘道]」）：圖上路徑（ContextMenu「新增閘道」）原本就有，但編輯器路徑（TaskCard 改 connectionType dropdown）漏了。`taskDefs.js:applyConnectionType` return 加 `name: applyGatewayPrefix(task.name, newGwType)`；換成 gateway 自動加前綴、換回 sequence 自動 strip 前綴',
+      '**applyGatewayPrefix 擴充**：第二個參數可傳 null/undefined 表示「只 strip 不加」，給「閘道→sequence」用',
+      '**T. tooltip 新增閘道時可同步編輯條件標籤**（使用者：「現在 Tooltip 上只能選擇閘道的流向，但無法同步編輯閘道流向的條件說明」）：`ContextMenu` 新增閘道 sub-form 兩個分支各加一個條件標籤 input（XOR/OR placeholder「條件標籤（如「已核准」）」、AND placeholder「條件標籤（選填）」）；`submitGateway` 多傳 label1/label2；`FlowEditor.insertGatewayAfter(anchorId, gatewayType, targetId1, targetId2, label1, label2)` 把 label 填入 `conditions[].label`',
+      '**驗證**：`npm run build` pass；`/tmp/trace-gateway-q.mjs` 6 個情境驗 Q（sequence→xor 加前綴、空名加前綴、xor→sequence 去前綴、xor→or 換前綴、idempotent、null strips）',
+      '**七視圖檢核**：Q 改的是 task.name（七視圖共用 source），T 改的是 task.conditions[].label（七視圖共用 source），改完 ① Dashboard ② DiagramRenderer ③ FlowEditor/Wizard/RightDrawer ④ FlowTable ⑤ excelExport ⑥ drawioExport ⑦ PNG 自動同步顯示新前綴 / 新 label',
+      '**新工作流規則（2026-04-28 立）**（使用者：「累積 3-5 個修改後，一起重新抽換內容…由我決定要現在更新還是再做一些修正後再更新」）：每完成 N 個小修改（小改 5 / 大改 3）後，主動提醒使用者要不要停下來更新 changelog / 文件 / 清 redundant 程式碼。減少 manual paste-bundle 次數。已寫進 `CLAUDE.md` §6',
+    ],
+  },
+  {
+    date: '2026-04-28',
     title: '流程圖字級 +40% 放大（會議室遠看）+ 編輯頁 +1 級 + 標題 em-dash 對稱 + 七視圖檢核升格',
     items: [
       '**情境**（使用者：「我的目的是確保從會議室比較遠的位置也可以看清楚流程圖上的內容」）：流程圖上所有字（編號、元件內字、元件下方說明）整體放大；同步把編輯頁字級放大一級；元件等比放大避免擠字',

@@ -18,7 +18,7 @@ import { taskOptionLabel, applyGatewayPrefix } from '../utils/taskDefs.js';
  *   - onAddBefore(taskId)
  *   - onAddAfter(taskId)
  *   - onAddConnection(fromTaskId, toTaskId)
- *   - onAddGateway(anchorId, gatewayType, target1, target2)
+ *   - onAddGateway(anchorId, gatewayType, target1, target2, label1, label2)
  *   - onDelete(taskId)
  *   - onClose()
  *
@@ -38,6 +38,8 @@ export default function ContextMenu({
   const [gwType, setGwType] = useState('xor');
   const [gwTarget1, setGwTarget1] = useState('');
   const [gwTarget2, setGwTarget2] = useState('');
+  const [gwLabel1, setGwLabel1] = useState('');
+  const [gwLabel2, setGwLabel2] = useState('');
   // Gateway-type switch sub-form (only relevant when task.type === 'gateway').
   // Defaults to the task's current type so the radio shows the current selection.
   const [gwSwitchType, setGwSwitchType] = useState(task?.gatewayType || 'xor');
@@ -49,6 +51,8 @@ export default function ContextMenu({
     setGwType('xor');
     setGwTarget1('');
     setGwTarget2('');
+    setGwLabel1('');
+    setGwLabel2('');
     setGwSwitchType(task?.gatewayType || 'xor');
   }, [task?.id]);
 
@@ -111,7 +115,7 @@ export default function ContextMenu({
 
   function submitGateway() {
     if (!gwTarget1 || !gwTarget2) return;
-    onAddGateway?.(task.id, gwType, gwTarget1, gwTarget2);
+    onAddGateway?.(task.id, gwType, gwTarget1, gwTarget2, gwLabel1, gwLabel2);
     onClose?.();
   }
 
@@ -258,22 +262,28 @@ export default function ContextMenu({
                 ))}
               </div>
             </div>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-gray-500">分支 1 目標</span>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">分支 1</span>
+              <input type="text" value={gwLabel1} onChange={(e) => setGwLabel1(e.target.value)}
+                placeholder={gwType === 'and' ? '條件標籤（選填）' : '條件標籤（如「已核准」）'}
+                className="px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
               <select value={gwTarget1} onChange={(e) => setGwTarget1(e.target.value)}
                 className="px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
-                <option value="">選擇任務</option>
+                <option value="">選擇目標任務</option>
                 {targetOptions.map(renderTargetOption)}
               </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-gray-500">分支 2 目標</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">分支 2</span>
+              <input type="text" value={gwLabel2} onChange={(e) => setGwLabel2(e.target.value)}
+                placeholder={gwType === 'and' ? '條件標籤（選填）' : '條件標籤（如「未通過」）'}
+                className="px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
               <select value={gwTarget2} onChange={(e) => setGwTarget2(e.target.value)}
                 className="px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
-                <option value="">選擇任務</option>
+                <option value="">選擇目標任務</option>
                 {targetOptions.map(renderTargetOption)}
               </select>
-            </label>
+            </div>
             <p className="text-xs text-gray-400 pl-1">
               ℹ 閘道會插入在當前元件之後，原本「序列流向」會被覆寫為「→ 閘道」
             </p>
