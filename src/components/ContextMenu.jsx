@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { taskOptionLabel } from '../utils/taskDefs.js';
+import { taskOptionLabel, applyGatewayPrefix } from '../utils/taskDefs.js';
 
 /**
  * ContextMenu — pop-up shown when the user clicks a task shape on the diagram.
@@ -38,6 +38,9 @@ export default function ContextMenu({
   const [gwType, setGwType] = useState('xor');
   const [gwTarget1, setGwTarget1] = useState('');
   const [gwTarget2, setGwTarget2] = useState('');
+  // Gateway-type switch sub-form (only relevant when task.type === 'gateway').
+  // Defaults to the task's current type so the radio shows the current selection.
+  const [gwSwitchType, setGwSwitchType] = useState(task?.gatewayType || 'xor');
 
   // Reset sub-form state when the menu opens for a different task.
   useEffect(() => {
@@ -46,6 +49,7 @@ export default function ContextMenu({
     setGwType('xor');
     setGwTarget1('');
     setGwTarget2('');
+    setGwSwitchType(task?.gatewayType || 'xor');
   }, [task?.id]);
 
   // Reposition if menu would overflow the viewport.
@@ -110,6 +114,26 @@ export default function ContextMenu({
     onAddGateway?.(task.id, gwType, gwTarget1, gwTarget2);
     onClose?.();
   }
+
+  // Switch this gateway from one type to another (XOR ↔ AND ↔ OR).
+  // Preserves conditions / connection targets — only flips gatewayType,
+  // adjusts connectionType (fork↔fork or merge↔merge), and refreshes the
+  // "[XX閘道] " name prefix.
+  function submitGwSwitch() {
+    if (!gwSwitchType || gwSwitchType === task.gatewayType) return;
+    const isMerge = task.connectionType?.endsWith('-merge');
+    const typeRoot = { xor: 'conditional', and: 'parallel', or: 'inclusive' }[gwSwitchType];
+    const newCT = `${typeRoot}-${isMerge ? 'merge' : 'branch'}`;
+    onUpdate?.({
+      ...task,
+      gatewayType: gwSwitchType,
+      connectionType: newCT,
+      name: applyGatewayPrefix(task.name, gwSwitchType),
+    });
+    onClose?.();
+  }
+
+  const isGateway = task.type === 'gateway';
 
   return (
     <div
@@ -259,6 +283,48 @@ export default function ContextMenu({
               <button onClick={submitGateway} disabled={!gwTarget1 || !gwTarget2}
                 className="px-3 py-1 text-xs rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: (gwTarget1 && gwTarget2) ? '#2A5598' : '#9CA3AF' }}>
+                確認
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Gateway-only: switch the gateway's type (XOR ↔ AND ↔ OR) */}
+        {isGateway && (
+          <button
+            onClick={() => setSubForm(subForm === 'gw-switch' ? null : 'gw-switch')}
+            className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 ${
+              subForm === 'gw-switch' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
+            }`}>
+            <span className="text-blue-500">🔁</span> 換閘道種類
+            <span className="ml-auto text-gray-400">{subForm === 'gw-switch' ? '▴' : '▾'}</span>
+          </button>
+        )}
+        {subForm === 'gw-switch' && (
+          <div className="px-3 py-2 bg-gray-50 border-t border-b border-gray-100 flex flex-col gap-2">
+            <span className="text-xs text-gray-500">新閘道類型</span>
+            <div className="flex gap-3 text-xs">
+              {[
+                { v: 'xor', label: '排他 ◇×' },
+                { v: 'and', label: '並行 ◇+' },
+                { v: 'or',  label: '包容 ◇⊙' },
+              ].map(opt => (
+                <label key={opt.v} className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" value={opt.v} checked={gwSwitchType === opt.v}
+                    onChange={() => setGwSwitchType(opt.v)} />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 pl-1">
+              ℹ 名稱前綴 `[OO閘道]` 自動換成新類型；現有 conditions / 連線目標保留
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setSubForm(null)}
+                className="px-3 py-1 text-xs text-gray-600 hover:text-gray-900">取消</button>
+              <button onClick={submitGwSwitch} disabled={gwSwitchType === task.gatewayType}
+                className="px-3 py-1 text-xs rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: gwSwitchType === task.gatewayType ? '#9CA3AF' : '#2A5598' }}>
                 確認
               </button>
             </div>
