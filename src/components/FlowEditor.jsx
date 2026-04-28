@@ -162,9 +162,9 @@ function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, ca
         {/* Badge / number */}
         <div className="w-14 flex-shrink-0 flex items-center">
           {ct === 'sequence' && num ? (
-            <span className="text-xs font-mono text-gray-500 font-semibold">{num}</span>
+            <span className="text-sm font-mono text-gray-500 font-semibold">{num}</span>
           ) : (
-            <span className="px-1.5 py-0.5 rounded text-xs font-bold whitespace-nowrap"
+            <span className="px-1.5 py-0.5 rounded text-sm font-bold whitespace-nowrap"
               style={{ background: badge.bg, color: badge.text }}>
               {badge.label || num}
             </span>
@@ -173,7 +173,7 @@ function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, ca
 
         {/* Role */}
         <select value={task.roleId} onChange={e => onUpdate({ ...task, roleId: e.target.value })}
-          className="w-24 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+          className="w-24 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
           <option value="">角色 *</option>
           {roles.filter(r => r.name).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
@@ -181,18 +181,18 @@ function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, ca
         {/* Name — gets all the remaining width on Row 1 */}
         <input type="text" placeholder={nameOptional ? '名稱（選填）' : '任務名稱 *'}
           value={task.name} onChange={e => onUpdate({ ...task, name: e.target.value })}
-          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
 
         {/* Expand / collapse detail fields */}
         <button onClick={() => setExpanded(v => !v)}
           title={expanded ? '收合詳細欄位' : '展開詳細欄位'}
-          className="w-6 flex-shrink-0 text-gray-400 hover:text-gray-600 text-sm">
+          className="w-6 flex-shrink-0 text-gray-400 hover:text-gray-600 text-base">
           {expanded ? '▲' : '▼'}
         </button>
 
         {/* Remove */}
         <button onClick={onRemove} disabled={!canRemove}
-          className="w-6 flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-sm">✕</button>
+          className="w-6 flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-base">✕</button>
       </div>
 
       {/* Row 2: connection type + shape type (offset to align under name) */}
@@ -202,7 +202,7 @@ function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, ca
 
         {/* Connection type */}
         <select value={ct} onChange={e => onUpdate(applyConnectionType(task, e.target.value))}
-          className="w-32 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+          className="w-32 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
           {CONNECTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
 
@@ -210,7 +210,7 @@ function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, ca
         {showShape && (
           <select value={task.shapeType || 'task'}
             onChange={e => { const st = e.target.value; onUpdate({ ...task, shapeType: st, type: st }); }}
-            className="w-24 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+            className="w-24 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
             {SHAPE_TYPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         )}
@@ -225,28 +225,28 @@ function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, ca
       {expanded && (
         <div className="px-3 pb-3 pt-1 border-t border-gray-100 grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">任務重點說明</span>
+            <span className="text-sm text-gray-500">任務重點說明</span>
             <input type="text" value={task.description || ''} placeholder="重點說明（選填）"
               onChange={e => onUpdate({ ...task, description: e.target.value })}
-              className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-300" />
+              className="px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">任務重要輸入</span>
+            <span className="text-sm text-gray-500">任務重要輸入</span>
             <input type="text" value={task.inputItems || ''} placeholder="重要輸入（選填）"
               onChange={e => onUpdate({ ...task, inputItems: e.target.value })}
-              className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-300" />
+              className="px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">任務產出成品</span>
+            <span className="text-sm text-gray-500">任務產出成品</span>
             <input type="text" value={task.outputItems || ''} placeholder="產出成品（選填）"
               onChange={e => onUpdate({ ...task, outputItems: e.target.value })}
-              className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-300" />
+              className="px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">參考資料來源文件名稱</span>
+            <span className="text-sm text-gray-500">參考資料來源文件名稱</span>
             <input type="text" value={task.reference || ''} placeholder="參考文件（選填）"
               onChange={e => onUpdate({ ...task, reference: e.target.value })}
-              className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-300" />
+              className="px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" />
           </label>
         </div>
       )}
@@ -600,7 +600,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     <div className="min-h-screen" style={{ background: '#F5F8FC' }}>
       <header className="px-6 py-3 shadow-md flex items-center gap-4 sticky top-0 z-10"
         style={{ background: '#2A5598', color: 'white' }}>
-        <button onClick={onBack} className="opacity-70 hover:opacity-100 text-sm flex-shrink-0">← 返回</button>
+        <button onClick={onBack} className="opacity-70 hover:opacity-100 text-base flex-shrink-0">← 返回</button>
         <img
           src={`${import.meta.env.BASE_URL}logo.png`}
           alt="FlowSprite Logo"
@@ -612,18 +612,18 @@ export default function FlowEditor({ flow, onBack, onSave }) {
             value={liveFlow.l3Number || ''}
             onChange={e => patch({ l3Number: e.target.value })}
             placeholder="L3 編號"
-            className="w-24 px-2 py-1 rounded text-sm bg-white bg-opacity-15 border border-white border-opacity-30 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:ring-1 focus:ring-white"
+            className="w-24 px-2 py-1 rounded text-base bg-white bg-opacity-15 border border-white border-opacity-30 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:ring-1 focus:ring-white"
           />
           <input
             value={liveFlow.l3Name || ''}
             onChange={e => patch({ l3Name: e.target.value })}
             placeholder="L3 活動名稱"
-            className="flex-1 min-w-0 px-2 py-1 rounded text-sm bg-white bg-opacity-15 border border-white border-opacity-30 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:ring-1 focus:ring-white"
+            className="flex-1 min-w-0 px-2 py-1 rounded text-base bg-white bg-opacity-15 border border-white border-opacity-30 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:ring-1 focus:ring-white"
           />
         </div>
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
           {hasChanges && (
-            <span className="text-xs text-yellow-300 font-medium hidden sm:inline">● 未儲存</span>
+            <span className="text-sm text-yellow-300 font-medium hidden sm:inline">● 未儲存</span>
           )}
           {/* PR I: global reset for all manual endpoint overrides. Shown
               only when the current flow has at least one override — avoids
@@ -632,7 +632,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
             <button
               onClick={() => setResetAllModal(true)}
               title="重設所有手動拖曳的連線端點"
-              className="px-3 py-1 text-xs rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10">
+              className="px-3 py-1 text-sm rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10">
               重設所有手動端點
             </button>
           )}
@@ -650,7 +650,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           <button
             onClick={() => setDrawerOpen(true)}
             title="開啟編輯面板"
-            className="px-3 py-1.5 text-sm rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 flex items-center gap-1">
+            className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 flex items-center gap-1">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
             </svg>
@@ -658,7 +658,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-1.5 text-sm rounded font-medium transition-colors"
+            className="px-4 py-1.5 text-base rounded font-medium transition-colors"
             style={{ background: hasChanges ? '#7AB5DD' : '#6B7280', color: hasChanges ? '#1E4677' : 'white' }}>
             儲存
           </button>
@@ -719,7 +719,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           );
           return (
             <div>
-              <p className="text-xs text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位</p>
+              <p className="text-sm text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位</p>
               <div className="flex flex-col gap-2">
                 {liveFlow.tasks.map((task, i) => (
                   <Fragment key={task.id}>
@@ -741,7 +741,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
                 {showLineAt(liveFlow.tasks.length) && <DropLine />}
               </div>
               <button onClick={addTask}
-                className="mt-3 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                className="mt-3 w-full py-2 text-base border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
                 + 新增任務
               </button>
             </div>
@@ -750,8 +750,8 @@ export default function FlowEditor({ flow, onBack, onSave }) {
 
         {drawerTab === 'roles' && (
           <div>
-            <p className="text-sm text-gray-500 mb-1">設定流程中的參與角色，變更後請點右上角「儲存」</p>
-            <p className="text-xs text-gray-400 mb-3 flex items-center gap-1">
+            <p className="text-base text-gray-500 mb-1">設定流程中的參與角色，變更後請點右上角「儲存」</p>
+            <p className="text-sm text-gray-400 mb-3 flex items-center gap-1">
               <span className="text-gray-400">⠿</span> 可拖曳左側圓點改變泳道順序（由上到下）
             </p>
             <div className="flex flex-col gap-2">
@@ -768,13 +768,13 @@ export default function FlowEditor({ flow, onBack, onSave }) {
                       ${roleDragIdx === i ? 'opacity-40 scale-95' : ''}
                       ${dropEdgeClass}`}>
                     <DragHandle />
-                    <span className="text-xs text-gray-400 w-5 flex-shrink-0">#{i + 1}</span>
+                    <span className="text-sm text-gray-400 w-5 flex-shrink-0">#{i + 1}</span>
                     <input type="text" placeholder="角色名稱" value={role.name}
                       onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, name: e.target.value } : r) })}
-                      className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                      className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-base focus:outline-none focus:ring-1 focus:ring-blue-400" />
                     <select value={role.type}
                       onChange={e => patch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, type: e.target.value } : r) })}
-                      className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
+                      className="px-2 py-1.5 border border-gray-300 rounded text-base focus:outline-none"
                       style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
                       <option value="internal">內部角色</option>
                       <option value="external">外部角色</option>
@@ -782,14 +782,14 @@ export default function FlowEditor({ flow, onBack, onSave }) {
                     <button
                       onClick={() => { if (liveFlow.roles.length > 1) patch({ roles: liveFlow.roles.filter(r => r.id !== role.id) }); }}
                       disabled={liveFlow.roles.length <= 1}
-                      className="text-red-400 hover:text-red-600 disabled:opacity-20 text-lg leading-none">✕</button>
+                      className="text-red-400 hover:text-red-600 disabled:opacity-20 text-xl leading-none">✕</button>
                   </div>
                 );
               })}
             </div>
             <button
               onClick={() => patch({ roles: [...(liveFlow.roles || []), makeRole()] })}
-              className="mt-3 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+              className="mt-3 w-full py-2 text-base border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
               + 新增角色
             </button>
           </div>
@@ -827,30 +827,30 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           onClick={e => { if (e.target === e.currentTarget) setSaveModal(null); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
             <div className={`px-6 py-4 border-b ${saveModal.type === 'blocking' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
-              <h2 className={`text-lg font-bold ${saveModal.type === 'blocking' ? 'text-red-700' : 'text-amber-700'}`}>
+              <h2 className={`text-xl font-bold ${saveModal.type === 'blocking' ? 'text-red-700' : 'text-amber-700'}`}>
                 {saveModal.type === 'blocking' ? '⛔ 必要條件未達，無法儲存' : '⚠️ 有建議改善項目'}
               </h2>
-              <p className="text-xs text-gray-600 mt-1">
+              <p className="text-sm text-gray-600 mt-1">
                 {saveModal.type === 'blocking'
                   ? '修正以下問題後才能儲存：'
                   : '以下項目建議修正。您可以選擇仍然儲存，或取消並回去調整：'}
               </p>
             </div>
             <div className="px-6 py-4 max-h-80 overflow-y-auto">
-              <ul className="text-sm text-gray-700 space-y-1.5 list-disc list-inside">
+              <ul className="text-base text-gray-700 space-y-1.5 list-disc list-inside">
                 {saveModal.messages.map((m, i) => <li key={i}>{m}</li>)}
               </ul>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button
                 onClick={() => setSaveModal(null)}
-                className="px-4 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                className="px-4 py-2 rounded-lg text-base text-gray-700 hover:bg-gray-100 transition-colors">
                 {saveModal.type === 'blocking' ? '知道了' : '取消'}
               </button>
               {saveModal.type === 'warning' && (
                 <button
                   onClick={() => doSave(liveFlow)}
-                  className="px-4 py-2 rounded-lg text-sm text-white font-semibold transition-colors"
+                  className="px-4 py-2 rounded-lg text-base text-white font-semibold transition-colors"
                   style={{ background: '#D97706' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#B45309'}
                   onMouseLeave={e => e.currentTarget.style.background = '#D97706'}>
@@ -870,18 +870,18 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           onClick={e => { if (e.target === e.currentTarget) setResetAllModal(false); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
             <div className="px-6 py-4 border-b border-amber-200 bg-amber-50">
-              <h2 className="text-lg font-bold text-amber-700">⚠️ 重設所有手動端點</h2>
-              <p className="text-xs text-gray-600 mt-1">此動作會清除本工作流所有連線的手動拖曳端點設定，回到自動路由。無法復原。</p>
+              <h2 className="text-xl font-bold text-amber-700">⚠️ 重設所有手動端點</h2>
+              <p className="text-sm text-gray-600 mt-1">此動作會清除本工作流所有連線的手動拖曳端點設定，回到自動路由。無法復原。</p>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button
                 onClick={() => setResetAllModal(false)}
-                className="px-4 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                className="px-4 py-2 rounded-lg text-base text-gray-700 hover:bg-gray-100 transition-colors">
                 取消
               </button>
               <button
                 onClick={resetAllOverrides}
-                className="px-4 py-2 rounded-lg text-sm text-white font-semibold transition-colors"
+                className="px-4 py-2 rounded-lg text-base text-white font-semibold transition-colors"
                 style={{ background: '#D97706' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#B45309'}
                 onMouseLeave={e => e.currentTarget.style.background = '#D97706'}>
