@@ -15,11 +15,17 @@
 ## 2. Git 推送規則
 
 - `git push` 會被 local proxy 擋下（HTTP 503），**不可使用**
-- 推送主要透過 `mcp__github__push_files`（小檔案 <7KB 最穩）
+- 推送主要透過 `mcp__github__push_files` 或 `mcp__github__create_or_update_file`（單檔 <7KB 最穩）
 - **一次只推 1 個檔案**，避免 stream idle timeout；每推完一個回報一次
-- **大檔案（>15KB）時常 timeout**：這種情況改由**使用者在 GitHub 網頁編輯器**手動貼上內容
-  - URL 範本：`https://github.com/cjo4m3c/FlowSprite/edit/<branch>/<path>`
-  - Claude 只提供要貼上的文字片段，不自己串流
+- **大檔案 timeout 處理 SOP（硬性規則，每次遵循）**：
+  1. 先用 `wc -c <path>` 算大小；**> 15KB 就直接走手動**，不要試 MCP push
+  2. 若不確定大小或 < 15KB 邊界值，**MCP push 試一次**；若 timeout / 失敗 → **立即切手動，禁止重試**（重試只會再 timeout 浪費時間）
+  3. 手動步驟給使用者：
+     - 提供 GitHub edit URL：`https://github.com/cjo4m3c/FlowSprite/edit/<branch>/<path>`
+     - 提供完整檔案內容（用 fenced code block 或 attachment）
+     - 提供 commit message 範本
+     - 說明：使用者貼上 → Commit changes → 回報完成
+  4. 使用者回報手動完成後，本地 `git fetch origin <branch> && git reset --hard origin/<branch>` 同步
 - **刪除檔案**用 `mcp__github__delete_file`（快，無 content 傳輸）
 - commit message 用英文為主，描述變更原因而非細節
 - 絕不 push 到其他分支，也不建 PR（除非使用者明確要求）
@@ -94,16 +100,30 @@ items: ['...', '...'],
 
 每次完成一個功能、準備合併到 `main` 前，依序確認：
 
-1. **Changelog 條目**：`src/components/ChangelogPanel.jsx` 最前面新增今天日期的記錄（格式見規則 4）
-2. **CLAUDE.md 同步**：若本次變動涉及下列規則範圍，更新對應章節：
+1. **七視圖一致性檢核（每次修正後立即跑，不限 PR 前）** — 使用者明確要求：「現在開始所有的更新都要再更新後，同步確認包含網頁中流程圖、網頁首頁、網頁表格欄位、編輯器、下載的三種資料，都有同步資訊」。動到 task / role / connection / 編號 / 顯示文字後，**逐項勾**七個視圖都用同一份 `liveFlow.tasks` + `computeDisplayLabels`：
+
+   | # | 視圖 | 入口檔案 |
+   |---|---|---|
+   | ① | 網頁首頁卡片 | `Dashboard.jsx`（L3 列表 + 摘要） |
+   | ② | 網頁中流程圖 | `DiagramRenderer.jsx` + `src/diagram/layout.js` |
+   | ③ | 編輯器（drawer flow tab + roles tab + Wizard） | `FlowEditor.jsx` + `RightDrawer.jsx` + `Wizard.jsx` |
+   | ④ | 網頁表格欄位（流程圖下方 Excel 表） | `FlowTable.jsx` |
+   | ⑤ | 下載資料：Excel | `excelExport.js` |
+   | ⑥ | 下載資料：drawio | `drawioExport.js` |
+   | ⑦ | 下載資料：PNG | `DiagramRenderer.handleExport`（`html-to-image`） |
+
+   重點檢查：編號（`computeDisplayLabels` 是唯一 source of truth）、任務名稱、角色順序、連線目標、閘道種類，**任何一個視圖殘留舊值就算這次修正未完成**。歷史教訓：FlowTable `useEffect` deps 漏掉 `flow.tasks`（PR #70）→ 流程圖更新但表格不動；`buildTableL4Map` 自己一套 counter（commit 7606d16 之前）→ Excel 編號跟畫面對不上。
+
+2. **Changelog 條目**：`src/components/ChangelogPanel.jsx` 最前面新增今天日期的記錄（格式見規則 4）
+3. **CLAUDE.md 同步**：若本次變動涉及下列規則範圍，更新對應章節：
  - 改動編號格式 / regex → 規則 3（同步調整 regex 常數）
  - 新增/刪除檔案 → 規則 9（孤兒檔案清單）
  - 更改工作流程 / push 方式 → 規則 1 / 2
-3. **程式碼品質**：本次變動是否引入了新的孤兒檔案？package.json 是否有新的未使用 deps？若有，列入 TODO 或當次清理
-4. **git 狀態**：`git status` working tree clean、無未 push commit
-5. **PR 流程**：用 `mcp__github__create_pull_request` 建 PR → `mcp__github__merge_pull_request` 以 **squash** 合併
-6. **本地同步**：`git fetch origin main && git reset --hard origin/main`（或切到 main 後 reset）
-7. **回報給使用者**：commit SHA、部署網址、驗證清單、可能的後續調整
+4. **程式碼品質**：本次變動是否引入了新的孤兒檔案？package.json 是否有新的未使用 deps？若有，列入 TODO 或當次清理
+5. **git 狀態**：`git status` working tree clean、無未 push commit
+6. **PR 流程**：用 `mcp__github__create_pull_request` 建 PR → `mcp__github__merge_pull_request` 以 **squash** 合併
+7. **本地同步**：`git fetch origin main && git reset --hard origin/main`（或切到 main 後 reset）
+8. **回報給使用者**：commit SHA、部署網址、驗證清單、可能的後續調整
 
 也可以直接叫 `/ship-feature` skill（定義於 `.claude/skills/ship-feature.md`），會按此檢查表一步步跑。
 
@@ -169,6 +189,38 @@ items: ['...', '...'],
 
 ## 當前待辦狀態
 
-（由 TodoWrite 即時管理，此處僅記錄跨 session 需要保留的項目）
+（由 TodoWrite 即時管理；此處保留跨 session 需要記得的 backlog，來源：2026-04-28 交接 §5 + 同日 K/L PR 收尾新增）
 
-- 目前無待辦（`js-yaml`、`jszip` 已於 2026-04-21 從 package.json 移除）
+### 立即可動 / Bug
+
+- **B. layout 同欄對齊** — fork 兩分支步數不等時，短分支末段對齊到長分支同欄；含使用者要求的「包容、並行閘道後方任務對齊」。推薦解法 A（`alignForkBranches` post-pass），先開 `claude/preview-layout-same-column` 預覽分支驗證。動手前須跟使用者確認 §10.6 四個問題
+- **P. 全頁儲存連動 BUG**（使用者：「儲存要整頁一起存，不能下方 excel 編輯後 上方的調整都不見了，應該要是不管在哪裡編輯後所有內容都要連動修正（編輯器、流程圖、下方表格）」）— FlowEditor / DiagramRenderer 互動 / FlowTable 三處互改後內容要連動，目前 FlowTable 編輯後上方未儲存的調整會被覆蓋。需把 hasChanges + source-of-truth 整合到頂層 state
+- **S. tooltip 新增連線無法選 L3 BUG**（使用者：「現在 tooltip 新增連線無法選到圖上的 L3」）— `ContextMenu` 連線下拉漏掉 L3 activity 任務；`ConnectionSection.jsx:11` filter 已對 gateway 例外，需同樣對 L3 activity 例外
+
+### 規格已明確、可排程
+
+- **Q. 新增閘道時自動補閘道名稱到任務說明**（使用者：「新增閘道時，任務說明自動補上閘道名稱」）— 已有 `applyGatewayPrefix` 補 `task.name`；需同步補 `task.description`（如「[並行閘道] 用於同時處理多個分支」自動填入）
+- **R. 新增 L3 流程顯示編號規則**（使用者：「新增 L3 流程的時候，要直接顯示 L3 編號，不可以有 L4 編號出現」）— Wizard 新增頁應只顯示 L3 編號，目前混入 L4 編號預覽要去掉
+- **T. 新增閘道時可同步編輯分支條件**（使用者：「新增閘道時，要可以同步編輯分支條件（現在不行）」）— `ContextMenu` 新增閘道 sub-form 加 condition 編輯欄位（目前只能新增閘道殼，再去主編輯區改條件）
+- **U. 插入閘道操作邏輯拉齊**（使用者：「拉齊插入閘道的操作邏輯（現在圖上是插入閘道、編輯器是序列規則）」）— `DiagramRenderer` ContextMenu「插入閘道」與 `FlowEditor` 編輯器內的插入流程不一致，要統一
+- **V. 儲存事件閃亮提醒**（使用者：「新增儲存事件閃亮提醒」）— 儲存按鈕被按下後加 logo 閃光 / 按鈕短暫變綠等視覺回饋（取代原 J「儲存提醒優化」的待選方向）
+- **C. Phase 3.5 gateway obstacle avoidance**（`src/diagram/layout.js`）— 閘道作為跨列 forward obstacle 時走 vertical-detour
+- **E. Excel Tab 內嵌編輯**（`FlowTable.jsx`）— textarea + auto-resize（與 P 一起做最順）
+- **M-1. 頁首四顆按鈕風格統一**（使用者：「拉齊編輯頁右上按鈕規格」）— 儲存 / 編輯流程 / 重設手動端點 / ★
+- **M-2. 流程圖頂部下載按鈕統一 + 加 Excel 鍵** — PNG / drawio / Excel 三鍵，照 `ui-rules` §2.5 三色藍
+- **N. 泳道角色拖曳視覺提示** — 複用 `useDragReorder` 的 `dropAfter` + DropLine pattern
+
+### 規格待確認、不能直接動手
+
+- **F. Excel 部分匯入**（使用者：「只匯入＋覆蓋 excel 部分內容欄位、或自動略過部分欄位」）— 單一欄位 / 部分行覆蓋邏輯
+- **G. 匯出圖等比寬度**（使用者：「匯出的圖檔要符合 ISO 文件適用寬度」）— PNG 匯出規格 / ISO A4 等比
+
+### Nice-to-have / 有空再修
+
+- **H. 邊側批量下載缺檔**（使用者：「批量下載數量太多時比較後面的編號會漏檔案 → 目前排解只有 edge 瀏覽器有，晚點再修」）
+
+### 已完成（本 PR 出清，2026-04-28）
+
+- **K. 標題 em-dash 間距修** — DONE，`DiagramRenderer.jsx:751` 改成 `　—　`（兩側全形）
+- **L. 編輯頁字級放大一級** — DONE，擴大為流程圖 +40% + 編輯頁 Tailwind +1 step
+- **J. 儲存提醒優化（規格不明）** — 由 V 取代

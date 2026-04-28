@@ -19,7 +19,7 @@ const HOVER_TINT   = '#DBEAFE'; // Tailwind blue-100
 const HOVER_OUT_STROKE = '#2A5598'; // primary deep blue — where this element LEADS TO
 const HOVER_IN_STROKE  = '#7AB5DD'; // light blue        — what FEEDS INTO this element
 
-function wrapText(text, maxChars) {
+function wrapText(text, maxChars, maxTotal) {
   if (!text) return [];
   // Tokenize: each CJK char / CJK-punct is its own token, each run of
   // Latin/digit chars is one token, other single non-space chars are one
@@ -32,21 +32,28 @@ function wrapText(text, maxChars) {
   const tokWidth = t => [...t].reduce((s, c) => s + (cjkRe.test(c) ? 2 : 1), 0);
   const isLatin = c => /[A-Za-z0-9]/.test(c);
   const maxWidth = maxChars * 2;
+  const totalCap = maxTotal != null ? maxTotal * 2 : Infinity;
   const lines = [];
-  let cur = '', curW = 0;
+  let cur = '', curW = 0, totalW = 0, truncated = false;
   for (const tok of tokens) {
-    const needsSpace = cur && isLatin(cur[cur.length - 1]) && isLatin(tok[0]);
-    const addW = tokWidth(tok) + (needsSpace ? 1 : 0);
-    if (!cur) { cur = tok; curW = tokWidth(tok); }
-    else if (curW + addW <= maxWidth) { cur += (needsSpace ? ' ' : '') + tok; curW += addW; }
-    else { lines.push(cur); cur = tok; curW = tokWidth(tok); }
+    const tw = tokWidth(tok);
+    if (totalW + tw > totalCap) { truncated = true; break; }
+    if (!cur) { cur = tok; curW = tw; }
+    else {
+      const needsSpace = isLatin(cur[cur.length - 1]) && isLatin(tok[0]);
+      const addW = tw + (needsSpace ? 1 : 0);
+      if (curW + addW <= maxWidth) { cur += (needsSpace ? ' ' : '') + tok; curW += addW; }
+      else { lines.push(cur); cur = tok; curW = tw; }
+    }
+    totalW += tw;
   }
   if (cur) lines.push(cur);
+  if (truncated && lines.length) lines[lines.length - 1] += '…';
   return lines;
 }
 
-function SvgLabel({ text, cx, cy, maxChars = 7, lineH = 14, fontSize = 11.5, fill = COLORS.TASK_TEXT }) {
-  const lines = wrapText(text, maxChars);
+function SvgLabel({ text, cx, cy, maxChars = 10, lineH = 22, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 16 }) {
+  const lines = wrapText(text, maxChars, maxTotal);
   const total = (lines.length - 1) * lineH;
   return (
     <>
@@ -64,7 +71,7 @@ function SvgLabel({ text, cx, cy, maxChars = 7, lineH = 14, fontSize = 11.5, fil
 function L4Number({ number, cx, y }) {
   if (!number) return null;
   return (
-    <text x={cx} y={y - 5} textAnchor="middle" fontSize={9} fill={COLORS.TASK_NUMBER}
+    <text x={cx} y={y - 7} textAnchor="middle" fontSize={13} fill={COLORS.TASK_NUMBER}
       fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
       {number}
     </text>
@@ -73,21 +80,21 @@ function L4Number({ number, cx, y }) {
 
 function EventLabel({ cx, y, name, desc }) {
   const fontFamily = 'Microsoft JhengHei, PingFang TC, sans-serif';
-  // Events (start/end) sit in roughly one column width (168px); wrap at
-  // ~14 CJK chars for the name and ~18 for the smaller description so
-  // long labels don't spill past the column / lane boundary.
+  // Events (start/end) sit in roughly one column width (224px after +40%);
+  // wrap at ~14 CJK chars for the name and ~18 for the smaller description
+  // so long labels don't spill past the column / lane boundary.
   const nameLines = wrapText(name || '', 14);
   const descLines = wrapText(desc || '', 18);
-  const nameLineH = 13;
-  const descLineH = 12;
-  const gap = 3;
+  const nameLineH = 18;
+  const descLineH = 17;
+  const gap = 4;
   let cursor = y;
   return (
     <>
       {nameLines.map((line, i) => (
         <text key={`n${i}`} x={cx} y={cursor + i * nameLineH}
           textAnchor="middle" dominantBaseline="middle"
-          fontSize={10} fill={COLORS.TASK_TEXT} fontFamily={fontFamily}>
+          fontSize={14} fill={COLORS.TASK_TEXT} fontFamily={fontFamily}>
           {line}
         </text>
       ))}
@@ -96,7 +103,7 @@ function EventLabel({ cx, y, name, desc }) {
         return (
           <text key={`d${i}`} x={cx} y={y0}
             textAnchor="middle" dominantBaseline="middle"
-            fontSize={9} fill="#6B7280" fontFamily={fontFamily}>
+            fontSize={13} fill="#6B7280" fontFamily={fontFamily}>
             {line}
           </text>
         );
@@ -113,7 +120,7 @@ function StartShape({ pos, l4Number, task, isHovered }) {
     <>
       <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
       <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.START_FILL} stroke={stroke} strokeWidth={strokeW} />
-      <EventLabel cx={cx} y={cy + CIRCLE_R + 13} name={task.name} desc={task.description} />
+      <EventLabel cx={cx} y={cy + CIRCLE_R + 18} name={task.name} desc={task.description} />
     </>
   );
 }
@@ -129,7 +136,7 @@ function EndShape({ pos, l4Number, task, isHovered }) {
     <>
       <L4Number number={l4Number} cx={cx} y={cy - CIRCLE_R} />
       <circle cx={cx} cy={cy} r={CIRCLE_R} fill={COLORS.END_FILL} stroke={stroke} strokeWidth={strokeW} />
-      <EventLabel cx={cx} y={cy + CIRCLE_R + 13} name={task.name} desc={desc} />
+      <EventLabel cx={cx} y={cy + CIRCLE_R + 18} name={task.name} desc={desc} />
     </>
   );
 }
@@ -176,14 +183,14 @@ function L3ActivityShape({ task, pos, l4Number, isHovered }) {
         stroke={stroke} strokeWidth={1} />
       {isSubprocess ? (
         <>
-          <text x={cx} y={cy - 8} textAnchor="middle" dominantBaseline="middle"
-            fontSize={10} fill="#6B7280" fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
+          <text x={cx} y={cy - 14} textAnchor="middle" dominantBaseline="middle"
+            fontSize={14} fill="#6B7280" fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
             [子流程]
           </text>
-          <SvgLabel text={task.name || ''} cx={cx} cy={cy + 10} maxChars={7} lineH={12} />
+          <SvgLabel text={task.name || ''} cx={cx} cy={cy + 14} maxChars={10} lineH={20} />
         </>
       ) : (
-        <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={7} lineH={14} />
+        <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={10} lineH={22} />
       )}
     </>
   );
@@ -226,7 +233,7 @@ function GatewayShape({ task, pos, l4Number, isHovered }) {
       <L4Number number={l4Number} cx={cx} y={cy - d} />
       <polygon points={pts} fill={fill} stroke={stroke} strokeWidth={strokeW} />
       {symbol}
-      <SvgLabel text={task.name} cx={cx} cy={cy + d + 10} maxChars={6} lineH={13} fontSize={10.5} />
+      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={10} lineH={20} fontSize={15} />
     </>
   );
 }
@@ -315,10 +322,10 @@ function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey,
         strokeWidth={strokeW} markerEnd={`url(#${markerId})`} />
       {conn.label && (
         <>
-          <rect x={labelPt[0] - 14} y={labelPt[1] - 9} width={28} height={16}
+          <rect x={labelPt[0] - 20} y={labelPt[1] - 12} width={40} height={22}
             fill={COLORS.ARROW_LABEL_BG} opacity={0.85} rx={2} />
           <text x={labelPt[0]} y={labelPt[1]} textAnchor="middle" dominantBaseline="middle"
-            fontSize={10} fill={COLORS.ARROW_COLOR}
+            fontSize={14} fill={COLORS.ARROW_COLOR}
             fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
             {conn.label}
           </text>
@@ -746,9 +753,9 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
 
           <rect x={0} y={0} width={svgWidth} height={TITLE_H} fill={COLORS.TITLE_BG} />
           <text x={svgWidth / 2} y={TITLE_H / 2} textAnchor="middle" dominantBaseline="middle"
-            fill={COLORS.TITLE_TEXT} fontSize={16} fontWeight="bold"
+            fill={COLORS.TITLE_TEXT} fontSize={22} fontWeight="bold"
             fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
-            {flow.l3Number}　{flow.l3Name}　— 業務活動泳道圖
+            {flow.l3Number}　{flow.l3Name}　—　業務活動泳道圖
           </text>
 
           {/* Lane backgrounds + bottom borders. Role-header rect + name +
@@ -963,8 +970,8 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
               const prevBottom = i === 0 ? TITLE_H : laneTopY[i - 1] + laneHeights[i - 1];
               const fillTop = prevBottom;
               const fillH = laneY + laneH - fillTop;
-              const lineH = 16;
-              const lines = wrapText(role.name, 5);
+              const lineH = 22;
+              const lines = wrapText(role.name, 7);
               const total = (lines.length - 1) * lineH;
               return (
                 <g key={`sticky-${role.id}`}>
@@ -973,7 +980,7 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
                     <text key={li} x={LANE_HEADER_W / 2}
                       y={laneY + laneH / 2 - total / 2 + li * lineH}
                       textAnchor="middle" dominantBaseline="middle"
-                      fill={COLORS.HEADER_TEXT} fontSize={13} fontWeight="bold"
+                      fill={COLORS.HEADER_TEXT} fontSize={18} fontWeight="bold"
                       fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
                       {line}
                     </text>

@@ -15,7 +15,7 @@ function EditCell({ value, onChange, placeholder = '' }) {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+        className="w-full px-1.5 py-1 text-base border border-gray-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
       />
     </td>
   );
@@ -24,7 +24,7 @@ function EditCell({ value, onChange, placeholder = '' }) {
 // ── Read-only cell ───────────────────────────────────────────────────────────
 function ReadCell({ value, muted = false }) {
   return (
-    <td className={`border border-gray-200 px-2 py-1.5 text-xs whitespace-pre-wrap max-w-[220px] ${muted ? 'bg-gray-50 text-gray-400' : 'bg-gray-50 text-gray-700'}`}>
+    <td className={`border border-gray-200 px-2 py-1.5 text-base whitespace-pre-wrap max-w-[220px] ${muted ? 'bg-gray-50 text-gray-400' : 'bg-gray-50 text-gray-700'}`}>
       {value}
     </td>
   );
@@ -37,7 +37,7 @@ function RoleCell({ roleId, roles, onChange }) {
       <select
         value={roleId || ''}
         onChange={e => onChange(e.target.value)}
-        className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+        className="w-full px-1.5 py-1 text-base border border-gray-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
       >
         <option value="">（無）</option>
         {roles.filter(r => r.name).map(r => (
@@ -90,18 +90,18 @@ export default function FlowTable({ flow, onSave }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-base font-semibold text-gray-700">L4 任務明細表</h3>
-          <p className="text-xs text-gray-400 mt-0.5">白色欄位可直接編輯，灰色欄位為唯讀（在精靈中修改）</p>
+          <h3 className="text-xl font-semibold text-gray-700">L4 任務明細表</h3>
+          <p className="text-base text-gray-400 mt-0.5">白色欄位可直接編輯，灰色欄位為唯讀（在精靈中修改）</p>
         </div>
         <div className="flex items-center gap-2">
           {hasChanges && (
-            <span className="text-xs text-amber-600 font-medium">● 有未儲存的變更</span>
+            <span className="text-base text-amber-600 font-medium">● 有未儲存的變更</span>
           )}
           {onSave && (
             <button
               onClick={handleSave}
               disabled={!hasChanges}
-              className="px-4 py-1.5 text-sm rounded transition-colors text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-1.5 text-lg rounded transition-colors text-white disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: hasChanges ? '#2A5598' : '#9CA3AF' }}
             >
               儲存
@@ -109,7 +109,7 @@ export default function FlowTable({ flow, onSave }) {
           )}
           <button
             onClick={handleDownload}
-            className="px-4 py-1.5 text-sm rounded text-white transition-colors"
+            className="px-4 py-1.5 text-lg rounded text-white transition-colors"
             style={{ background: '#3470B5' }}
             onMouseEnter={e => e.currentTarget.style.background = '#274F86'}
             onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}
@@ -121,7 +121,7 @@ export default function FlowTable({ flow, onSave }) {
 
       {/* Table */}
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <table className="border-collapse text-xs" style={{ minWidth: '1100px' }}>
+        <table className="border-collapse text-base" style={{ minWidth: '1100px' }}>
           <thead>
             <tr className="bg-gray-100">
               {EXCEL_HEADERS.map((h, i) => (

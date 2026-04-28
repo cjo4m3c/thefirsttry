@@ -60,10 +60,12 @@ description: Generate manual-paste instructions for files that can't be pushed v
 ### 步驟 C — 預覽 + Commit
 
 1. 點「Preview changes」— 應該只看到綠色新增 / 替換，**不應有意外大塊紅色刪除**
-2. Commit message 標題：`<short imperative description>`
+2. **Commit message 放在訊息最後**（規則見下方），使用者貼完直接往下拉就能複製，不用往上捲
 3. 確認選「Commit directly to `<branch>`」（不要新建 branch）
 4. 按「Commit changes」
 ```
+
+**規則：commit message 一律放在貼上指引最尾端**（2026-04-28 立，使用者：「commit message 請放在後面不然要再滑上去不符合使用習慣」）— 使用者貼完所有 hunk 後在訊息底部就能直接複製，不必往上捲。多檔同推時，每檔的 commit message 各自放在該檔指引的尾端；單檔多 hunk 則放在所有 hunk 之後。違反此規則 = 使用者體驗回退。
 
 ### 3. hunk 切分原則
 

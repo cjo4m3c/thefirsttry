@@ -244,15 +244,17 @@ style={{ background: role.type === 'external' ? '#5B8AC9' : '#2A5598', color: 'w
 
 ## 8. 文字 / 字級
 
-| 用途 | Tailwind class |
-|---|---|
-| 頁面主標 H1 | `text-2xl font-bold text-gray-800` |
-| 區塊標題 H2 | `text-lg font-bold text-gray-800` |
-| 小節標題 H3 | `text-sm font-bold text-gray-700 uppercase tracking-wide` |
-| 內文 | `text-sm text-gray-700` |
-| 提示 | `text-xs text-gray-400` |
-| 錯誤 | `text-sm text-red-700` / `text-xs text-red-600` |
-| 未儲存提醒 | `text-xs text-yellow-300` 或 `text-amber-600` |
+2026-04-28 起 FlowEditor / Wizard / FlowTable 統一往上一級（會議室遠看可讀性）；Dashboard 仍維持原級（首頁不在 +1 範圍）。新元件依此表的「+1 級」欄。
+
+| 用途 | Tailwind class（+1 級，編輯/Wizard/Table 用） | 原級（Dashboard 仍用） |
+|---|---|---|
+| 頁面主標 H1 | `text-3xl font-bold text-gray-800` | `text-2xl font-bold text-gray-800` |
+| 區塊標題 H2 | `text-xl font-bold text-gray-800` | `text-lg font-bold text-gray-800` |
+| 小節標題 H3 | `text-base font-bold text-gray-700 uppercase tracking-wide` | `text-sm font-bold text-gray-700 uppercase tracking-wide` |
+| 內文 | `text-base text-gray-700` | `text-sm text-gray-700` |
+| 提示 | `text-sm text-gray-400` | `text-xs text-gray-400` |
+| 錯誤 | `text-base text-red-700` / `text-sm text-red-600` | `text-sm text-red-700` / `text-xs text-red-600` |
+| 未儲存提醒 | `text-sm text-yellow-300` 或 `text-amber-600` | `text-xs text-yellow-300` 或 `text-amber-600` |
 
 ## 9. 動效
 
