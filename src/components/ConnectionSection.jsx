@@ -8,10 +8,11 @@ import { makeCondition, taskOptionLabel } from '../utils/taskDefs.js';
 
 export default function ConnectionSection({ task, allTasks, displayLabels, onUpdate }) {
   const ct = task.connectionType || 'sequence';
-  // Gateways skip the roleId filter — a freshly added gateway often has no
-  // role yet, but other tasks should still be able to point at it. validateFlow
+  // Gateways and L3 activities skip the roleId filter — both can be valid
+  // connection targets without a role assigned (gateway: freshly added, no
+  // role yet; L3 activity: subprocess call may not need a role). validateFlow
   // surfaces "gateway without roleId" as a save-time warning.
-  const opts = allTasks.filter(t => t.id !== task.id && (t.type === 'gateway' || t.roleId));
+  const opts = allTasks.filter(t => t.id !== task.id && (t.type === 'gateway' || t.type === 'l3activity' || t.roleId));
   const sel = 'flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400';
   const inp = 'flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400';
   const lbl = 'text-xs text-gray-500 w-16 flex-shrink-0';

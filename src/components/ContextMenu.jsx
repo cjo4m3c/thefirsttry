@@ -15,10 +15,10 @@ import { taskOptionLabel, applyGatewayPrefix } from '../utils/taskDefs.js';
  *   - allTasks      flow.tasks array (for sub-form target dropdowns)
  *   - displayLabels { taskId → "5-1-1-3" } for dropdown option labels
  *   - onUpdate(updatedTask)
- *   - onAddBefore(taskId)
  *   - onAddAfter(taskId)
  *   - onAddConnection(fromTaskId, toTaskId)
  *   - onAddGateway(anchorId, gatewayType, target1, target2, label1, label2)
+ *   - onAddL3Activity(anchorId, l3Number, l3Name)
  *   - onDelete(taskId)
  *   - onClose()
  *
@@ -28,11 +28,11 @@ import { taskOptionLabel, applyGatewayPrefix } from '../utils/taskDefs.js';
  */
 export default function ContextMenu({
   task, x, y, roles, allTasks, displayLabels,
-  onUpdate, onAddBefore, onAddAfter, onAddConnection, onAddGateway, onDelete, onClose,
+  onUpdate, onAddAfter, onAddConnection, onAddGateway, onAddL3Activity, onDelete, onClose,
 }) {
   const ref = useRef(null);
   const [adjusted, setAdjusted] = useState({ left: x, top: y });
-  // 'connection' | 'gateway' | null — which sub-form is currently expanded.
+  // 'connection' | 'gateway' | 'l3activity' | 'gw-switch' | null — which sub-form is expanded.
   const [subForm, setSubForm] = useState(null);
   const [connTarget, setConnTarget] = useState('');
   const [gwType, setGwType] = useState('xor');
@@ -40,6 +40,8 @@ export default function ContextMenu({
   const [gwTarget2, setGwTarget2] = useState('');
   const [gwLabel1, setGwLabel1] = useState('');
   const [gwLabel2, setGwLabel2] = useState('');
+  const [l3Number, setL3Number] = useState('');
+  const [l3Name, setL3Name] = useState('');
   // Gateway-type switch sub-form (only relevant when task.type === 'gateway').
   // Defaults to the task's current type so the radio shows the current selection.
   const [gwSwitchType, setGwSwitchType] = useState(task?.gatewayType || 'xor');
@@ -53,6 +55,8 @@ export default function ContextMenu({
     setGwTarget2('');
     setGwLabel1('');
     setGwLabel2('');
+    setL3Number('');
+    setL3Name('');
     setGwSwitchType(task?.gatewayType || 'xor');
   }, [task?.id]);
 
@@ -116,6 +120,12 @@ export default function ContextMenu({
   function submitGateway() {
     if (!gwTarget1 || !gwTarget2) return;
     onAddGateway?.(task.id, gwType, gwTarget1, gwTarget2, gwLabel1, gwLabel2);
+    onClose?.();
+  }
+
+  function submitL3Activity() {
+    if (!l3Number.trim()) return;
+    onAddL3Activity?.(task.id, l3Number.trim(), l3Name.trim());
     onClose?.();
   }
 
@@ -183,21 +193,65 @@ export default function ContextMenu({
             className="px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 resize-y leading-relaxed"
           />
         </label>
+        {task.type === 'l3activity' && (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-gray-500">L3 編號（被調用的子流程）</span>
+            <input type="text" value={task.subprocessName || ''}
+              onChange={(e) => onUpdate({ ...task, subprocessName: e.target.value })}
+              placeholder="例：5-3-2"
+              className="px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </label>
+        )}
       </div>
 
       {/* Action buttons */}
       <div className="border-t border-gray-100 py-1">
-        {!isStart && (
-          <button onClick={() => { onAddBefore?.(task.id); onClose?.(); }}
-            className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
-            <span className="text-blue-500">⬆️</span> 在前面新增任務
-          </button>
-        )}
         {!isEnd && (
           <button onClick={() => { onAddAfter?.(task.id); onClose?.(); }}
             className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
             <span className="text-blue-500">⬇️</span> 在後面新增任務
           </button>
+        )}
+
+        {/* Add L3 activity (subprocess call) — expands sub-form below */}
+        {!isEnd && (
+          <button
+            onClick={() => setSubForm(subForm === 'l3activity' ? null : 'l3activity')}
+            className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 ${
+              subForm === 'l3activity' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
+            }`}>
+            <span className="text-blue-500">📚</span> 新增 L3 活動（子流程調用）
+            <span className="ml-auto text-gray-400">{subForm === 'l3activity' ? '▴' : '▾'}</span>
+          </button>
+        )}
+        {subForm === 'l3activity' && (
+          <div className="px-3 py-2 bg-gray-50 border-t border-b border-gray-100 flex flex-col gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">L3 編號 *</span>
+              <input type="text" value={l3Number} onChange={(e) => setL3Number(e.target.value)}
+                placeholder="例：5-3-2"
+                className="px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">L3 活動名稱（選填）</span>
+              <input type="text" value={l3Name} onChange={(e) => setL3Name(e.target.value)}
+                placeholder="例：客戶資料審核"
+                className="px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+            </label>
+            <p className="text-xs text-gray-400 pl-1">
+              ℹ L3 活動會插入在當前元件之後，並自動接續原本的下一步
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setSubForm(null)}
+                className="px-3 py-1 text-xs text-gray-600 hover:text-gray-900">取消</button>
+              <button onClick={submitL3Activity} disabled={!l3Number.trim()}
+                className="px-3 py-1 text-xs rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: l3Number.trim() ? '#2A5598' : '#9CA3AF' }}>
+                確認
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Add connection — expands sub-form below */}

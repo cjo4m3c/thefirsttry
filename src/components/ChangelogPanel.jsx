@@ -11,6 +11,20 @@ import { useState } from 'react';
 const CHANGELOG = [
   {
     date: '2026-04-28',
+    title: 'L3 活動操作優化（R + S）：tooltip 可新增 / 編輯 L3，連線下拉可選 L3，L3 連線缺失改顯示專屬 warning',
+    items: [
+      '**R.4 + S 修連線下拉漏選 L3**（使用者：「現在 tooltip 新增連線無法選到圖上的 L3」+「在流程圖上 tooltip 新增連線時，可以選到 L3 活動元件」）：root cause = `ConnectionSection.jsx:14` filter `t.type === "gateway" || t.roleId`，L3 activity 沒設 roleId 時被擋掉。修法：filter 同時放行 `t.type === "l3activity"`',
+      '**R.5 L3 沒前後連線顯示專屬 warning**（使用者：「遇到 L3 活動元件沒有符合前後連線規則時，跳出針對 L3 的提醒訊息，但是仍然可以存檔」）：`FlowEditor.validateFlow` 的「未設定下一步」/「沒有任何任務連接到此節點」warnings 對 `t.type === "l3activity"` 改成「L3 活動 5-3-2 未設定下一步：若該 L3 流向另一張流程圖可忽略此提醒，否則請補上連線」。仍是 warning level（不擋儲存）',
+      '**R.3 ContextMenu 內可改 L3 編號**（使用者：「不管在哪裡編輯 L3 元件時，都可以自行編輯 L3 編號、L3 活動名稱等資訊」）：ContextMenu inline edit fields 在 `task.type === "l3activity"` 時多顯示一個「L3 編號（被調用的子流程）」input，直接改 `task.subprocessName`。原本 RightDrawer 的 ConnectionSection 也能改，現在 tooltip 也能改',
+      '**R.2 tooltip 加「新增 L3 活動」**（使用者：「在流程圖上 tooltip 新增任務的時候，可以選到 L3 活動元件」）：ContextMenu 新加按鈕「📚 新增 L3 活動（子流程調用）」+ sub-form（L3 編號 + L3 名稱）。`FlowEditor.addL3ActivityAfter(anchorId, l3Number, l3Name)` 建立 `type: "l3activity"` + `connectionType: "subprocess"` task，name = 活動名、subprocessName = L3 編號；anchor → newL3 → anchor 原本的下一步（保留序列）',
+      '**R.6 移除「在前面新增任務」**（使用者：「移除往前加任務的選項，統一使用行爲是加元件會加在後面」）：ContextMenu 拿掉 `onAddBefore` 按鈕；FlowEditor 端同步移除 `onAddBefore={addTaskBefore}` 連線（`addTaskBefore` 函式保留以免影響其他呼叫）',
+      '**Q3 連線端點換到 L3 上 — 驗證已可用**（使用者：「目前應該要可以做到點擊連線後…我希望 L3 活動元件也適用」）：audit `DiagramRenderer.findTaskAtPoint:580` + `changeConnectionTarget:513` 都只排除 `type === "start"`，L3 activity 已是合法 drop target。不需改 code，待手動驗證',
+      '**七視圖檢核**：本次改動涉及 task.type === "l3activity"、task.subprocessName 兩欄位，七視圖共用 source — ① Dashboard ② DiagramRenderer ③ FlowEditor/Wizard/RightDrawer ④ FlowTable ⑤ excelExport ⑥ drawioExport ⑦ PNG 自動同步',
+      '**驗證**：`npm run build` pass',
+    ],
+  },
+  {
+    date: '2026-04-28',
     title: '閘道前綴補齊（Q：編輯器路徑也補）+ tooltip 新增閘道時可同步編輯條件標籤（T）',
     items: [
       '**Q. 編輯器路徑閘道前綴補齊**（使用者：「不管是從圖上還是從編輯器中新增，L4 任務名稱欄位自動補上前綴 [排他閘道]」）：圖上路徑（ContextMenu「新增閘道」）原本就有，但編輯器路徑（TaskCard 改 connectionType dropdown）漏了。`taskDefs.js:applyConnectionType` return 加 `name: applyGatewayPrefix(task.name, newGwType)`；換成 gateway 自動加前綴、換回 sequence 自動 strip 前綴',

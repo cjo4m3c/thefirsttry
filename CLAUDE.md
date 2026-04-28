@@ -196,11 +196,8 @@ items: ['...', '...'],
 
 - **B. layout 同欄對齊** — fork 兩分支步數不等時，短分支末段對齊到長分支同欄；含使用者要求的「包容、並行閘道後方任務對齊」。推薦解法 A（`alignForkBranches` post-pass），先開 `claude/preview-layout-same-column` 預覽分支驗證。動手前須跟使用者確認 §10.6 四個問題
 - **P. 全頁儲存連動 BUG**（使用者：「儲存要整頁一起存，不能下方 excel 編輯後 上方的調整都不見了，應該要是不管在哪裡編輯後所有內容都要連動修正（編輯器、流程圖、下方表格）」）— FlowEditor / DiagramRenderer 互動 / FlowTable 三處互改後內容要連動，目前 FlowTable 編輯後上方未儲存的調整會被覆蓋。需把 hasChanges + source-of-truth 整合到頂層 state
-- **S. tooltip 新增連線無法選 L3 BUG**（使用者：「現在 tooltip 新增連線無法選到圖上的 L3」）— `ContextMenu` 連線下拉漏掉 L3 activity 任務；`ConnectionSection.jsx:11` filter 已對 gateway 例外，需同樣對 L3 activity 例外
 
 ### 規格已明確、可排程
-
-- **R. 新增 L3 流程顯示編號規則**（使用者：「新增 L3 流程的時候，要直接顯示 L3 編號，不可以有 L4 編號出現」）— Wizard 新增頁應只顯示 L3 編號，目前混入 L4 編號預覽要去掉
 - **U. 插入閘道操作邏輯拉齊**（使用者：「拉齊插入閘道的操作邏輯（現在圖上是插入閘道、編輯器是序列規則）」）— `DiagramRenderer` ContextMenu「插入閘道」與 `FlowEditor` 編輯器內的插入流程不一致，要統一
 - **V. 儲存事件閃亮提醒**（使用者：「新增儲存事件閃亮提醒」）— 儲存按鈕被按下後加 logo 閃光 / 按鈕短暫變綠等視覺回饋（取代原 J「儲存提醒優化」的待選方向）
 - **C. Phase 3.5 gateway obstacle avoidance**（`src/diagram/layout.js`）— 閘道作為跨列 forward obstacle 時走 vertical-detour
@@ -225,3 +222,4 @@ items: ['...', '...'],
 - **J. 儲存提醒優化（規格不明）** — 由 V 取代
 - **Q. 編輯器路徑閘道前綴補齊** — DONE，`taskDefs.applyConnectionType` 加 name auto-prefix；`applyGatewayPrefix(name, null)` 表示 strip-only
 - **T. tooltip 新增閘道時可同步編輯條件標籤** — DONE，`ContextMenu` 新增閘道 sub-form 加兩個 label input；`FlowEditor.insertGatewayAfter` 多 label1/label2 參數
+- **R. L3 活動操作優化（含 S）** — DONE：①`ConnectionSection.jsx:14` filter 加 `t.type === 'l3activity'` 例外（連線下拉可選 L3，等於收掉 S）②`FlowEditor.validateFlow` L3 沒前後連線時顯示 L3 專屬 warning（提到「可能流向另一張流程圖」）③`ContextMenu` task.type === 'l3activity' 時加「L3 編號」inline input（可改 `subprocessName`）④`ContextMenu` 加「新增 L3 活動（子流程調用）」按鈕 + sub-form（L3 編號 + 名稱），`FlowEditor.addL3ActivityAfter` 處理插入；anchor → newL3 → (anchor 原本的下一步)⑤`ContextMenu` 移除「在前面新增任務」按鈕（使用者：「移除往前加任務的選項，統一使用行爲是加元件會加在後面」），`FlowEditor` 同步刪 `onAddBefore` 連線。Q3 驗證：`DiagramRenderer.findTaskAtPoint` 與 `changeConnectionTarget` 已不擋 L3 activity，連線拖端點換到 L3 上應該已支援，待手動驗證

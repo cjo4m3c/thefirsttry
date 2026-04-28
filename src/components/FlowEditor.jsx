@@ -74,7 +74,13 @@ function validateFlow(flow) {
       const hasNext = t.type === 'gateway'
         ? (t.conditions || []).some(c => c.nextTaskId)
         : (t.nextTaskIds || []).some(Boolean);
-      if (!hasNext) warnings.push(`${label}：未設定下一步`);
+      if (!hasNext) {
+        if (t.type === 'l3activity') {
+          warnings.push(`${label}（L3 活動 ${t.subprocessName || '未填編號'}）：未設定下一步。若該 L3 流向另一張流程圖可忽略此提醒，否則請補上連線`);
+        } else {
+          warnings.push(`${label}：未設定下一步`);
+        }
+      }
     }
 
     // 2. Parallel-merge needs ≥2 incoming.
@@ -106,7 +112,11 @@ function validateFlow(flow) {
     // 4. Every node except start must have incoming (already blocking for end,
     //    this catches orphan middle nodes).
     if (!isStart(t) && !(incoming[t.id] > 0)) {
-      warnings.push(`${label}：沒有任何任務連接到此節點`);
+      if (t.type === 'l3activity') {
+        warnings.push(`${label}（L3 活動 ${t.subprocessName || '未填編號'}）：沒有任何任務連接到此節點。若該 L3 從另一張流程圖進入可忽略此提醒，否則請補上連線`);
+      } else {
+        warnings.push(`${label}：沒有任何任務連接到此節點`);
+      }
     }
 
     // 5. Loop-return must specify target.
@@ -423,6 +433,39 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   // [target1, target2]. anchor's old nextTaskIds are overwritten — if the
   // user wanted to preserve them, they should pick them as one of the
   // targets via the menu's dropdowns.
+  // ContextMenu: insert an L3 activity (subprocess call) after `anchorId`.
+  // anchor → newL3 → (anchor's old nextTaskIds[0]).
+  // L3 activity uses connectionType='subprocess', shapeType='l3activity',
+  // and stores the called L3 number in `subprocessName`. Name = activity name.
+  function addL3ActivityAfter(anchorId, l3Number = '', l3Name = '') {
+    const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
+    if (idx < 0) return;
+    const anchor = liveFlow.tasks[idx];
+    const downstream = (anchor.nextTaskIds || []).filter(Boolean);
+    const newL3 = makeTask({
+      type: 'l3activity',
+      shapeType: 'l3activity',
+      connectionType: 'subprocess',
+      roleId: anchor.roleId || '',
+      name: l3Name || '',
+      subprocessName: l3Number || '',
+      // L3 activity inherits the anchor's downstream so the sequence stays
+      // intact: anchor → L3 → (anchor's old next). User can adjust later.
+      nextTaskIds: downstream.length ? [downstream[0]] : [''],
+    });
+    const rewired = liveFlow.tasks.map(t =>
+      t.id === anchorId ? { ...t, nextTaskIds: [newL3.id] } : t
+    );
+    const next = [...rewired];
+    next.splice(idx + 1, 0, newL3);
+    const renumbered = next.map(t => {
+      if (!t.l4Number) return t;
+      const { l4Number, ...rest } = t;
+      return rest;
+    });
+    patch({ tasks: applySequentialDefaults(renumbered) });
+  }
+
   function insertGatewayAfter(anchorId, gatewayType, targetId1, targetId2, label1 = '', label2 = '') {
     const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
     if (idx < 0) return;
@@ -810,10 +853,10 @@ export default function FlowEditor({ flow, onBack, onSave }) {
             // Reflect the edit in the menu's local task copy too.
             setContextMenu(prev => prev ? { ...prev, task: updated } : prev);
           }}
-          onAddBefore={addTaskBefore}
           onAddAfter={addTaskAfter}
           onAddConnection={addConnection}
           onAddGateway={insertGatewayAfter}
+          onAddL3Activity={addL3ActivityAfter}
           onDelete={removeTask}
           onClose={() => setContextMenu(null)}
         />
