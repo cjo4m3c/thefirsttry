@@ -31,13 +31,13 @@ function StepIndicator({ current, steps }) {
     <div className="flex items-center justify-center mb-8">
       {steps.map((label, i) => (
         <div key={i} className="flex items-center">
-          <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold transition-colors
+          <div className={`flex items-center justify-center w-8 h-8 rounded-full text-base font-semibold transition-colors
             ${i < current  ? 'bg-blue-600 text-white' :
               i === current ? 'bg-blue-600 text-white ring-4 ring-blue-100' :
                               'bg-gray-200 text-gray-500'}`}>
             {i + 1}
           </div>
-          <span className={`ml-2 text-sm ${i === current ? 'font-semibold text-blue-600' : 'text-gray-500'}`}>
+          <span className={`ml-2 text-base ${i === current ? 'font-semibold text-blue-600' : 'text-gray-500'}`}>
             {label}
           </span>
           {i < steps.length - 1 && (
@@ -60,27 +60,27 @@ function Step1({ data, onChange }) {
 
   return (
     <div className="max-w-lg mx-auto">
-      <h2 className="text-xl font-bold text-gray-800 mb-1">L3 活動基本資訊</h2>
-      <p className="text-sm text-gray-500 mb-6">輸入此活動的名稱與層級編號</p>
+      <h2 className="text-2xl font-bold text-gray-800 mb-1">L3 活動基本資訊</h2>
+      <p className="text-base text-gray-500 mb-6">輸入此活動的名稱與層級編號</p>
       <div className="flex flex-col gap-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">L3 活動編號 <span className="text-red-500">*</span></label>
+          <label className="block text-base font-medium text-gray-700 mb-1">L3 活動編號 <span className="text-red-500">*</span></label>
           <input type="text" placeholder="例：1-1-1" value={data.l3Number}
             onChange={e => handleNumber(e.target.value)}
-            className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${numErr ? 'border-red-400' : 'border-gray-300'}`} />
-          {numErr && <p className="text-xs text-red-500 mt-1">{numErr}</p>}
-          <p className="text-xs text-gray-400 mt-1">三層編碼，例：1-1-1、2-3-4（與 Excel 匯入格式一致）</p>
+            className={`w-full px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-400 ${numErr ? 'border-red-400' : 'border-gray-300'}`} />
+          {numErr && <p className="text-sm text-red-500 mt-1">{numErr}</p>}
+          <p className="text-sm text-gray-400 mt-1">三層編碼，例：1-1-1、2-3-4（與 Excel 匯入格式一致）</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">L3 活動名稱 <span className="text-red-500">*</span></label>
+          <label className="block text-base font-medium text-gray-700 mb-1">L3 活動名稱 <span className="text-red-500">*</span></label>
           <input type="text" placeholder="例：建立商機報價" value={data.l3Name}
             onChange={e => onChange({ l3Name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-400" />
         </div>
         {data.l3Number && data.l3Name && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-base text-blue-700">
             預覽：<strong>{data.l3Number}</strong>　{data.l3Name}
-            <br /><span className="text-xs opacity-70">L4 任務將從 {data.l3Number}-1 開始編號</span>
+            <br /><span className="text-sm opacity-70">L4 任務將從 {data.l3Number}-1 開始編號</span>
           </div>
         )}
       </div>
@@ -106,9 +106,9 @@ function Step2({ data, onChange }) {
 
   return (
     <div className="max-w-xl mx-auto">
-      <h2 className="text-xl font-bold text-gray-800 mb-1">泳道角色設定</h2>
-      <p className="text-sm text-gray-500 mb-2">設定流程中的參與角色（至少 1 個）</p>
-      <p className="text-xs text-gray-400 mb-5 flex items-center gap-1">
+      <h2 className="text-2xl font-bold text-gray-800 mb-1">泳道角色設定</h2>
+      <p className="text-base text-gray-500 mb-2">設定流程中的參與角色（至少 1 個）</p>
+      <p className="text-sm text-gray-400 mb-5 flex items-center gap-1">
         <span className="text-gray-400">⠿</span> 可用滑鼠拖曳左側圓點改變泳道順序（由上到下）
       </p>
 
@@ -123,36 +123,36 @@ function Step2({ data, onChange }) {
                 ? (dropAfter ? 'border-b-2 border-blue-500' : 'border-t-2 border-blue-500')
                 : 'border-gray-200'}`}>
             <DragHandle />
-            <span className="text-xs text-gray-400 w-4 flex-shrink-0">#{i + 1}</span>
+            <span className="text-sm text-gray-400 w-4 flex-shrink-0">#{i + 1}</span>
             <input type="text" placeholder="角色名稱" value={role.name}
               onChange={e => updateRole(role.id, 'name', e.target.value)}
-              className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-blue-400" />
             <select value={role.type}
               onChange={e => updateRole(role.id, 'type', e.target.value)}
-              className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
+              className="px-2 py-1.5 border border-gray-300 rounded text-base focus:outline-none"
               style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
               <option value="internal">內部角色</option>
               <option value="external">外部角色</option>
             </select>
             <button onClick={() => removeRole(role.id)} disabled={data.roles.length <= 1}
-              className="text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-lg leading-none">✕</button>
+              className="text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-2xl leading-none">✕</button>
           </div>
         ))}
       </div>
 
       <button onClick={addRole}
-        className="mt-4 w-full py-2 text-sm border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+        className="mt-4 w-full py-2 text-base border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
         + 新增角色
       </button>
 
       <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-        <div className="text-xs font-semibold text-gray-600 mb-2">泳道預覽（由上到下）：</div>
+        <div className="text-sm font-semibold text-gray-600 mb-2">泳道預覽（由上到下）：</div>
         <div className="flex flex-col gap-1">
           {data.roles.filter(r => r.name).map((r, i) => (
             <div key={r.id} className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-sm" style={{ background: r.type === 'external' ? '#009900' : '#0066CC' }} />
-              <span className="text-xs font-medium text-gray-700">泳道 {i + 1}：{r.name}</span>
-              <span className="text-xs text-gray-400">（{r.type === 'external' ? '外部' : '內部'}）</span>
+              <span className="text-sm font-medium text-gray-700">泳道 {i + 1}：{r.name}</span>
+              <span className="text-sm text-gray-400">（{r.type === 'external' ? '外部' : '內部'}）</span>
             </div>
           ))}
         </div>
@@ -222,8 +222,8 @@ export default function Wizard({ flow, onSave, onCancel }) {
   return (
     <div className="min-h-screen" style={{ background: '#F5F8FC' }}>
       <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: '#2A5598', color: 'white' }}>
-        <button onClick={onCancel} className="opacity-70 hover:opacity-100 text-sm">← 返回</button>
-        <span className="text-lg font-bold tracking-wide">
+        <button onClick={onCancel} className="opacity-70 hover:opacity-100 text-base">← 返回</button>
+        <span className="text-2xl font-bold tracking-wide">
           {flow ? `編輯：${data.l3Number} ${data.l3Name}` : '新增 L3 工作流'}
         </span>
       </header>
@@ -233,9 +233,9 @@ export default function Wizard({ flow, onSave, onCancel }) {
 
         {errors.length > 0 && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm font-semibold text-red-700 mb-2">請修正以下問題：</p>
+            <p className="text-base font-semibold text-red-700 mb-2">請修正以下問題：</p>
             <ul className="list-disc list-inside space-y-1">
-              {errors.map((e, i) => <li key={i} className="text-sm text-red-600">{e}</li>)}
+              {errors.map((e, i) => <li key={i} className="text-base text-red-600">{e}</li>)}
             </ul>
           </div>
         )}
@@ -247,12 +247,12 @@ export default function Wizard({ flow, onSave, onCancel }) {
 
         <div className="flex justify-between">
           <button onClick={step === 0 ? onCancel : handleBack}
-            className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-colors">
+            className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 text-base hover:bg-gray-50 transition-colors">
             {step === 0 ? '取消' : '← 上一步'}
           </button>
           {step < LAST_WIZARD_STEP ? (
             <button onClick={handleNext}
-              className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
+              className="px-5 py-2 rounded-lg text-white text-base font-medium transition-colors"
               style={{ background: '#3470B5' }}
               onMouseEnter={e => e.currentTarget.style.background = '#274F86'}
               onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}>
@@ -260,7 +260,7 @@ export default function Wizard({ flow, onSave, onCancel }) {
             </button>
           ) : (
             <button onClick={handleSave}
-              className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
+              className="px-5 py-2 rounded-lg text-white text-base font-medium transition-colors"
               style={{ background: '#2A5598' }}
               onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
               onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
