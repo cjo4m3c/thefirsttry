@@ -38,7 +38,7 @@ export function wrapText(text, maxChars, maxTotal) {
   return lines;
 }
 
-export function SvgLabel({ text, cx, cy, maxChars = 8, lineH = 30, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 22 }) {
+export function SvgLabel({ text, cx, cy, maxChars = 8, lineH = 32, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 22 }) {
   const lines = wrapText(text, maxChars, maxTotal);
   const total = (lines.length - 1) * lineH;
   return (

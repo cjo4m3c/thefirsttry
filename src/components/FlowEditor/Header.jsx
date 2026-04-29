@@ -38,17 +38,34 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
         {hasChanges && (
           <span className="text-sm text-yellow-300 font-medium hidden sm:inline">● 未儲存</span>
         )}
-        {/* PR I: global reset for all manual endpoint overrides. Shown
-            only when the current flow has at least one override — avoids
-            an always-on destructive button. Opens a confirm modal. */}
+        {/* M-1 unified header buttons — same height (py-1.5), same outlined-white
+            style. Order from left to right: [conditional reset] [open editor]
+            [save] [pin star]. Save uses solid white fill on hasChanges to draw
+            attention; pin star is the rightmost since it's a per-flow flag. */}
         {liveFlow.tasks.some(t => t.connectionOverrides && Object.keys(t.connectionOverrides).length > 0) && (
           <button
             onClick={onResetAllConfirm}
             title="重設所有手動拖曳的連線端點"
-            className="px-3 py-1 text-sm rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10">
-            重設所有手動端點
+            className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+            重設所有端點
           </button>
         )}
+        <button
+          onClick={onOpenDrawer}
+          title="開啟編輯面板"
+          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+          打開編輯器
+        </button>
+        <button
+          onClick={onSave}
+          title={hasChanges ? '儲存所有變更' : '目前沒有未儲存的變更'}
+          className={`px-3 py-1.5 text-base rounded border transition-colors ${
+            hasChanges
+              ? 'border-white bg-white text-[#1E4677] font-semibold hover:bg-opacity-90'
+              : 'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10'
+          }`}>
+          儲存
+        </button>
         <button
           onClick={onTogglePin}
           title={liveFlow.pinned ? '取消置頂' : '置頂此工作流'}
@@ -59,21 +76,6 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
             strokeLinejoin="round">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>
-        </button>
-        <button
-          onClick={onOpenDrawer}
-          title="開啟編輯面板"
-          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 flex items-center gap-1">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-          </svg>
-          編輯
-        </button>
-        <button
-          onClick={onSave}
-          className="px-4 py-1.5 text-base rounded font-medium transition-colors"
-          style={{ background: hasChanges ? '#7AB5DD' : '#6B7280', color: hasChanges ? '#1E4677' : 'white' }}>
-          儲存
         </button>
       </div>
     </header>

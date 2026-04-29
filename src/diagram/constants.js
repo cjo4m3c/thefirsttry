@@ -4,7 +4,7 @@ export const LAYOUT = {
   COL_W: 184,
   LANE_H: 152,
   NODE_W: 156,
-  NODE_H: 88,
+  NODE_H: 84,
   DIAMOND_SIZE: 54,
   CIRCLE_R: 32,
   PADDING_RIGHT: 56,

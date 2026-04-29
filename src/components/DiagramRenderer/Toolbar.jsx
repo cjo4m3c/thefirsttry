@@ -14,11 +14,14 @@ export function DiagramToolbar({ flow, showExport, onExport, onExportDrawio, onE
             {flow.l3Number} {flow.l3Name}
           </span>
           <div className="ml-auto flex gap-2">
+            {/* M-1 unified: all three download buttons share the app's primary
+                blue (#2A5598 / hover #1E4677), matching the Dashboard top-right
+                buttons and the FlowEditor Header background. */}
             <button onClick={onExport}
               className="px-4 py-1.5 text-sm text-white rounded transition-colors"
-              style={{ background: '#3470B5' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#274F86'}
-              onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}>
+              style={{ background: '#2A5598' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
+              onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
               ↓ 匯出 PNG
             </button>
             <button onClick={onExportDrawio}
@@ -33,9 +36,9 @@ export function DiagramToolbar({ flow, showExport, onExport, onExportDrawio, onE
               <button onClick={onExportExcel}
                 title="下載任務表格 Excel（按下時會先檢核並儲存全頁變更）"
                 className="px-4 py-1.5 text-sm text-white rounded transition-colors"
-                style={{ background: '#1A3D69' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#122A4A'}
-                onMouseLeave={e => e.currentTarget.style.background = '#1A3D69'}>
+                style={{ background: '#2A5598' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
+                onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
                 ↓ 下載 Excel
               </button>
             )}

@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-04-29',
+    title: 'M-1 按鈕風格統一 + 任務元件行距/padding 收緊 + 業務規格 §13 視覺章',
+    items: [
+      '**緣由**：使用者：「M-1 統一包含 header 按鈕及編輯區塊的匯出下載按鈕」+「任務元件字到框邊還有空間且行距偏緊，希望行距至少是單行間距、padding 縮小」。',
+      '**任務元件字級行距優化**：`SvgLabel` lineH 30→**32**（兩行間隙 = 32-16 = 16px = 一行字高，達到「單行間距」標準）；`LAYOUT.NODE_H` 88→**84**（3 行 × 32 + 字高 16 + 上下 padding 各 2 = 84，padding 從 6→2 收斂視覺）。Layout ripple 安全：shape top/bottom = 34/118，LANE_H 152 - MAX_SHAPE_BOTTOM_OFFSET 130 仍留 22px buffer；`minLaneH(slots)` / drawio / PNG export 自動跟。',
+      '**M-1 編輯頁 Header 4 顆按鈕統一**（B 方案 — 保留 `#2A5598` 深藍 Header 底）：全部統一 `px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10`。順序左→右：[重設所有端點][打開編輯器][儲存][★ 置頂]。文字調整：「重設所有手動端點」→「重設所有端點」、「編輯」→「打開編輯器」（去 icon）；★ 從中間移到最右側。儲存按鈕 `hasChanges` 時用實白底 + `#1E4677` 深藍字 + `font-semibold` 強調，無變更時跟其他按鈕同樣的透明白邊白字。',
+      '**M-1 Toolbar 三顆下載統一同色**：PNG / drawio / Excel 全改 `#2A5598` / hover `#1E4677`（本來是 `#3470B5` / `#2A5598` / `#1A3D69` 三色階），跟首頁按鈕 + 編輯頁 Header 主題藍一致。順序保留 PNG → drawio → Excel。',
+      '**業務規格文件 §13「視覺與字級規格」新增**：`docs/business-spec.md` 在 §12 後加 §13，含 7 小節：13.1 LAYOUT 常數 / 13.2 字級三層 / 13.3 行距 lineH / 13.4 wrap maxChars / 13.5 任務元件 padding / 13.6 按鈕色系 / 13.7 對應實作。把分散在 `constants.js` / `text.jsx` 等檔的數字和設計原則集中為單一來源；之後改字級或框尺寸先改 spec doc 數字再同步實作。',
+      '**動到的檔案**：`src/diagram/constants.js`（NODE_H 一項）/ `src/components/DiagramRenderer/text.jsx`（SvgLabel lineH 預設）/ `src/components/DiagramRenderer/Toolbar.jsx`（三鍵同色）/ `src/components/FlowEditor/Header.jsx`（4 顆按鈕統一）/ `docs/business-spec.md`（+§13 約 80 行）。`build` 通過。',
+      '**Backlog**：M-1 標完成。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '全頁儲存連動修復 + Excel Tab 內嵌編輯 + 流程圖頂部下載統一（收掉 P / E / M-2）',
     items: [
       '**緣由**：使用者：「儲存要整頁一起存，不能下方 excel 編輯後上方的調整都不見了，應該要是不管在哪裡編輯後所有內容都要連動修正（編輯器、流程圖、下方表格）」+「下載 excel 移到匯出 PNG／drawio 旁邊」+「點下載也檢核並儲存，不符合就不能下載」+「Drawer 不可以有第二個儲存按鈕，整頁共用一個」+「編輯方塊高度容納 3 行，4 個關鍵欄位（L4 任務名稱／重點說明／重要輸入／關聯說明）寬度加大」+「table 標題列容許 2 行字，L3 重複欄位變窄」。',
