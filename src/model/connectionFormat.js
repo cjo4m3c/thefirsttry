@@ -15,6 +15,7 @@
  * hint card) keep their hard-coded sample strings for readability.
  * `/sync-views` skill enforces this via grep guard.
  */
+import { getTaskIncoming } from './flowSelectors.js';
 
 // ── PHRASE: every Chinese fragment used by forward AND reverse ─────────────
 // Changing any value here updates both directions automatically; the regexes
@@ -53,15 +54,7 @@ export function formatConnection(task, tasks, l4Map) {
   const taskById = {};
   tasks.forEach(t => { taskById[t.id] = t; });
 
-  const incomingCount = {};
-  tasks.forEach(t => {
-    const outs = t.type === 'gateway'
-      ? (t.conditions || []).map(c => c.nextTaskId)
-      : (t.nextTaskIds || []);
-    outs.filter(Boolean).forEach(id => {
-      incomingCount[id] = (incomingCount[id] || 0) + 1;
-    });
-  });
+  const incomingCount = getTaskIncoming(tasks);
 
   const ct = task.connectionType;
 
