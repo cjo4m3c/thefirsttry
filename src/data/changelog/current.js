@@ -9,7 +9,8 @@ export default [
     title: '新增：業務規格文件 docs/business-spec.md（單一規則來源）',
     items: [
       '**緣由**：使用者：「希望可以產出一份業務規格文件，未來協作以這份文件的規則為基礎來討論優化，首頁右上角『規則說明』也以這份文件為基礎撰寫使用者需要知道的操作重點」。原本 `.claude/business-rules.md`（給 Claude）跟 `HelpPanel.jsx`（給使用者）兩邊都自稱 single source of truth，改規則時容易漂移。',
-      '**新檔**：`docs/business-spec.md` 12 章 / 301 行 / 15.8KB — 階層定義 / 編號規則 / 元件類型 / 連線序列 / 路由三規則 / 編號顯示分層 / 儲存檢核兩層 / 編輯操作 / 禁止規則 / 匯出格式 / Excel I/O 相容 / 七視圖一致性。每章末尾「對應實作」小節列檔案路徑。',
+      '**新檔**：`docs/business-spec.md` 12 章 / ~16KB — 階層定義 / 編號規則 / 元件類型 / 連線序列 / 路由三規則 / 編號顯示分層 / 儲存檢核兩層 / 編輯操作 / 禁止規則 / 匯出格式 / Excel I/O 相容 / 七視圖一致性。',
+      '**對應實作 pointer 用「目錄路徑 + 關鍵符號名」取代具體檔名**（避免重構拆檔時 silent path drift），唯一例外是 §12 七視圖一致性表格保留具體 entry file（拿來當 audit checklist）。順手修正 spec 草稿 2 個錯路徑：`RightDrawer` / `Wizard` 在 `src/components/` 不在 `FlowEditor/`；`violations` 在 `src/diagram/` 不在 `src/utils/`。',
       '**定位**：本文件 = 業務規則單一來源；`.claude/business-rules.md` 後續會縮成 Claude 工作流慣例（協作偏好 / 工程慣例）；HelpPanel 後續抽出 `src/data/helpPanelData.js` 並用章節編號錨點同步。',
       '**後續 PR**：① 抽 HelpPanel data 到 `src/data/helpPanelData.js`，每個 array 上方加 `// 對應 docs/business-spec.md §X.Y` ② 縮 `.claude/business-rules.md` 成純 Claude 慣例 + pointer ③ CLAUDE.md §8 加「改業務規則 = 同改 spec + helpPanelData + changelog」。',
     ],
