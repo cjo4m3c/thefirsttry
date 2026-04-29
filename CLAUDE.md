@@ -3,7 +3,7 @@
 本檔案由 Claude 自動維護，跨對話的長期規則與慣例。每次調整規則須同步更新此檔並 push 到 remote。
 
 **詳細展開的內容拆到外部檔**（避免 CLAUDE.md 自己膨脹）：
-- `docs/business-spec.md` — **業務規則單一來源**（5 條核心規則 / 閘道分類 / 編號規則 / 元件類型 / 連線型態 / 儲存檢核 / 編輯操作 / 匯出格式 / 七視圖一致性，12 章）
+- `docs/business-spec.md` — **業務規則單一來源**（5 條核心規則 / 閘道分類 / 編號規則 / 元件類型 / 連線型態 / 儲存檢核 / 編輯操作 / 匯出格式 / 七視圖一致性 / 視覺與字級規格含 §13.8 sticky offset，13 章）
 - `src/data/helpPanelData.js` — HelpPanel 規則摘要 data，每個 array 加 `// 對應 docs/business-spec.md §X` 章節錨點
 - `.claude/business-rules.md` — Claude 工作流慣例（trace 驗證、Excel I/O 相容、CJK wrap、文件同步、協作偏好）
 - `.claude/orphans.md` — 已清理的孤兒檔案

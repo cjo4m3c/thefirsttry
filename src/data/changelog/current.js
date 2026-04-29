@@ -6,6 +6,21 @@
 export default [
   {
     date: '2026-04-29',
+    title: '捲動操作優化：表格預設 2 行 + Toolbar/Thead 互斥 sticky',
+    items: [
+      '**緣由**：使用者：「(1) 下方表格的預設高度調整為 2 行 (2) 網頁向下捲動時，流程圖的標題列可以一直置頂 (3) 捲動到表格的時候，換表格標題列位置固定」。主要使用瀏覽器 Chrome / Edge（同 Chromium 引擎）。',
+      '**FlowTable textarea rows 3→2**：每筆任務的編輯欄預設高度從 ~72px 降到 ~48px，畫面密度提升一倍；保留 `resize-y` 讓使用者按需手動拉高。',
+      '**Toolbar sticky（流程圖標題列置頂）**：`DiagramRenderer/index.jsx` 把 `<DiagramToolbar>` 包進 `sticky top-[56px] z-10 bg-[#F5F8FC] border-b border-gray-200 shadow-sm pb-1` wrapper。`top-[56px]` = Header 實際渲染高度（深藍 Header `px-6 py-3` + 內容 input/button ~32px = 56-58px）。Toolbar 的 sticky 容器 = DiagramRenderer wrapper（非 window），所以 SVG 區結束就自然釋放，不需 JS。',
+      '**Thead sticky（表格標題列置頂）**：`FlowTable.jsx` thead 內每個 `<th>` 加 `sticky top-[56px] z-[5] bg-gray-100`。把背景 `bg-gray-100` 從 `<tr>` 移到 `<th>`（sticky 元素必須自帶不透明背景，不然下方 tbody 會穿透；瀏覽器對 `<tr>` sticky 支援不一致，套在 `<th>` 最穩）。',
+      '**互斥行為「零 JS」**：靠 CSS sticky 的天然容器邊界 — Toolbar 的 sticky 容器 = DiagramRenderer wrapper（高度 = SVG + Toolbar），當頁面捲過 SVG 進入表格區，wrapper 邊界已過 → Toolbar 釋放隨內容捲走；同瞬間 Thead 進入 viewport，sticky top:56 接手。中間 0 px 空檔，視覺平滑。',
+      '**Chrome / Edge 相容**：`overflow-x-auto` 容器內的垂直 sticky 在 Chromium 完全依規範運作（sticky 找 relevant axis 的 scrolling ancestor，垂直 sticky 不被祖先 horizontal overflow 干擾）。Safari / Firefox 未列為優先支援。',
+      '**業務規格文件 §13.8「sticky 浮層 offset」新增**：`docs/business-spec.md` §13 末加 §13.8，含 Header 高度 ≈ 56px 量測值、3 個 sticky 元素位置表（Header / Toolbar / Thead）、互斥邏輯說明、**Header 高度漂移防護**清單（改 Header 前 grep `top-\\[56px\\]` 同步調整下游）、目標瀏覽器宣告。CLAUDE.md 標題列指引更新「13 章」。',
+      '**動到的檔案（4 個）**：`src/components/FlowTable.jsx`（rows + thead sticky）/ `src/components/DiagramRenderer/index.jsx`（toolbar wrapper）/ `docs/business-spec.md`（+§13.8）/ `CLAUDE.md`（章節數更新 + sticky 提示）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證**：build 通過。視覺驗證待部署 — 三個情境：(1) 整頁頂端：Header + Toolbar 都黏住 (2) 捲到 SVG 中段：兩者都黏住 (3) 捲到表格：Toolbar 已捲走、Thead 接手在 top-56 處。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '編號規則新增 `_s` 後綴（子流程調用不佔順號）+ start anchor `-0_g` 修正',
     items: [
       '**緣由**：使用者：「L4 編號規則想統一改用四段式 + 特殊規則」，要點：(4) 閘道為第一個任務時編號順序應為 `X-Y-Z-0 → X-Y-Z-0_g → X-Y-Z-1`；(6) 子流程調用編號用 `X-Y-Z-N_s`（不佔獨立 N 數字編號）；(7) 連續子流程 `_s1`、`_s2`…，且 `_s1 → _g → _s2` 中間閘道不打斷 `_s` 連續性。',

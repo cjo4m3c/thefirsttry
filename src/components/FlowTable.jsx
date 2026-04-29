@@ -18,7 +18,7 @@ function EditCell({ value, onChange, placeholder = '', wide = false }) {
         onChange={e => setLocal(e.target.value)}
         onBlur={() => { if (local !== (value || '')) onChange(local); }}
         placeholder={placeholder}
-        rows={3}
+        rows={2}
         className="w-full px-1.5 py-1 text-base border border-gray-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 resize-y"
       />
     </td>
@@ -77,11 +77,11 @@ export default function FlowTable({ flow, onUpdateTask }) {
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="border-collapse text-base" style={{ minWidth: '1100px' }}>
           <thead>
-            <tr className="bg-gray-100 align-middle">
+            <tr className="align-middle">
               {EXCEL_HEADERS.map((h, i) => (
                 <th
                   key={i}
-                  className="border border-gray-200 px-2 py-2 text-left font-semibold text-gray-700 align-middle"
+                  className="border border-gray-200 px-2 py-2 text-left font-semibold text-gray-700 align-middle bg-gray-100 sticky top-[56px] z-[5]"
                 >
                   {h}
                 </th>

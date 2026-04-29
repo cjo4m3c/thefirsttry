@@ -178,19 +178,26 @@ export default function DiagramRenderer({ flow, showExport = true, autoExportPng
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      <DiagramToolbar
-        flow={flow} showExport={showExport}
-        onExport={handleExport} onExportDrawio={handleExportDrawio}
-        onExportExcel={handleExportExcel}
-        editable={editable}
-        selectedConnKey={selectedConnKey}
-        selectedConnHasOverride={selectedConnHasOverride}
-        onResetSelected={() => {
-          const idx = parseInt(selectedConnKey.slice(1), 10);
-          const c = connections[idx];
-          if (c && onResetOverride) onResetOverride(c.fromId, c.overrideKey);
-        }}
-        onClearSelection={() => setSelectedConnKey(null)} />
+      {/* sticky wrapper — Toolbar stays pinned below the deep-blue Header
+          (top-[56px] = Header's effective height). Sticky boundary is this
+          DiagramRenderer wrapper, so the Toolbar releases naturally when the
+          page scrolls past the SVG into the FlowTable region — at which
+          point the table's <thead> sticky takes over. See CLAUDE.md §13.4. */}
+      <div className="sticky top-[56px] z-10 bg-[#F5F8FC] border-b border-gray-200 shadow-sm pb-1">
+        <DiagramToolbar
+          flow={flow} showExport={showExport}
+          onExport={handleExport} onExportDrawio={handleExportDrawio}
+          onExportExcel={handleExportExcel}
+          editable={editable}
+          selectedConnKey={selectedConnKey}
+          selectedConnHasOverride={selectedConnHasOverride}
+          onResetSelected={() => {
+            const idx = parseInt(selectedConnKey.slice(1), 10);
+            const c = connections[idx];
+            if (c && onResetOverride) onResetOverride(c.fromId, c.overrideKey);
+          }}
+          onClearSelection={() => setSelectedConnKey(null)} />
+      </div>
 
       <div ref={scrollContainerRef} onScroll={handleScrollLeft}
         className="overflow-auto border border-gray-300 rounded-lg bg-white w-full">
