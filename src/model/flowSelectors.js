@@ -23,11 +23,13 @@
  * Rules (mirrors business-spec.md §2):
  *   start event           → `${l3}-0`
  *   end event / breakpt.  → `${l3}-99`
- *   gateway (XOR/AND/OR)  → `${base}_g` (or _g2, _g3… for 連續閘道,
- *                           where 連續 = no independent L4 task between them;
+ *   gateway (XOR/AND/OR)  → single   → `${base}_g`
+ *                           consec.  → `${base}_g1` / `_g2` / `_g3`…
+ *                           (連續 = no independent L4 task between them;
  *                           subprocess calls don't break the run.)
- *   subprocess call       → `${base}_s` (or _s2, _s3… for 連續子流程,
- *                           where 連續 = no independent L4 task between them;
+ *   subprocess call       → single   → `${base}_s`
+ *                           consec.  → `${base}_s1` / `_s2` / `_s3`…
+ *                           (連續 = no independent L4 task between them;
  *                           gateways don't break the run.)
  *   regular task          → `${l3}-${counter}` where counter counts ONLY
  *                           regular tasks from 1.
@@ -123,12 +125,16 @@ export function computeDisplayLabels(tasks, l3Number) {
     } else if (isSubprocess) {
       const base = lastTaskBase || `${prefix}-0`;
       spConsec += 1;
-      labels[task.id] = spConsec === 1 ? `${base}_s` : `${base}_s${spConsec}`;
+      // Always emit `_s${n}` here; post-process below strips the index when
+      // the run length is exactly 1 (yielding plain `_s` for single calls).
+      labels[task.id] = `${base}_s${spConsec}`;
       // gwConsec preserved across _s.
     } else if (isGateway) {
       const base = lastTaskBase || `${prefix}-0`;
       gwConsec += 1;
-      labels[task.id] = gwConsec === 1 ? `${base}_g` : `${base}_g${gwConsec}`;
+      // Always emit `_g${n}` here; post-process below strips the index when
+      // the run length is exactly 1 (yielding plain `_g` for single gateways).
+      labels[task.id] = `${base}_g${gwConsec}`;
       // spConsec preserved across _g.
     } else {
       while (usedCounters.has(taskCounter)) taskCounter++;
@@ -139,7 +145,35 @@ export function computeDisplayLabels(tasks, l3Number) {
       spConsec = 0;
     }
   });
-  return labels;
+
+  // Post-process: count gateway / subprocess run length per anchor base. When
+  // the run is exactly 1, drop the index so the label reads as plain `_g` /
+  // `_s` (per business-spec §2: "單一 _g, 連續 _g1 _g2 _g3"). Stored labels
+  // that came in as plain `_g` / `_s` (no digit) don't match the regex below
+  // so they're left alone.
+  const gwBaseMax = {};
+  const spBaseMax = {};
+  Object.values(labels).forEach(label => {
+    const mG = label.match(/^(\d+-\d+-\d+-\d+)_g(\d+)$/);
+    if (mG) gwBaseMax[mG[1]] = Math.max(gwBaseMax[mG[1]] || 0, parseInt(mG[2], 10));
+    const mS = label.match(/^(\d+-\d+-\d+-\d+)_s(\d+)$/);
+    if (mS) spBaseMax[mS[1]] = Math.max(spBaseMax[mS[1]] || 0, parseInt(mS[2], 10));
+  });
+  const result = {};
+  Object.entries(labels).forEach(([id, label]) => {
+    const mG = label.match(/^(\d+-\d+-\d+-\d+)_g(\d+)$/);
+    if (mG && gwBaseMax[mG[1]] === 1) {
+      result[id] = `${mG[1]}_g`;
+      return;
+    }
+    const mS = label.match(/^(\d+-\d+-\d+-\d+)_s(\d+)$/);
+    if (mS && spBaseMax[mS[1]] === 1) {
+      result[id] = `${mS[1]}_s`;
+      return;
+    }
+    result[id] = label;
+  });
+  return result;
 }
 
 /** Idiomatic alias for new code; same behavior as `computeDisplayLabels`. */

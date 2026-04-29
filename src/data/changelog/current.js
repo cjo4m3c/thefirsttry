@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-04-29',
+    title: '業務邏輯：移除流程斷點/迴圈返回入口、加外部互動編輯入口+lane 警告、連續閘道改 _g1/_g2/_g3',
+    items: [
+      '**緣由**：使用者：「(1) 圖上沒有流程斷點 (2) 編輯器下拉不能選流程斷點/迴圈返回 (3) 編輯器要可新增外部互動，使用灰色底元件，儲存時若放內部角色泳道要跳警告但仍可存 (4) 連續閘道編號 _g1 _g2 _g3，單一才 _g」',
+      '**Step 1 — 移除流程斷點 / 迴圈返回入口**：`taskDefs.js` `CONNECTION_TYPES` 9→7（去掉 `breakpoint` / `loop-return`），剩下序列/條件/並行/包容/開始/結束/子流程。`ContextMenu/subforms.jsx` `OtherSubForm` 移除「流程斷點」按鈕（剩開始/結束/外部互動）；`ConvertSubForm` 移除「流程斷點」目標選項。**舊資料的 breakpoint / loop-return 連線型仍可正常 render**（CONN_BADGE / CONN_ROW_BG / 渲染邏輯保留），只是新建入口移除。',
+      '**Step 2 — 編輯器加「+ 新增外部互動」按鈕**：`DrawerContent.jsx` 上方原本只有「+ 新增任務（加到最後）」一顆，加並排的「+ 新增外部互動」（紫底 #FAF5FF + 紫框，跟元件圖例一致）。`FlowEditor/index.jsx` 加 `onAddInteraction` callback，呼叫 `actions.addOtherAfter(lastTaskId, \'interaction\')` 沿用既有 ContextMenu 「新增其他」的 interaction kind 邏輯。',
+      '**Step 3 — 外部互動 lane 警告**：`validation.js` 加新 warning 3e — 任務 `shapeType === \'interaction\'` 且其 `roleId` 對應的 `role.type === \'internal\'` 時，儲存跳 warning「外部互動任務 X 放在內部角色泳道 Y，建議改放外部角色泳道」（**非 blocking，使用者可選「仍然儲存」**）。',
+      '**Step 4 — 連續閘道編號改 `_g1 / _g2 / _g3`（單一仍 `_g`）**：`flowSelectors.computeDisplayLabels` 改採兩階段做法：(a) generation phase 一律輸出 `_g${n}` / `_s${n}`（含下標）；(b) **post-process phase** 統計每個 base 的 gateway / subprocess run length，run = 1 時把 `_g1` / `_s1` 改回 `_g` / `_s`。stored l4Number 為 `_g`（無下標）的舊資料不會被誤改（regex `\\\\d+` 不 match 空字串）。符合 spec §2 (5)/(7)「單一 `_g`、連續 `_g1 _g2 _g3`」官方規則，修正先前 PR #90 實作偏差（先前是 `_g, _g2, _g3`）。',
+      '**業務規格 §2 / §4 同步**：§2.1 表格「閘道 L4 連續多個」例子加註「**從 1 開始**」；§4 流程設定型態從 9 種降到 7 種（移除流程斷點 / 迴圈返回兩項，含說明「2026-04-29 移除編輯器選項，舊資料仍可 render」）。`helpPanelData.js`：NUMBERING 迴圈返回條目改成「舊資料兼容」說明；ELEMENTS L4 任務 purpose 移除「迴圈返回」選項；VALIDATION 「迴圈返回必須指定目標」改成「外部互動建議放外部角色泳道」。',
+      '**動到的檔案（8 個）**：`src/utils/taskDefs.js`（CONNECTION_TYPES 縮短）/ `src/components/ContextMenu/subforms.jsx`（OtherSubForm + ConvertSubForm 移除 breakpoint）/ `src/components/FlowEditor/DrawerContent.jsx`（新增外部互動按鈕）/ `src/components/FlowEditor/index.jsx`（onAddInteraction wiring）/ `src/model/validation.js`（warning 3e）/ `src/model/flowSelectors.js`（two-phase post-process）/ `docs/business-spec.md` §2.1 + §4 / `src/data/helpPanelData.js`（4 處）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '編輯頁優化：FlowTable 橫向 sticky-left / 閘道標籤中文 / Drawer 上方+插入槽 / Role DropLine',
     items: [
       '**緣由**：使用者：「(1) 表格左右捲動時固定 L4 編號 / L4 名稱（顯示 L3 時也固定到 L4 名稱）(2) 編輯器把 XOR/AND/OR 改中文，子流→子流程 (3) 新增任務按鈕移上方 + 滑鼠點兩元件中間顯示線可插入 (4) 泳道角色拖曳要跟任務拖曳一樣顯示插入線」。',

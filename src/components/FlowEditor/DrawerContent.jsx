@@ -47,7 +47,7 @@ function InsertSlot({ onClick }) {
  *    between rows during a drag operation
  */
 export function DrawerContent({ activeTab, liveFlow, displayLabels,
-  taskDrag, roleDrag, onPatch, onUpdateTask, onRemoveTask, onAddTask, onAddTaskAt }) {
+  taskDrag, roleDrag, onPatch, onUpdateTask, onRemoveTask, onAddTask, onAddTaskAt, onAddInteraction }) {
   if (activeTab === 'flow') {
     const { dragIdx, overIdx, dropAfter, rowProps } = taskDrag;
     const dropTargetSlot = (dragIdx === null || overIdx === null) ? null
@@ -67,13 +67,22 @@ export function DrawerContent({ activeTab, liveFlow, displayLabels,
     const isDragging = dragIdx !== null;
     return (
       <div>
-        {/* "新增任務" pinned to the top — main entry point for adding tasks.
-            Click-to-insert between rows uses InsertSlot below for precise
-            placement. */}
-        <button onClick={onAddTask}
-          className="w-full py-2 text-base border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors mb-3">
-          + 新增任務（加到最後）
-        </button>
+        {/* Add buttons pinned to the top. Two entry points:
+            - 新增任務: regular task at end of list
+            - 新增外部互動: task with shapeType=interaction (purple/gray)
+              Per business spec, interactions belong on external-role lanes;
+              save validation warns (non-blocking) if dropped on internal lane. */}
+        <div className="flex gap-2 mb-3">
+          <button onClick={onAddTask}
+            className="flex-1 py-2 text-base border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+            + 新增任務（加到最後）
+          </button>
+          <button onClick={onAddInteraction}
+            className="flex-1 py-2 text-base border border-dashed border-purple-400 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors"
+            style={{ background: '#FAF5FF' }}>
+            + 新增外部互動
+          </button>
+        </div>
         <p className="text-sm text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位；滑鼠移到任務間可從中間插入</p>
         <div className="flex flex-col gap-2">
           {/* Top InsertSlot — insert before the first task. Hidden during

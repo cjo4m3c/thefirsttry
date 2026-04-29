@@ -239,8 +239,7 @@ export function OtherSubForm({ onPick, onCancel }) {
   const items = [
     { kind: 'start',       label: '○ 開始事件',   hint: '流程起點（每張圖僅能有一個）' },
     { kind: 'end',         label: '● 結束事件',   hint: '流程正常終點' },
-    { kind: 'breakpoint',  label: '⊗ 流程斷點',  hint: '非正常結束（等待外部事件）' },
-    { kind: 'interaction', label: '▭ 外部互動',  hint: '系統互動 / 跨角色協作（紫底）' },
+    { kind: 'interaction', label: '▭ 外部互動',  hint: '系統互動 / 跨角色協作（建議放外部角色泳道）' },
   ];
   return (
     <div className="px-3 py-2 bg-gray-50 border-t border-b border-gray-100 flex flex-col gap-1">
@@ -273,7 +272,6 @@ export function ConvertSubForm({ task, onPick, onCancel }) {
     { kind: 'gateway-or',   label: '包容閘道 ◇⊙',  match: task.type === 'gateway' && task.gatewayType === 'or' },
     { kind: 'start',        label: '開始事件',       match: task.type === 'start' },
     { kind: 'end',          label: '結束事件',       match: task.type === 'end' && task.connectionType === 'end' },
-    { kind: 'breakpoint',   label: '流程斷點',       match: task.connectionType === 'breakpoint' },
   ];
   return (
     <div className="px-3 py-2 bg-gray-50 border-t border-b border-gray-100 flex flex-col gap-1">

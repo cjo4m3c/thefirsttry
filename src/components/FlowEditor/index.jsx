@@ -193,6 +193,14 @@ export default function FlowEditor({ flow, onBack, onSave }) {
             if (index <= 0 && tasks[0]) actions.addTaskBefore(tasks[0].id);
             else if (index >= tasks.length) actions.addTask();
             else actions.addTaskAfter(tasks[index - 1].id);
+          }}
+          onAddInteraction={() => {
+            // Append a task with shapeType=interaction at end of list. Reuses
+            // addOtherAfter('interaction') if there's an anchor; falls back to
+            // addTask + post-update for the empty-flow case.
+            const tasks = liveFlow.tasks || [];
+            if (tasks.length > 0) actions.addOtherAfter(tasks[tasks.length - 1].id, 'interaction');
+            else actions.addTask();
           }} />
       </RightDrawer>
 

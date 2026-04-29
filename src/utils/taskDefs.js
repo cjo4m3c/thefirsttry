@@ -33,12 +33,15 @@ export const L4_GATEWAY_PATTERN    = /^\d+-\d+-\d+-\d+_g\d*$/;
 export const L4_SUBPROCESS_PATTERN = /^\d+-\d+-\d+-\d+_s\d*$/;
 
 // ── Constants ─────────────────────────────────────────────────────
-// PR-B 2026-04-29: parallel-merge / conditional-merge / inclusive-merge
-// removed from the user-facing dropdown. Merge is no longer an explicit
-// connection type — when ≥2 tasks point at the same target, formatConnection
-// auto-emits "並行合併 X、Y，序列流向 Z" (or 條件/包容合併 depending on the
-// upstream gateway types). This keeps the editor menu cleaner: users only
-// pick fork / sequence / start / end / breakpoint / subprocess / loop-return.
+// User-pickable connectionTypes in the dropdown. Type variants that exist in
+// the data model but are NOT user-pickable (legacy data still supported):
+//   - parallel-merge / conditional-merge / inclusive-merge — derived from
+//     incoming-edge count via formatConnection (PR-B 2026-04-29)
+//   - breakpoint     — removed per user request 2026-04-29 (no new ones)
+//   - loop-return    — removed per user request 2026-04-29
+// Existing breakpoint / loop-return data still renders correctly but cannot
+// be created from the dropdown anymore. The diagram won't generate new
+// breakpoint shapes.
 export const CONNECTION_TYPES = [
   { value: 'sequence',           label: '序列流向' },
   { value: 'conditional-branch', label: '條件分支' },
@@ -46,9 +49,7 @@ export const CONNECTION_TYPES = [
   { value: 'inclusive-branch',   label: '包容分支' },
   { value: 'start',              label: '流程開始' },
   { value: 'end',                label: '流程結束' },
-  { value: 'breakpoint',         label: '流程斷點' },
   { value: 'subprocess',         label: '子流程調用' },
-  { value: 'loop-return',        label: '迴圈返回' },
 ];
 
 export const SHAPE_TYPES = [
