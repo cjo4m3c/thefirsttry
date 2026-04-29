@@ -15,8 +15,19 @@ export default [
       '**外部 import 路徑零變更**：唯一 importer `src/App.jsx` 的 `import Dashboard from \'./components/Dashboard.jsx\'` 一行不動。子元件 import 自動跟著 `src/components/Dashboard/` 一層深調整（`../HelpPanel.jsx` / `../../utils/excelImport.js` 等）。',
       '**HelpPanel.jsx 26KB 暫不拆**：歷史 8 commits 都是業務規則同步觸發（中低頻），且短期 backlog 沒有規則改動排程，繼續走手動 push SOP（>18KB 區間）即可。',
       '**驗證**：`npm run build` 通過（117 modules transformed，比拆前 +6 因新增 6 個子模組）。`find src -name "*.jsx" -size +15k` Dashboard 範圍空輸出。',
-      '**Changelog freeze**：current.js 加完條目超 7KB → 凍結 PR-5/PR-6 兩條到 `c15.js`，`index.js` 加 c15 import，current.js 只留本 PR 條目。',
+      '**Changelog freeze**：current.js PR-5/PR-6 兩條凍結到 `c15.js`，`index.js` 加 c15 import，current.js 留 `[PR-8, PR-7]` 兩條（合計 < 7KB 不再 freeze）。',
       '**Backlog**：「後續批次拆檔」條目移除 `Dashboard.jsx`（本 PR 拆完）和 `taskDefs.js`（PR-6 解掉）；剩 `HelpPanel.jsx` 26KB / `ContextMenu.jsx` 19KB / 凍結 `c13.js` 17KB 三項待處理。',
+    ],
+  },
+  {
+    date: '2026-04-29',
+    title: 'Phase 2 PR-7：抽出 src/model/validation.js + Excel 匯入跑同一套 warning',
+    items: [
+      '**動機**：使用者「Blocking 結構檢核 + Warning soft 提醒兩層」原本只有編輯器的儲存按鈕會跑（`FlowEditor/validateFlow.js`），Excel 匯入完直接落到 Dashboard 不經編輯器，孤兒任務 / 未指定下一步 / merge 來源不足等問題要等使用者開編輯器才看得到。',
+      '**新建 `src/model/validation.js`（5.5KB）**：把 `validateFlow.js` body 完整搬出來，pure 模組無 React / 無 I/O / 無視圖層 import。`detectOverrideViolations` 留在 `src/diagram/violations.js`（要 `computeLayout` 才能判斷 routing 違規），但 `diagram/` 也是 infra 不是 view，相依方向合規。',
+      '**`FlowEditor/validateFlow.js` 變 4 行 shim**：`export { validateFlow } from \'../../model/validation.js\'`，FlowEditor 儲存流程的 importer 一行不動。',
+      '**Excel 匯入 banner 新增驗證行**：`parseExcelToFlow` 對每個產生的 flow 跑 `validateFlow`，blocking 行加 ❌ 前綴、多 L3 匯入加 `[L3 X-Y-Z] ` 前綴，併進原本的 gateway-chain warning 一起回傳。Dashboard 的 `importWarnings` banner 直接消化（之前就支援 array），UI 零變更。',
+      '**驗證**：`npm run build` 通過。FlowEditor 儲存 flow 行為應該 byte-identical（shim 直接 re-export 同一個函式）；Excel 匯入路徑多了一段 warning lines append，原本的 gateway-chain warning 不變。',
     ],
   },
 ];
