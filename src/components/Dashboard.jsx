@@ -394,7 +394,9 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                   <span>·</span>
                   <span>任務 {flow.tasks?.length ?? 0}</span>
                 </div>
-                <div className="flex flex-col gap-0.5 text-xs text-gray-400">
+                {/* Reserves 2-row height even when one of createdAt /
+                    updatedAt is missing (legacy pre-versioned flows). */}
+                <div className="flex flex-col gap-0.5 text-xs text-gray-400 min-h-[2rem]">
                   {flow.createdAt && <span>建立：{fmtDateTime(flow.createdAt)}</span>}
                   {flow.updatedAt && <span>更新：{fmtDateTime(flow.updatedAt)}</span>}
                 </div>
