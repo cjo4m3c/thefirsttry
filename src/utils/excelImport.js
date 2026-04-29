@@ -2,7 +2,8 @@ import * as XLSX from 'xlsx';
 import { generateId } from './storage.js';
 import {
   L3_NUMBER_PATTERN, L4_NUMBER_PATTERN,
-  L4_START_PATTERN, L4_END_PATTERN, L4_GATEWAY_PATTERN,
+  L4_START_PATTERN, L4_END_PATTERN,
+  L4_GATEWAY_PATTERN, L4_SUBPROCESS_PATTERN,
 } from './taskDefs.js';
 import {
   parseConnection,
@@ -210,16 +211,20 @@ function buildFlow(rows) {
  *   - 開始事件 → suffix must be -0
  *   - 結束事件 → suffix must be -99
  *   - 閘道 (XOR / AND / OR) → must have _g / _g1 / _g2 / ... suffix
- *   - Gateway prefix (d-d-d-d without _g*) must match an existing L4 task
+ *   - 子流程調用 (調用子流程 X-Y-Z) → must have _s / _s1 / _s2 / ... suffix
+ *   - _g / _s prefix (d-d-d-d without suffix) must match an existing L4 task
+ *     (or `-0` start event when the gateway / subprocess is the first element)
  */
 function validateNumbering(allRows) {
   const errors = [];
 
-  // First pass: collect base L4 task numbers (no _g variant) for prefix lookup
+  // First pass: collect base L4 task numbers (no _g / _s variant) for prefix
+  // lookup. Start events (`-0`) are valid anchors per spec §2 (4) example
+  // `X-Y-Z-0 → X-Y-Z-0_g → X-Y-Z-1`, so they're included.
   const l4TaskSet = new Set();
   for (let i = 1; i < allRows.length; i++) {
     const l4 = String(allRows[i][COL_L4_NUMBER] ?? '').trim();
-    if (l4 && !/_g\d*$/.test(l4)) l4TaskSet.add(l4);
+    if (l4 && !/(_g\d*|_s\d*)$/.test(l4)) l4TaskSet.add(l4);
   }
 
   // Second pass: validate each row
@@ -236,14 +241,16 @@ function validateNumbering(allRows) {
       errors.push(`• 第 ${excelRow} 列 L3 編號「${l3}」格式錯誤（應為 1-1-1，僅接受「-」分隔）`);
     }
     if (!L4_NUMBER_PATTERN.test(l4)) {
-      errors.push(`• 第 ${excelRow} 列 L4 編號「${l4}」格式錯誤（僅接受「-」分隔；閘道為 1-1-1-1_g 或 _g1/_g2…）`);
+      errors.push(`• 第 ${excelRow} 列 L4 編號「${l4}」格式錯誤（僅接受「-」分隔；閘道為 1-1-1-1_g、子流程為 1-1-1-1_s）`);
       continue; // suffix checks meaningless if base is wrong
     }
 
     const isStart     = /開始事件/.test(l4Name);
     const isEnd       = /結束事件/.test(l4Name);
     const gatewayType = detectGatewayFromText(flowText); // 'xor' | 'and' | null
+    const isSubprocessRow = /調用子流程\s*\d+-\d+-\d+/.test(flowText);
     const hasGTag     = /_g\d*$/.test(l4);
+    const hasSTag     = /_s\d*$/.test(l4);
 
     if (isStart && !L4_START_PATTERN.test(l4)) {
       errors.push(`• 第 ${excelRow} 列為「開始事件」，L4 編號「${l4}」尾碼應為 0（範例:1-1-7-0）`);
@@ -257,11 +264,16 @@ function validateNumbering(allRows) {
                   : 'XOR（排他）';
       errors.push(`• 第 ${excelRow} 列為閘道 ${label}，L4 編號「${l4}」應加「_g」後綴（單一 _g；連續多個用 _g1/_g2/_g3… 範例:1-1-9-5_g 或 1-1-9-5_g1）`);
     }
-    // Gateway prefix-must-match-task: 1-1-9-5_g / _g1 / _g2… 的前綴 1-1-9-5 必為 L4 任務
-    if (hasGTag) {
-      const baseNum = l4.replace(/_g\d*$/, '');
+    if (isSubprocessRow && !L4_SUBPROCESS_PATTERN.test(l4)) {
+      errors.push(`• 第 ${excelRow} 列為「子流程調用」，L4 編號「${l4}」應加「_s」後綴（單一 _s；連續多個用 _s1/_s2/_s3… 範例:1-1-9-5_s 或 1-1-9-5_s1）`);
+    }
+    // _g / _s prefix-must-match-task: 1-1-9-5_g / _s 的前綴 1-1-9-5 必為
+    // 既有 L4 任務（含 -0 開始事件，作為閘道 / 子流程為流程第一元素的 anchor）
+    if (hasGTag || hasSTag) {
+      const baseNum = l4.replace(/(_g\d*|_s\d*)$/, '');
       if (!l4TaskSet.has(baseNum)) {
-        errors.push(`• 第 ${excelRow} 列「閘道」 ${l4}：找不到前置任務 ${baseNum}（閘道編號前綴必為對應 L4 任務）`);
+        const kind = hasGTag ? '閘道' : '子流程';
+        errors.push(`• 第 ${excelRow} 列「${kind}」 ${l4}：找不到前置任務 ${baseNum}（${kind}編號前綴必為對應 L4 任務或 -0 開始事件）`);
       }
     }
   }
@@ -276,8 +288,9 @@ function validateNumbering(allRows) {
     `  • L4：1-1-1-1（四段）\n` +
     `  • 開始事件：尾碼為 0，例如 1-1-7-0\n` +
     `  • 結束事件：尾碼為 99，例如 1-1-7-99\n` +
-    `  • 閘道（XOR / AND / OR）：加「_g」後綴，例如 1-1-9-5_g；連續多個用 1-1-9-5_g1、1-1-9-5_g2、1-1-9-5_g3…\n` +
-    `    閘道編號前綴必為對應 L4 任務（例：1-1-9-5_g 前面必有 1-1-9-5）`
+    `  • 閘道（XOR / AND / OR）：加「_g」後綴，例如 1-1-9-5_g；連續多個用 1-1-9-5_g1、1-1-9-5_g2…\n` +
+    `  • 子流程調用：加「_s」後綴，例如 1-1-9-5_s；連續多個用 1-1-9-5_s1、1-1-9-5_s2…\n` +
+    `    _g / _s 前綴必為對應 L4 任務（含 -0 開始事件）`
   );
 }
 

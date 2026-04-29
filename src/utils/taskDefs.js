@@ -6,22 +6,31 @@ import { generateId } from './storage.js';
 
 // ── L3 / L4 number format (single source of truth) ──────────────────
 // Current spec (dash separator only):
-//   L3:                d-d-d                   (3 segments)
-//   L4 base:           d-d-d-d                 (4 segments)
-//   L4 start event:    d-d-d-0                 (suffix must be 0)
-//   L4 end event:      d-d-d-99                (suffix must be 99)
-//   L4 gateway:        d-d-d-d_g               (single gateway after a task)
-//                      d-d-d-d_g1 / _g2 / ...  (consecutive gateways)
-//                      All gateway types (XOR / AND / OR) use this notation;
-//                      prefix d-d-d-d must match an existing L4 task number.
-// Dot separators are NOT accepted in new data. Legacy localStorage data still
-// gets dot→dash migration via storage.normalizeNumber. If numbering rules
-// change, update these patterns + any example strings in Wizard / HelpPanel.
-export const L3_NUMBER_PATTERN   = /^\d+-\d+-\d+$/;
-export const L4_NUMBER_PATTERN   = /^\d+-\d+-\d+-\d+(_g\d*)?$/;
-export const L4_START_PATTERN    = /^\d+-\d+-\d+-0$/;
-export const L4_END_PATTERN      = /^\d+-\d+-\d+-99$/;
-export const L4_GATEWAY_PATTERN  = /^\d+-\d+-\d+-\d+_g\d*$/;
+//   L3:                  d-d-d                   (3 segments)
+//   L4 base:             d-d-d-d                 (4 segments)
+//   L4 start event:      d-d-d-0                 (suffix must be 0)
+//   L4 end event:        d-d-d-99                (suffix must be 99)
+//   L4 gateway:          d-d-d-d_g               (single gateway after a task)
+//                        d-d-d-d_g1 / _g2 / ...  (consecutive gateways)
+//                        All gateway types (XOR / AND / OR) use this notation.
+//   L4 subprocess call:  d-d-d-d_s               (single subprocess after a task)
+//                        d-d-d-d_s1 / _s2 / ...  (consecutive subprocess calls,
+//                          where 連續 = no independent L4 task between them; _g
+//                          in between does NOT break the run, mirroring the way
+//                          subprocess calls don't break consecutive _g).
+// Both `_g` and `_s` share these properties:
+//   - prefix d-d-d-d must reference an existing L4 task in the same flow
+//     (or `-0` when the gateway/subprocess is the first element after start)
+//   - they don't consume an N counter slot
+// Letter suffixes (`a`, `b`…) are explicitly forbidden — see business-spec §2 (8).
+// Dot separators are NOT accepted in new data; legacy localStorage data gets
+// dot→dash migration via storage.normalizeNumber.
+export const L3_NUMBER_PATTERN     = /^\d+-\d+-\d+$/;
+export const L4_NUMBER_PATTERN     = /^\d+-\d+-\d+-\d+(_g\d*|_s\d*)?$/;
+export const L4_START_PATTERN      = /^\d+-\d+-\d+-0$/;
+export const L4_END_PATTERN        = /^\d+-\d+-\d+-99$/;
+export const L4_GATEWAY_PATTERN    = /^\d+-\d+-\d+-\d+_g\d*$/;
+export const L4_SUBPROCESS_PATTERN = /^\d+-\d+-\d+-\d+_s\d*$/;
 
 // ── Constants ─────────────────────────────────────────────────────
 export const CONNECTION_TYPES = [

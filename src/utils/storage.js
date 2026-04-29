@@ -54,6 +54,56 @@ function migrateGatewaySuffix(tasks) {
 }
 
 /**
+ * Legacy subprocess calls (l3activity tasks created before the `_s` rule
+ * was added in 2026-04) may have l4Numbers like "1-1-1-3" that consume a
+ * counter slot. The canonical form anchors the suffix on the predecessor
+ * task: `${predecessor}_s` (or _s2, _s3… for consecutive subprocess calls
+ * sharing the same anchor). This walks tasks in order; for any l3activity
+ * whose l4Number lacks `_s`, rewrites to `${predecessor}_s` (sibling-aware).
+ *
+ * Mirrors `migrateGatewaySuffix` — kept separate so spec changes to either
+ * suffix can land independently.
+ */
+function migrateSubprocessSuffix(tasks) {
+  if (!Array.isArray(tasks)) return tasks;
+  const needsFix = tasks.some(t =>
+    t && t.type === 'l3activity' && t.l4Number && !/_s\d*$/.test(String(t.l4Number))
+  );
+  if (!needsFix) return tasks;
+
+  const updated = tasks.map(t => (t ? { ...t } : t));
+  const countByBase = {};
+
+  updated.forEach(t => {
+    if (!t || t.type !== 'l3activity' || !t.l4Number) return;
+    const m = String(t.l4Number).match(/^(\d+-\d+-\d+-\d+)_s(\d*)$/);
+    if (m) countByBase[m[1]] = (countByBase[m[1]] || 0) + 1;
+  });
+
+  for (let i = 0; i < updated.length; i++) {
+    const t = updated[i];
+    if (!t || t.type !== 'l3activity' || !t.l4Number) continue;
+    if (/_s\d*$/.test(String(t.l4Number))) continue;
+
+    let base = null;
+    for (let j = i - 1; j >= 0; j--) {
+      const prev = updated[j];
+      // Anchor must be a counter-claiming element (regular task) or start.
+      if (prev && (prev.type === 'task' || prev.type === 'start') && prev.l4Number) {
+        base = String(prev.l4Number).replace(/(_g\d*|_s\d*)$/, '');
+        break;
+      }
+    }
+    if (!base) base = String(t.l4Number);  // fallback: reuse own number
+
+    const taken = countByBase[base] || 0;
+    t.l4Number = taken === 0 ? `${base}_s` : `${base}_s${taken + 1}`;
+    countByBase[base] = taken + 1;
+  }
+  return updated;
+}
+
+/**
  * PR H — clean stale `connectionOverrides` keys when loading from storage.
  * An override key goes stale when:
  *   - (regular task) the targetId it points at has been deleted
@@ -92,6 +142,7 @@ function migrateFlow(flow) {
     ? flow.tasks.map(t => (t && t.l4Number ? { ...t, l4Number: normalizeNumber(t.l4Number) } : t))
     : flow.tasks;
   tasks = migrateGatewaySuffix(tasks);
+  tasks = migrateSubprocessSuffix(tasks);
   tasks = cleanStaleOverrides(tasks);
   return { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks };
 }

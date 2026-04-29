@@ -16,10 +16,10 @@ export function TasksLayer({ tasks, positions, l4Numbers, hoveredId, hoveredConn
     const pos = positions[task.id];
     if (!pos) return null;
     // Diagram label rule: only formal L3/L4 numbers appear on shapes.
-    // Hide identifier-only suffixes (`_g*`, `-0`, `-99`).
+    // Hide identifier-only suffixes (`_g*`, `_s*`, `-0`, `-99`).
     // L3 activity (subprocess call) shows the called L3 number instead.
     let num = l4Numbers[task.id];
-    if (num && /(_g\d*|-0|-99)$/.test(num)) num = undefined;
+    if (num && /(_g\d*|_s\d*|-0|-99)$/.test(num)) num = undefined;
     if (task.type === 'l3activity' && task.subprocessName?.trim()) {
       num = task.subprocessName.trim();
     }

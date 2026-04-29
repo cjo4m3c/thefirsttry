@@ -35,15 +35,17 @@
 
 ## 3. L3 / L4 編號格式（核心業務規則）
 
-- **僅接受「-」分隔，不接受「.」分隔**（特殊類型才有 `_g` 後綴）
+- **僅接受「-」分隔，不接受「.」分隔**（特殊類型才有 `_g` / `_s` 後綴）
 - **L3**：`1-1-1`（三層橫線，恰好 3 段）
 - **L4**：`1-1-1-1`（L3 + `-` + 序號，恰好 4 段）
-- **特殊 L4 後綴**：開始 `-0` / 結束 `-99` / 閘道 `_g` 或 `_g\d+`（前綴必為既有 L4 任務）
+- **特殊 L4 後綴**：開始 `-0` / 結束 `-99` / 閘道 `_g` 或 `_g\d+` / 子流程調用 `_s` 或 `_s\d+`（前綴必為既有 L4 任務或 `-0` 開始事件）
+- **`_g` 與 `_s` 共用 anchor**：兩者都不佔順號，連續計數器互不重置（規格範例 `_s1 → _g → _s2`）
 - **閘道 fork 關鍵字**（需 `_g`）：`條件分支至` / `並行分支至` / `包容分支至`
+- **子流程關鍵字**（需 `_s`）：`調用子流程 X-Y-Z`（X-Y-Z 為被調用的 L3 編號）
 - **不是獨立閘道**（一般任務，不用 `_g`）：merge target（`X 合併來自...`）/ `迴圈返回至 X`。詳見 `docs/business-spec.md` §4.1
-- 格式驗證 regex 的**單一來源**在 `src/utils/taskDefs.js`（`L3_NUMBER_PATTERN` / `L4_NUMBER_PATTERN` / `L4_START_PATTERN` / `L4_END_PATTERN` / `L4_GATEWAY_PATTERN`）。**編號規則變更只改這幾個常數**
-- Excel parser 寬鬆（容忍點分隔避免解析斷裂）；`validateNumbering` 強制 dash-only，列出所有錯誤列
-- 舊 localStorage 點分隔資料在 `storage.normalizeNumber` 載入時自動轉橫線
+- 格式驗證 regex 的**單一來源**在 `src/utils/taskDefs.js`（`L3_NUMBER_PATTERN` / `L4_NUMBER_PATTERN` / `L4_START_PATTERN` / `L4_END_PATTERN` / `L4_GATEWAY_PATTERN` / `L4_SUBPROCESS_PATTERN`）。**編號規則變更只改這幾個常數**
+- Excel parser 寬鬆（容忍點分隔避免解析斷裂）；`validateNumbering` 強制 dash-only + `_g` / `_s` 前綴對應，列出所有錯誤列
+- 舊 localStorage 點分隔資料在 `storage.normalizeNumber` 載入時自動轉橫線；舊閘道缺 `_g` / 舊子流程缺 `_s` 自動補（`migrateGatewaySuffix` / `migrateSubprocessSuffix`）
 
 ## 4. Changelog 維護
 
