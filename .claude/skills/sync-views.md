@@ -33,17 +33,26 @@ find src -type f \( -name "*.js" -o -name "*.jsx" \) -size +15k -exec ls -la {} 
   - 若 15-20KB → 在 PR 描述說明「為何不拆」或排 follow-up
   - 拆檔範本：`layout/` / `DiagramRenderer/` / `FlowEditor/` 都是「shim re-export + 子目錄」pattern
 
-### 2. 共用層唯一性（Phase 2 完成後啟用）
+### 2. 共用層唯一性（PR-5 起啟用）
 
-`src/model/` 抽出後，避免再寫死「條件分支至 / 並行分支至」這類字串到視圖層：
+連線格式化字串集中在 `src/model/connectionFormat.js::PHRASE`，視圖層只能 `import { formatConnection, parseConnection }`，不可再寫死中文片語：
 
 ```bash
-# 連線格式化字串（待 PR-5 完成後啟用）
-grep -rn '條件分支至\|並行分支至\|包容分支至\|條件合併\|並行合併\|包容合併\|迴圈返回' src/ \
+# 閘道分支詞彙（forward / reverse 皆已抽到 model）
+# 用 PCRE 負向 lookahead 排除「分支至少需要」這類含括號文字的偽命中
+grep -rnP '(?:條件|並行|包容|可能)分支至(?!少)' src/ \
   --include="*.js" --include="*.jsx" \
-  --exclude-dir=model --exclude-dir=changelog
-# 期待：只剩 src/model/connectionFormat.js 一處（+ excelImport.js 的中文 regex）
+  --exclude-dir=model --exclude-dir=changelog \
+  --exclude=HelpPanel.jsx --exclude=Dashboard.jsx
+# 期待：空輸出
+# 白名單例外：
+#   - HelpPanel.jsx：規則文件 prose（人讀，不渲染真實 flow）
+#   - Dashboard.jsx：landing hint card 靜態示例（不渲染真實 flow）
 ```
+
+未來改 `PHRASE.XOR_FORK = '條件分流至'` 之類詞彙：
+1. 改 `connectionFormat.js` 的常數 → 匯出 / 匯入兩邊自動同步
+2. 手動同步 HelpPanel + Dashboard 的範例文字（grep 一下找 3 處）
 
 ```bash
 # 編號顯示邏輯（已單一來源 = computeDisplayLabels）
@@ -78,7 +87,7 @@ grep -n "useEffect" src/components/FlowTable.jsx | head -5
 
 - 表格不同步 → `FlowTable.jsx useEffect` deps 補 `flow.tasks`
 - L4 編號不一致 → 檢查視圖是否走 `computeDisplayLabels`（非自己另開 counter）
-- 連線文字不一致 → Phase 2 完成後改走 `formatConnection`；目前還是各自實作
+- 連線文字不一致 → 視圖必須走 `formatConnection`（`src/model/connectionFormat.js`）；不可自己組裝中文片語
 
 ## 失敗處理
 
