@@ -7,7 +7,6 @@ import { exportDrawio } from '../../utils/drawioExport.js';
 import { exportFlowToExcel } from '../../utils/excelExport.js';
 import { todayYmd } from '../../utils/storage.js';
 import { ArrowMarkers, ConnectionArrow, EndpointHandle } from './arrows.jsx';
-import { LegendSection } from './legend.jsx';
 import { StickyHeader } from './StickyHeader.jsx';
 import { TasksLayer } from './TasksLayer.jsx';
 import {
@@ -280,8 +279,6 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
         </svg>
         </div>
       </div>
-
-      <LegendSection />
 
       <HoverTooltip tooltip={tooltip} tasks={flow.tasks} />
     </div>

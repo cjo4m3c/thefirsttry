@@ -6,6 +6,16 @@
 export default [
   {
     date: '2026-04-29',
+    title: '圖例移到 Header 彈窗 + 下載按鈕去 icon（頁面只剩流程圖 + 表格）',
+    items: [
+      '**緣由**：使用者：「(1) Header 上的下載按鈕不要有 icon、純文字就好 (2) 把圖例也整合到 Header，點選後彈窗或下拉抽屜顯示，這樣頁面中就只會有流程圖和表格兩個區塊」。',
+      '**圖例移到 Header 彈窗**：`DiagramRenderer/legend.jsx` 加 `LegendModal` wrapper（`fixed inset-0 + bg-black/40 backdrop` + 居中 `max-w-2xl max-h-[85vh]` panel + ESC / 背景點擊關閉）。`Header.jsx` 在 actions 區塊**最左邊**加「圖例」按鈕（在「重設所有端點 / 打開編輯器」之前）。`DiagramRenderer/index.jsx` 移除 `<LegendSection />` 渲染 + 移除 import — 流程圖區塊現在純粹只有 SVG，整頁只剩「流程圖」+「任務表格」兩個區塊。',
+      '**下載按鈕 icon 整理**：`Header.jsx` 移除「↓」前綴 icon（純粹裝飾）；右側「▾」(U+25BE small triangle 看起來像點) 換成 SVG 倒三角（`<svg width=10 height=6 viewBox="0 0 10 6"><polygon points="0,0 10,0 5,6"/></svg>`），明顯許多且尺寸可控。',
+      '**動到的檔案（4 個）**：`src/components/DiagramRenderer/legend.jsx`（+`LegendModal`，含 ESC keyboard handler）/ `src/components/FlowEditor/Header.jsx`（+ legend button + legendOpen state + download icon 改 SVG）/ `src/components/DiagramRenderer/index.jsx`（移除 `<LegendSection />` + 移除 import）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: 'PR-B：移除 3 個合併連線型 + 自動偵測合併文字（列出 source 編號）',
     items: [
       '**緣由**：使用者 epic 需求 3.3 + 3.4：「閘道後的任務若收 ≥2 個 incoming，「任務關聯說明」自動產生「並行/條件/包容合併 X、Y，序列流向 Z」（列出 source 編號，跟 Excel 匯入格式一致）」+「編輯器選單**移除**並行合併 / 條件合併 / 包容合併三個項目（合併不是元件型，是衍生狀態）」。',

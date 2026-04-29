@@ -1,20 +1,23 @@
 import { useState, useRef, useEffect } from 'react';
+import { LegendModal } from '../DiagramRenderer/legend.jsx';
 
 /**
  * Top header bar of FlowEditor:
  *   - back button + logo (with happy / wave reaction class)
  *   - L3 number / name editable inputs
  *   - unsaved-changes indicator
+ *   - "圖例" button (opens LegendModal)
  *   - "重設所有手動端點" button (only when overrides exist)
- *   - pin toggle
  *   - "打開編輯器" button (opens drawer)
- *   - "↓ 下載 ▾" dropdown (PNG / .drawio / Excel) — each item runs
+ *   - "下載 ▼" dropdown (PNG / .drawio / Excel) — each item runs
  *     saveAndValidate first then triggers the matching exporter
  *   - "儲存" button
+ *   - pin toggle (rightmost)
  */
 export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
   onTogglePin, onOpenDrawer, onSave, onResetAllConfirm, downloadHandlers }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const downloadRef = useRef(null);
   useEffect(() => {
     if (!downloadOpen) return;
@@ -60,10 +63,15 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
         {hasChanges && (
           <span className="text-sm text-yellow-300 font-medium hidden sm:inline">● 未儲存</span>
         )}
-        {/* M-1 unified header buttons — same height (py-1.5), same outlined-white
-            style. Order from left to right: [conditional reset] [open editor]
-            [save] [pin star]. Save uses solid white fill on hasChanges to draw
-            attention; pin star is the rightmost since it's a per-flow flag. */}
+        {/* Header buttons. Order left → right:
+            [圖例] [conditional reset] [open editor] [download ▼] [save] [pin star].
+            Same outlined-white style; "儲存" gets solid white fill on hasChanges. */}
+        <button
+          onClick={() => setLegendOpen(true)}
+          title="圖例說明（流程圖元件對照表）"
+          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+          圖例
+        </button>
         {liveFlow.tasks.some(t => t.connectionOverrides && Object.keys(t.connectionOverrides).length > 0) && (
           <button
             onClick={onResetAllConfirm}
@@ -82,8 +90,11 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           <button
             onClick={() => setDownloadOpen(v => !v)}
             title="下載流程圖或 Excel（會先檢核並儲存全頁變更）"
-            className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors whitespace-nowrap">
-            ↓ 下載 ▾
+            className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors whitespace-nowrap inline-flex items-center gap-1.5">
+            <span>下載</span>
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
+              <polygon points="0,0 10,0 5,6" />
+            </svg>
           </button>
           {downloadOpen && (
             <div className="absolute right-0 mt-1 min-w-[160px] bg-white rounded shadow-lg border border-gray-200 py-1 z-20">
@@ -128,6 +139,7 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           </svg>
         </button>
       </div>
+      <LegendModal open={legendOpen} onClose={() => setLegendOpen(false)} />
     </header>
   );
 }
