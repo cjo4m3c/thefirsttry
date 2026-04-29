@@ -6,7 +6,6 @@
 
 ## 立即可動 / Bug
 
-- **B. layout 同欄對齊** — fork 兩分支步數不等時，短分支末段對齊到長分支同欄；含使用者要求的「包容、並行閘道後方任務對齊」。推薦解法 A（`alignForkBranches` post-pass），先開 `claude/preview-layout-same-column` 預覽分支驗證。動手前須跟使用者確認 §10.6 四個問題
 - **P. 全頁儲存連動 BUG**（使用者：「儲存要整頁一起存，不能下方 excel 編輯後 上方的調整都不見了，應該要是不管在哪裡編輯後所有內容都要連動修正（編輯器、流程圖、下方表格）」）— FlowEditor / DiagramRenderer 互動 / FlowTable 三處互改後內容要連動，目前 FlowTable 編輯後上方未儲存的調整會被覆蓋。需把 hasChanges + source-of-truth 整合到頂層 state
 
 ## 規格已明確、可排程
@@ -27,14 +26,15 @@
 
 ## Nice-to-have / 有空再修
 
+- **B. layout 同欄對齊**（使用者：「先放成 nice-to-have」） — fork 兩分支步數不等時，短分支末段對齊到長分支同欄；含使用者要求的「包容、並行閘道後方任務對齊」。推薦解法 A（`alignForkBranches` post-pass），先開 `claude/preview-layout-same-column` 預覽分支驗證。動手前須跟使用者確認 §10.6 四個問題
 - **H. 邊側批量下載缺檔**（使用者：「批量下載數量太多時比較後面的編號會漏檔案 → 目前排解只有 edge 瀏覽器有，晚點再修」）
-- **後續批次拆檔（PR-4 size check 命中）**：`HelpPanel.jsx` 26KB / `Dashboard.jsx` 26KB / `excelImport.js` 23KB / `ContextMenu.jsx` 19KB / `taskDefs.js` 17KB / 凍結 `c13.js` 拆成 c13a + c13b（17KB）
+- **後續批次拆檔（PR-4 size check 命中）**：`HelpPanel.jsx` 26KB / `Dashboard.jsx` 26KB / `ContextMenu.jsx` 19KB / `c13.js` 17KB / `excelImport.js` 15.1KB（PR-7 加完 validateFlow 又超 15KB 軟上限，比之前小）
 
-## Phase 2（model 共用層抽出）
+## Phase 2（model 共用層抽出）— 進行中
 
-- **PR-5**：`src/model/connectionFormat.js` — 連線中文字串 ↔ 結構互轉的單一來源；目前散在 `excelExport.js` / `drawioExport.js` / `FlowTable.jsx` / `DiagramRenderer/` tooltip / `excelImport.js` regex
-- **PR-6**：`src/model/flowSelectors.js` — 從 `flow` 衍生的所有資料（`getDisplayLabels` / `getL4Index` / `getL3Summary` / `getSwimlaneRows`）
-- **PR-7**：`src/model/validation.js` — 把 `FlowEditor/validateFlow.js` 搬出，Excel 匯入也能跑同一套 warning
+- ~~**PR-5**：`src/model/connectionFormat.js`~~ ✅ DONE（PR #80）
+- ~~**PR-6**：`src/model/flowSelectors.js`~~ ✅ DONE（PR #81，`getL4Index` / `getL3Summary` / `getSwimlaneRows` 暫不抽，等真需要再補）
+- **PR-7**：`src/model/validation.js` — 把 `FlowEditor/validateFlow.js` 搬出，Excel 匯入也跑同一套 warning（進行中）
 
 ## 已完成（2026-04-28 出清）
 
