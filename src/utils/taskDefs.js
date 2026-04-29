@@ -33,14 +33,17 @@ export const L4_GATEWAY_PATTERN    = /^\d+-\d+-\d+-\d+_g\d*$/;
 export const L4_SUBPROCESS_PATTERN = /^\d+-\d+-\d+-\d+_s\d*$/;
 
 // ── Constants ─────────────────────────────────────────────────────
+// PR-B 2026-04-29: parallel-merge / conditional-merge / inclusive-merge
+// removed from the user-facing dropdown. Merge is no longer an explicit
+// connection type — when ≥2 tasks point at the same target, formatConnection
+// auto-emits "並行合併 X、Y，序列流向 Z" (or 條件/包容合併 depending on the
+// upstream gateway types). This keeps the editor menu cleaner: users only
+// pick fork / sequence / start / end / breakpoint / subprocess / loop-return.
 export const CONNECTION_TYPES = [
   { value: 'sequence',           label: '序列流向' },
   { value: 'conditional-branch', label: '條件分支' },
   { value: 'parallel-branch',    label: '並行分支' },
   { value: 'inclusive-branch',   label: '包容分支' },
-  { value: 'parallel-merge',     label: '並行合併' },
-  { value: 'conditional-merge',  label: '條件合併' },
-  { value: 'inclusive-merge',    label: '包容合併' },
   { value: 'start',              label: '流程開始' },
   { value: 'end',                label: '流程結束' },
   { value: 'breakpoint',         label: '流程斷點' },
@@ -60,9 +63,6 @@ export const CONN_BADGE = {
   'conditional-branch': { label: 'XOR',  bg: '#FEF3C7', text: '#92400E' },
   'parallel-branch':    { label: 'AND',  bg: '#D1FAE5', text: '#065F46' },
   'inclusive-branch':   { label: 'OR',   bg: '#FEF9C3', text: '#854D0E' },
-  'parallel-merge':     { label: '⊕',   bg: '#D1FAE5', text: '#065F46' },
-  'conditional-merge':  { label: '◇↘', bg: '#FEF3C7', text: '#92400E' },
-  'inclusive-merge':    { label: '◇⊙', bg: '#FEF9C3', text: '#854D0E' },
   'start':              { label: '開始',  bg: '#D1FAE5', text: '#065F46' },
   'end':                { label: '結束',  bg: '#FEE2E2', text: '#991B1B' },
   'breakpoint':         { label: '斷點',  bg: '#FEE2E2', text: '#991B1B' },
@@ -75,9 +75,6 @@ export const CONN_ROW_BG = {
   'conditional-branch': '#FFFBEB',
   'parallel-branch':    '#F0FDF4',
   'inclusive-branch':   '#FEFCE8',
-  'parallel-merge':     '#F0FDF4',
-  'conditional-merge':  '#FFFBEB',
-  'inclusive-merge':    '#FEFCE8',
   'start':              '#F0FDF4',
   'end':                '#FFF1F2',
   'breakpoint':         '#FFF1F2',
@@ -156,14 +153,17 @@ export function normalizeTask(task) {
   else if (task.type === 'interaction') { connectionType = 'sequence'; shapeType = 'interaction'; }
   else if (task.type === 'l3activity')  { connectionType = 'sequence'; shapeType = 'l3activity'; }
   else if (task.type === 'gateway') {
+    // PR-B: gateways always use the -branch connectionType. The merge
+    // semantic is now derived from incoming-edge count at render time
+    // (formatConnection auto-detects ≥2 incoming → emits "X合併 ..." text).
     const conds = task.conditions || [];
     if (task.gatewayType === 'and') {
-      connectionType = conds.length <= 1 ? 'parallel-merge' : 'parallel-branch';
+      connectionType = 'parallel-branch';
     } else if (task.gatewayType === 'or') {
-      connectionType = conds.length <= 1 ? 'inclusive-merge' : 'inclusive-branch';
+      connectionType = 'inclusive-branch';
     } else {
       const isLoop = conds.some(c => c.label === '若未通過' || c.label === '若通過');
-      connectionType = isLoop ? 'loop-return' : conds.length <= 1 ? 'conditional-merge' : 'conditional-branch';
+      connectionType = isLoop ? 'loop-return' : 'conditional-branch';
     }
   } else if (task.type === 'task') {
     if ((task.nextTaskIds || []).filter(Boolean).length > 1) connectionType = 'parallel-branch';
@@ -215,27 +215,21 @@ export function applyConnectionType(task, newCT) {
     sequence: st, subprocess: 'l3activity', start: 'start', end: 'end', breakpoint: 'end',
     'conditional-branch': 'gateway', 'parallel-branch': 'gateway',
     'inclusive-branch':  'gateway',
-    'parallel-merge': 'gateway', 'conditional-merge': 'gateway',
-    'inclusive-merge':   'gateway',
     'loop-return': 'task',
   };
   const gwMap = {
-    'conditional-branch': 'xor', 'conditional-merge': 'xor',
-    'parallel-branch': 'and', 'parallel-merge': 'and',
-    'inclusive-branch': 'or',  'inclusive-merge': 'or',
+    'conditional-branch': 'xor',
+    'parallel-branch':    'and',
+    'inclusive-branch':   'or',
   };
   let conditions = [], nextTaskIds = [];
   if (newCT === 'sequence' || newCT === 'start' || newCT === 'subprocess') {
     nextTaskIds = (task.nextTaskIds || []).filter(Boolean).length
       ? task.nextTaskIds.filter(Boolean) : [''];
-  } else if (newCT === 'conditional-branch') {
+  } else if (newCT === 'conditional-branch'
+          || newCT === 'parallel-branch'
+          || newCT === 'inclusive-branch') {
     conditions = task.conditions?.length ? task.conditions : [makeCondition()];
-  } else if (newCT === 'parallel-branch') {
-    conditions = task.conditions?.length ? task.conditions : [makeCondition()];
-  } else if (newCT === 'inclusive-branch') {
-    conditions = task.conditions?.length ? task.conditions : [makeCondition()];
-  } else if (newCT === 'parallel-merge' || newCT === 'conditional-merge' || newCT === 'inclusive-merge') {
-    conditions = task.conditions?.length ? [task.conditions[0]] : [makeCondition()];
   } else if (newCT === 'loop-return') {
     // Prefer existing nextTaskIds[0] (new model) or fallback to legacy
     // conditions[0].nextTaskId (若未通過 = back target).
@@ -260,7 +254,6 @@ export function applySequentialDefaults(tasks) {
     const ct = t.connectionType || 'sequence';
     if (['end', 'breakpoint',
          'conditional-branch', 'parallel-branch', 'inclusive-branch',
-         'parallel-merge', 'conditional-merge', 'inclusive-merge',
          'loop-return'].includes(ct)) return t;
     const hasNext = t.nextTaskIds?.some(Boolean);
     if (hasNext) return t;
@@ -284,9 +277,6 @@ export function taskOptionLabel(task, displayLabels) {
   if (ct === 'conditional-branch') return `${num} ◇× XOR：${name || '（未命名）'}`;
   if (ct === 'parallel-branch')    return `${num} ◇+ AND：${name || '（未命名）'}`;
   if (ct === 'inclusive-branch')   return `${num} ◇⊙ OR：${name || '（未命名）'}`;
-  if (ct === 'parallel-merge')     return `${num} ⊕ 並行合併：${name || '（未命名）'}`;
-  if (ct === 'conditional-merge')  return `${num} ◇↘ 條件合併：${name || '（未命名）'}`;
-  if (ct === 'inclusive-merge')    return `${num} ◇⊙ 包容合併：${name || '（未命名）'}`;
   if (ct === 'loop-return')        return `${num} ↺ 迴圈：${name || '（未命名）'}`;
   if (ct === 'subprocess')         return `${num} ▦ 子流程：${name || '（未命名）'}`;
   return `${num}${name ? ' ' + name : ' （未命名）'}`;

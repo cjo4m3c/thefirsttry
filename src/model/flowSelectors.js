@@ -169,3 +169,27 @@ export function getTaskIncoming(tasks) {
   });
   return incoming;
 }
+
+/**
+ * Map each task to the list of source task IDs that point at it. Used by
+ * formatConnection to render merge text like "並行合併 X、Y，序列流向 Z"
+ * where X / Y are the source task numbers.
+ *
+ * Order matches task array order (so output is deterministic).
+ *
+ * @param {object[]} tasks
+ * @returns {Record<string, string[]>} task.id → list of source task IDs
+ */
+export function getTaskIncomingSources(tasks) {
+  const sources = {};
+  tasks.forEach(t => {
+    const outs = t.type === 'gateway'
+      ? (t.conditions || []).map(c => c.nextTaskId)
+      : (t.nextTaskIds || []);
+    outs.filter(Boolean).forEach(targetId => {
+      if (!sources[targetId]) sources[targetId] = [];
+      sources[targetId].push(t.id);
+    });
+  });
+  return sources;
+}
