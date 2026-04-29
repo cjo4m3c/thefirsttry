@@ -224,7 +224,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Page title */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -353,27 +353,6 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
           </div>
         )}
 
-        {/* Excel format hint */}
-        <div className="mb-4 p-3 rounded-lg bg-sky-50 border border-sky-200 text-xs text-sky-800 space-y-1">
-          <div>
-            <strong>Excel 上傳格式（支援單檔多個 L3）：</strong>
-            首列為標題列，欄位依序為：L3 活動編號、L3 活動名稱、L4 任務編號、L4 任務名稱、任務重點說明、任務重要輸入、
-            <strong>任務負責角色</strong>（第 7 欄）、任務產出成品、<strong>任務關聯說明</strong>（第 9 欄）、參考資料來源文件名稱。
-          </div>
-          <div>
-            <strong>任務關聯說明支援的標記：</strong>
-            <span className="ml-1">序列流向 5-1-1-3</span>
-            <span className="mx-1 text-sky-500">·</span>
-            <span>流程開始</span>
-            <span className="mx-1 text-sky-500">·</span>
-            <span>流程結束</span>
-            <span className="mx-1 text-sky-500">·</span>
-            <span>條件分支至 5-1-1-3、5-1-1-5</span>
-            <span className="mx-1 text-sky-500">·</span>
-            <span>條件合併來自多個分支</span>
-          </div>
-        </div>
-
         {/* Flow list */}
         {sortedFlows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -381,7 +360,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             <p className="text-lg">尚無活動，點選右上角「新增 L3 活動」或「上傳 Excel」開始</p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {sortedFlows.map(flow => (
               <div key={flow.id}
                 className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col gap-3">
@@ -430,8 +409,10 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                   ))}
                 </div>
 
-                {/* Actions */}
-                <div className="flex flex-col gap-1.5 pt-1 border-t border-gray-100">
+                {/* Actions — pinned to card bottom via mt-auto so cards
+                    in the same grid row stay visually aligned regardless of
+                    title / role count above. */}
+                <div className="mt-auto flex flex-col gap-1.5 pt-1 border-t border-gray-100">
                   <div className="flex gap-1.5">
                     <button onClick={() => onEdit(flow.id)}
                       className="flex-1 py-1.5 text-sm rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors font-medium">
@@ -446,16 +427,16 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                   </div>
                   <div className="flex gap-1.5">
                     <button onClick={() => setPendingPngFlow(flow)}
-                      className="flex-1 py-1.5 text-xs rounded border border-sky-300 text-sky-700 hover:bg-sky-50 transition-colors">
-                      ↓ PNG
+                      className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
+                      PNG
                     </button>
                     <button onClick={() => exportDrawio(flow)}
                       className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
-                      ↓ draw.io
+                      draw.io
                     </button>
                     <button onClick={() => exportFlowToExcel(flow)}
-                      className="flex-1 py-1.5 text-xs rounded border border-cyan-300 text-cyan-700 hover:bg-cyan-50 transition-colors">
-                      ↓ Excel
+                      className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
+                      Excel
                     </button>
                   </div>
                 </div>

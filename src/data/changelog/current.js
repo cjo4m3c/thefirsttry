@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-04-29',
+    title: '首頁體驗優化：刪 Excel 格式 banner / 下載按鈕同色去 icon / Actions 推底 / max-w-7xl + 4 欄',
+    items: [
+      '**緣由**：使用者：「(1) 刪除上方 Excel 上傳格式 / 任務關聯說明標記區塊（規則說明已涵蓋，重複）(2) 卡片下載按鈕去 icon 同色，跟編輯頁文字風格一致 (3) 內容少時 actions 跟著上移留底部空白，希望固定置底 (4) 三欄佈局兩側留白太多，希望拉寬或變四格」。',
+      '**Step 1 — 刪 Excel 格式 banner**：移除 `Dashboard.jsx` line 356-375 sky 底色 banner（含 Excel 上傳格式 + 任務關聯說明支援標記列表）。同樣資訊已在「規則說明」HelpPanel 內，不需要重複。',
+      '**Step 2 — 下載按鈕統一**：三個下載按鈕（PNG / draw.io / Excel）原本三色混搭（sky-300 / blue-300 / cyan-300）+ `↓` icon。**統一改 `border-blue-300 text-blue-700 hover:bg-blue-50`**（跟「編輯」按鈕同色系），**去 `↓` icon**（純文字 `PNG` / `draw.io` / `Excel`，跟編輯頁 Header 下載 dropdown 風格一致）。',
+      '**Step 3 — Actions 固定置底**：卡片 `flex flex-col gap-3` 內容流動，當標題/角色少時，Actions 區塊跟著上移留下方空白。Actions wrapper 加 **`mt-auto`** 推到 flex column 底部。Grid `stretch` (default) 同列卡片等高，加 `mt-auto` 後同列 Actions 對齊在同一水平線上 — 視覺整齊。',
+      '**Step 4 — main 寬度 + 4 欄**：`max-w-5xl` (1024px) → **`max-w-7xl`** (1280px)，多 256px 可視寬度（兩側留白減少 ~25%）。Grid 加 **`xl:grid-cols-4`** breakpoint：≥1280px 螢幕 4 欄、1024-1279px 仍 3 欄、640-1023px 2 欄、< 640px 1 欄。1280px+ 螢幕（常見 14" 筆電 1440 / 桌機 1920）會看到 4 卡片 / 列。',
+      '**動到的檔案（2 個）**：`src/components/Dashboard.jsx`（4 處：移 banner / actions mt-auto / 3 download buttons 同色去 icon / max-w-5xl→7xl + 4-col grid）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '修任務元件文字 lineH 22→32（spec 早已訂的「單行間距」之前沒套用）',
     items: [
       '**緣由**：使用者 PR #98 部署後反饋「任務元件內的文字還是可以擴充為至少單行間距」，截圖示意兩行字之間擠在一起。**根因是 bug**：spec doc §13.3 早已訂「`SvgLabel` lineH = 32（兩行間隙 = 一行字高 = 單行間距）」，但 `shapes.jsx` 兩處 SvgLabel 顯式覆寫成 `lineH={22}` / `lineH={20}`，沒同步到 spec 期望值。',
