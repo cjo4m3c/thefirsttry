@@ -163,29 +163,12 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
     );
   }
 
-  if (ct === 'parallel-merge' || ct === 'conditional-merge' || ct === 'inclusive-merge') {
-    const mergeType = ct === 'parallel-merge' ? '並行'
-                     : ct === 'inclusive-merge' ? '包容'
-                     : '條件';
-    const c0 = task.conditions?.[0];
-    return (
-      <div className="mt-1.5">
-        <div className="flex items-center gap-2">
-          <span className={lbl}>合併後 →</span>
-          <select value={c0?.nextTaskId || ''} className={sel}
-            onChange={e => onUpdate({
-              ...task,
-              conditions: [{ id: c0?.id || generateId(), label: '', nextTaskId: e.target.value }],
-            })}>
-            <option value="">選擇目標任務</option>{renderOpts()}
-          </select>
-        </div>
-        <p className="text-xs text-gray-400 mt-1 pl-1">
-          ℹ 驗證時將確認有多個{mergeType}來源指向此元件
-        </p>
-      </div>
-    );
-  }
+  // PR-B 2026-04-29: parallel-merge / conditional-merge / inclusive-merge
+  // removed from CONNECTION_TYPES. Merge is now derived from incoming-edge
+  // count at render time (formatConnection auto-emits "X合併 ..."). Old
+  // saved data with these connectionTypes gets migrated to the matching
+  // -branch by storage.migrateMergeConnectionType, so this block is
+  // unreachable in practice — kept removed.
 
   if (ct === 'loop-return') {
     // New single-target model: loop-return is a regular task with a

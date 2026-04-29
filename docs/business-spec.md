@@ -119,7 +119,7 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 
 ## 4. 連線與序列類型
 
-每個任務在編輯器內透過「流程設定」決定連線型態。共 12 種：
+每個任務在編輯器內透過「流程設定」決定連線型態。共 9 種（PR-B 2026-04-29 移除 3 個合併型，合併改為自動偵測）：
 
 | 流程設定 | 行為 | 對應元件 |
 |---|---|---|
@@ -127,16 +127,25 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 | 條件分支 | 可新增多個分支，每個分支設「條件標籤」+「目標」。**每次只走一條** | XOR 閘道 |
 | 並行分支 | 同時啟動多個並行目標。**不評估條件**，標籤僅作註記用 | AND 閘道 |
 | 包容分支 | 每個條件獨立評估，凡為真者建立並行路徑 | OR 閘道 |
-| 並行合併 | 等待所有並行分支完成後合併。**必須有 ≥2 來源** | AND join |
-| 條件合併 | 多個條件分支匯聚。**必須有 ≥2 條件分支來源** | XOR join |
-| 包容合併 | 等待所有「曾觸發」的包容分支路徑都到達 | OR join |
 | 流程開始 | 流程起始點，設定第一個任務目標 | 開始事件 |
 | 流程結束 | 流程正常結束點，不需設定下一步 | 結束事件 |
 | 流程斷點 | 非正常結束（等待外部 / 暫停），可選填下一步 | 流程斷點 |
 | 子流程調用 | 調用另一個 L3 子流程，填寫子流程 L3 編號 + 返回後的下一步 | L3 活動 |
 | 迴圈返回 | **不是獨立閘道**，一般任務上加 back-edge | 一般任務 |
 
-### 4.1 閘道分類（業務上要嚴格區分）
+### 4.1 合併（merge）= 自動偵測，不是流程設定
+
+**合併不是「流程設定」選項**，而是**衍生狀態**：當 ≥2 條 incoming 指向同一目標時，`formatConnection` 自動產生「並行/條件/包容合併 X、Y，序列流向 Z」文字插入該任務的「任務關聯說明」欄。合併類型由上游 source 的閘道種類推斷：
+
+| 上游 source 全部是 | 合併類型 |
+|---|---|
+| AND 閘道 | 並行合併 |
+| OR 閘道 | 包容合併 |
+| XOR 閘道 / 混合 / 一般任務 | 條件合併（預設） |
+
+**閘道作為 merge node**（fork-then-join 模式中閘道收 ≥2 incoming + ≤1 outgoing）：合併類型直接取閘道**自身的 gatewayType**（覆蓋上游推斷），輸出 `{XX}合併 X、Y，序列流向 Z`。
+
+### 4.2 閘道分類（業務上要嚴格區分）
 
 #### 算獨立閘道元件（需要 `_g` 尾碼）
 
@@ -150,12 +159,12 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 
 | 關鍵字 | 語意 |
 |---|---|
-| `條件合併來自多個分支、序列流向 Z` | XOR merge target，收到 ≥2 條分支匯入 |
-| `並行合併來自 X、Y、序列流向 Z` | AND join target |
-| `包容合併來自多個分支，序列流向 Z` | OR join target |
+| `條件合併 X、Y，序列流向 Z` | XOR merge target，收到 ≥2 條分支匯入（**自動產生**） |
+| `並行合併 X、Y，序列流向 Z` | AND join target（**自動產生**） |
+| `包容合併 X、Y，序列流向 Z` | OR join target（**自動產生**） |
 | `迴圈返回至 X`（新格式）/ `若未通過則返回 X、若通過則序列流向 Y`（舊格式） | back-edge 合併進 `nextTaskIds` |
 
-**對應實作**：`src/components/`（`ConnectionSection` 連線型態 UI、`RightDrawer` 編輯器右側容器）、`src/utils/`（`applyConnectionType` 連線型態變更副作用）、`src/components/`（`HelpPanel` CONNECTIONS array）
+**對應實作**：`src/components/`（`ConnectionSection` 連線型態 UI、`RightDrawer` 編輯器右側容器）、`src/utils/`（`applyConnectionType` 連線型態變更副作用）、`src/model/`（`connectionFormat.formatConnection` + `flowSelectors.getTaskIncomingSources` 自動合併偵測）、`src/components/`（`HelpPanel` CONNECTIONS array）
 
 ---
 

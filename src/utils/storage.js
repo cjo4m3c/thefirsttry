@@ -136,6 +136,37 @@ function cleanStaleOverrides(tasks) {
   });
 }
 
+/**
+ * PR-B 2026-04-29: drop the legacy "merge" connectionType variants. The
+ * editor menu no longer offers them — merge is now derived from incoming-
+ * edge count. Existing data:
+ *   - gateway + parallel-merge / conditional-merge / inclusive-merge
+ *     → flip to the matching -branch (gateway type unchanged; conditions
+ *     stay; formatConnection auto-emits "X合併" when ≥2 incoming).
+ *   - non-gateway with merge connectionType (rare / inconsistent legacy):
+ *     → fall back to 'sequence'.
+ */
+function migrateMergeConnectionType(tasks) {
+  if (!Array.isArray(tasks)) return tasks;
+  const MERGE_TO_BRANCH = {
+    'parallel-merge':    'parallel-branch',
+    'conditional-merge': 'conditional-branch',
+    'inclusive-merge':   'inclusive-branch',
+  };
+  let changed = false;
+  const next = tasks.map(t => {
+    if (!t) return t;
+    const replacement = MERGE_TO_BRANCH[t.connectionType];
+    if (!replacement) return t;
+    changed = true;
+    if (t.type === 'gateway') {
+      return { ...t, connectionType: replacement };
+    }
+    return { ...t, connectionType: 'sequence' };
+  });
+  return changed ? next : tasks;
+}
+
 function migrateFlow(flow) {
   if (!flow) return flow;
   let tasks = Array.isArray(flow.tasks)
@@ -143,6 +174,7 @@ function migrateFlow(flow) {
     : flow.tasks;
   tasks = migrateGatewaySuffix(tasks);
   tasks = migrateSubprocessSuffix(tasks);
+  tasks = migrateMergeConnectionType(tasks);
   tasks = cleanStaleOverrides(tasks);
   return { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks };
 }

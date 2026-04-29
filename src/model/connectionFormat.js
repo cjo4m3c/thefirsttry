@@ -15,7 +15,7 @@
  * hint card) keep their hard-coded sample strings for readability.
  * `/sync-views` skill enforces this via grep guard.
  */
-import { getTaskIncoming } from './flowSelectors.js';
+import { getTaskIncoming, getTaskIncomingSources } from './flowSelectors.js';
 
 // ── PHRASE: every Chinese fragment used by forward AND reverse ─────────────
 // Changing any value here updates both directions automatically; the regexes
@@ -27,9 +27,14 @@ export const PHRASE = {
   AND_FORK:        '並行分支至',
   OR_FORK:         '包容分支至',
   OR_FORK_LEGACY:  '可能分支至',     // accepted on import, never produced on export
-  XOR_MERGE:       '條件合併來自多個分支',
-  AND_MERGE_PFX:   '並行合併來自',
-  OR_MERGE_PFX:    '包容合併來自',
+  // Merge text format (PR-B 2026-04-29): "並行合併 X、Y，序列流向 Z"
+  // where X/Y are source task L4 numbers (incoming edges). Replaces the
+  // older "並行合併來自多個分支" wording. Auto-emitted when a task receives
+  // ≥2 incoming edges — applies to both gateway tasks (XOR/AND/OR join)
+  // AND regular tasks (implicit merge target from upstream gateway forks).
+  AND_MERGE_PFX:   '並行合併',
+  OR_MERGE_PFX:    '包容合併',
+  XOR_MERGE_PFX:   '條件合併',
   LOOP_RETURN:     '迴圈返回',
   SUBPROCESS_CALL: '調用子流程',
   FLOW_START:      '流程開始',
@@ -50,11 +55,43 @@ export const PHRASE = {
  * @param {Record<string,string>} l4Map  Task id → L4 number string
  * @returns {string} annotation text (empty string if no outgoing)
  */
+// Infer merge type from upstream sources. Look at every source task that
+// points at the merge target — if all sources are of the same gateway type,
+// use that. Mixed sources or non-gateway sources default to 條件合併 (XOR).
+// Returns 'and' | 'or' | 'xor'.
+function inferMergeType(sourceIds, taskById) {
+  const types = sourceIds
+    .map(id => taskById[id])
+    .filter(t => t?.type === 'gateway')
+    .map(t => t.gatewayType);
+  if (types.length === 0) return 'xor';
+  const uniq = new Set(types);
+  if (uniq.size === 1) {
+    const only = [...uniq][0];
+    if (only === 'and' || only === 'or' || only === 'xor') return only;
+  }
+  return 'xor';
+}
+
+// Build the "並行合併 X、Y" prefix text from incoming source IDs. Skips
+// sources whose L4 number can't be resolved.
+function buildMergePrefix(mergeType, sourceIds, taskById, l4Map) {
+  const sourceNums = sourceIds
+    .map(id => taskById[id] ? l4Map[id] : null)
+    .filter(Boolean);
+  if (sourceNums.length === 0) return '';
+  const verb = mergeType === 'and' ? PHRASE.AND_MERGE_PFX
+             : mergeType === 'or'  ? PHRASE.OR_MERGE_PFX
+             : PHRASE.XOR_MERGE_PFX;
+  return `${verb} ${sourceNums.join('、')}`;
+}
+
 export function formatConnection(task, tasks, l4Map) {
   const taskById = {};
   tasks.forEach(t => { taskById[t.id] = t; });
 
   const incomingCount = getTaskIncoming(tasks);
+  const incomingSources = getTaskIncomingSources(tasks);
 
   const ct = task.connectionType;
 
@@ -96,9 +133,19 @@ export function formatConnection(task, tasks, l4Map) {
       : PHRASE.FLOW_START;
   }
 
+  // Merge-target detection: any task (gateway OR regular) receiving ≥2
+  // incoming edges. Upstream sources determine the merge type (AND/OR/XOR);
+  // mixed sources default to 條件合併.
+  const isMergeTarget = (incomingCount[task.id] || 0) >= 2;
+  const mergePrefix = isMergeTarget
+    ? buildMergePrefix(
+        inferMergeType(incomingSources[task.id] || [], taskById),
+        incomingSources[task.id] || [], taskById, l4Map
+      )
+    : '';
+
   if (task.type === 'gateway') {
     const conds = task.conditions || [];
-    const isMergeNode = (incomingCount[task.id] || 0) > 1 && conds.length <= 1;
     const gType = task.gatewayType || 'xor';
 
     const outNums = conds.map(c => {
@@ -116,49 +163,63 @@ export function formatConnection(task, tasks, l4Map) {
       return c.label ? `${num}（${c.label}）` : num;
     }).filter(Boolean);
 
-    if (gType === 'and') {
-      if (isMergeNode && outNums.length === 1) {
-        return `並行合併來自多個分支，${PHRASE.SEQUENCE_FLOW} ${outNums[0]}`;
-      }
-      return outParts.length ? `${PHRASE.AND_FORK} ${outParts.join('、')}` : '';
+    // Gateway as merge node: ≥2 incoming + ≤1 outgoing → "X合併 ..., 序列流向 Z"
+    // The merge type (AND/OR/XOR in the prefix) follows the gateway's own
+    // gatewayType — overrides the upstream-source inference, since this
+    // gateway itself declares the join semantics.
+    const isGatewayMerge = isMergeTarget && conds.length <= 1;
+    if (isGatewayMerge) {
+      const verb = gType === 'and' ? PHRASE.AND_MERGE_PFX
+                 : gType === 'or'  ? PHRASE.OR_MERGE_PFX
+                 : PHRASE.XOR_MERGE_PFX;
+      const sourceNums = (incomingSources[task.id] || [])
+        .map(id => taskById[id] ? l4Map[id] : null).filter(Boolean);
+      const head = sourceNums.length ? `${verb} ${sourceNums.join('、')}` : verb;
+      const targetNum = outNums[0] || (outParts[0] ?? '');
+      return targetNum ? `${head}，${PHRASE.SEQUENCE_FLOW} ${targetNum}` : head;
     }
 
-    if (gType === 'or') {
-      if (isMergeNode && outNums.length === 1) {
-        return `包容合併來自多個分支，${PHRASE.SEQUENCE_FLOW} ${outNums[0]}`;
-      }
-      return outParts.length ? `${PHRASE.OR_FORK} ${outParts.join('、')}` : '';
-    }
-
-    // XOR
-    if (isMergeNode && outParts.length === 1) {
-      return `${PHRASE.XOR_MERGE}，${PHRASE.SEQUENCE_FLOW} ${outParts[0]}`;
-    }
-    return outParts.length ? `${PHRASE.XOR_FORK} ${outParts.join('、')}` : '';
+    // Gateway as fork: emit fork verb + outgoing list
+    const forkVerb = gType === 'and' ? PHRASE.AND_FORK
+                   : gType === 'or'  ? PHRASE.OR_FORK
+                   : PHRASE.XOR_FORK;
+    return outParts.length ? `${forkVerb} ${outParts.join('、')}` : '';
   }
 
   // Regular task / interaction / l3activity
   const nexts = (task.nextTaskIds || []).filter(id => taskById[id]);
-  if (nexts.length === 0) return '';
 
-  const toOther = nexts.filter(id =>
-    taskById[id].type !== 'end'
-    && taskById[id].connectionType !== 'end'
-    && taskById[id].connectionType !== 'breakpoint'
-  );
-  if (toOther.length === 0) return PHRASE.FLOW_END;
-
-  if (nexts.length === 1) {
-    const num = l4Map[nexts[0]];
-    return num ? `${PHRASE.SEQUENCE_FLOW} ${num}` : '';
+  // Build the outgoing portion (sequence / parallel / etc).
+  let outgoingText = '';
+  if (nexts.length === 0) {
+    outgoingText = '';
+  } else {
+    const toOther = nexts.filter(id =>
+      taskById[id].type !== 'end'
+      && taskById[id].connectionType !== 'end'
+      && taskById[id].connectionType !== 'breakpoint'
+    );
+    if (toOther.length === 0) {
+      outgoingText = PHRASE.FLOW_END;
+    } else if (nexts.length === 1) {
+      const num = l4Map[nexts[0]];
+      outgoingText = num ? `${PHRASE.SEQUENCE_FLOW} ${num}` : '';
+    } else {
+      // Multiple outgoing (parallel without explicit gateway)
+      const parts = nexts.map(id => {
+        if (taskById[id].type === 'end') return PHRASE.FLOW_END;
+        return l4Map[id];
+      }).filter(Boolean);
+      outgoingText = parts.length ? `${PHRASE.AND_FORK} ${parts.join('、')}` : '';
+    }
   }
 
-  // Multiple outgoing (parallel without explicit gateway)
-  const parts = nexts.map(id => {
-    if (taskById[id].type === 'end') return PHRASE.FLOW_END;
-    return l4Map[id];
-  }).filter(Boolean);
-  return parts.length ? `${PHRASE.AND_FORK} ${parts.join('、')}` : '';
+  // Prepend merge prefix when the regular task is itself a join target
+  // (≥2 incoming edges). Format: "並行合併 X、Y，序列流向 Z"
+  if (mergePrefix) {
+    return outgoingText ? `${mergePrefix}，${outgoingText}` : mergePrefix;
+  }
+  return outgoingText;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -175,9 +236,12 @@ const RE_XOR_FORK       = new RegExp(`${PHRASE.XOR_FORK}\\s*([^\\n]+)`);
 const RE_AND_FORK       = new RegExp(`${PHRASE.AND_FORK}\\s*([^\\n]+)`);
 // OR fork tolerates two verbs: 包容分支至 (spec) and 可能分支至 (legacy import)
 const RE_OR_FORK        = new RegExp(`(?:包容|可能)分支至\\s*([^\\n]+)`);
-const RE_AND_MERGE      = new RegExp(`${PHRASE.AND_MERGE_PFX}[^，,\\n]*[，,]\\s*${PHRASE.SEQUENCE_FLOW}\\s*${NUM}`);
-const RE_XOR_MERGE      = new RegExp(`${PHRASE.XOR_MERGE}[^，,\\n]*[，,]\\s*${PHRASE.SEQUENCE_FLOW}\\s*${NUM}`);
-const RE_OR_MERGE       = new RegExp(`${PHRASE.OR_MERGE_PFX}[^，,\\n]*[，,]\\s*${PHRASE.SEQUENCE_FLOW}\\s*${NUM}`);
+// Merge regex tolerates BOTH the new "X合併 5-1-3-3、5-1-3-4，序列流向 Z" form
+// (output by current code) AND the legacy "X合併來自多個分支，序列流向 Z" form
+// (older Excels / older saved data) so old strings still parse correctly.
+const RE_AND_MERGE      = new RegExp(`${PHRASE.AND_MERGE_PFX}(?:來自)?[^，,\\n]*[，,]\\s*${PHRASE.SEQUENCE_FLOW}\\s*${NUM}`);
+const RE_XOR_MERGE      = new RegExp(`${PHRASE.XOR_MERGE_PFX}(?:來自多個分支)?[^，,\\n]*[，,]\\s*${PHRASE.SEQUENCE_FLOW}\\s*${NUM}`);
+const RE_OR_MERGE       = new RegExp(`${PHRASE.OR_MERGE_PFX}(?:來自)?[^，,\\n]*[，,]\\s*${PHRASE.SEQUENCE_FLOW}\\s*${NUM}`);
 const RE_SUBPROCESS     = new RegExp(`${PHRASE.SUBPROCESS_CALL}\\s*(\\d+-\\d+-\\d+)`);
 // 迴圈返回，序列流向 X / 迴圈返回至 X / 迴圈返回：X / 迴圈返回 X
 const RE_LOOP_BACK      = new RegExp(`${PHRASE.LOOP_RETURN}(?:[，,]\\s*${PHRASE.SEQUENCE_FLOW}|至|：|:)?[\\s\\u3000]*${NUM}`, 'g');

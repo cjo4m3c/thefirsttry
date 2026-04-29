@@ -71,20 +71,12 @@ export function validateFlow(flow) {
       }
     }
 
-    // 2. Parallel-merge needs ≥2 incoming.
-    if (ct === 'parallel-merge' && (incoming[t.id] || 0) < 2) {
-      warnings.push(`${label}：並行合併至少需要 2 個來源`);
-    }
-
-    // 3. Conditional-merge needs ≥2 incoming.
-    if (ct === 'conditional-merge' && (incoming[t.id] || 0) < 2) {
-      warnings.push(`${label}：條件合併至少需要 2 個來源`);
-    }
-
-    // 3b. Inclusive-merge needs ≥2 incoming.
-    if (ct === 'inclusive-merge' && (incoming[t.id] || 0) < 2) {
-      warnings.push(`${label}：包容合併至少需要 2 個來源`);
-    }
+    // PR-B 2026-04-29: removed parallel-merge / conditional-merge /
+    // inclusive-merge connection types. Merge is now derived from
+    // incoming-edge count, so these "needs ≥2 incoming" warnings no
+    // longer apply (the merge text only appears when ≥2 incoming
+    // already exists). Old saved data is migrated to -branch by
+    // storage.migrateMergeConnectionType.
 
     // 3c. Inclusive-branch needs ≥2 conditions wired up.
     if (ct === 'inclusive-branch' && (t.conditions || []).filter(c => c.nextTaskId).length < 2) {
