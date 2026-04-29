@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-04-29',
+    title: 'Phase 2 PR-7：抽出 src/model/validation.js + Excel 匯入跑同一套 warning',
+    items: [
+      '**動機**：使用者「Blocking 結構檢核 + Warning soft 提醒兩層」原本只有編輯器的儲存按鈕會跑（`FlowEditor/validateFlow.js`），Excel 匯入完直接落到 Dashboard 不經編輯器，孤兒任務 / 未指定下一步 / merge 來源不足等問題要等使用者開編輯器才看得到。',
+      '**新建 `src/model/validation.js`（5.5KB）**：把 `validateFlow.js` body 完整搬出來，pure 模組無 React / 無 I/O / 無視圖層 import。`detectOverrideViolations` 留在 `src/diagram/violations.js`（要 `computeLayout` 才能判斷 routing 違規），但 `diagram/` 也是 infra 不是 view，相依方向合規。',
+      '**`FlowEditor/validateFlow.js` 變 4 行 shim**：`export { validateFlow } from \'../../model/validation.js\'`，FlowEditor 儲存流程的 importer 一行不動。',
+      '**Excel 匯入 banner 新增驗證行**：`parseExcelToFlow` 對每個產生的 flow 跑 `validateFlow`，blocking 行加 ❌ 前綴、多 L3 匯入加 `[L3 X-Y-Z] ` 前綴，併進原本的 gateway-chain warning 一起回傳。Dashboard 的 `importWarnings` banner 直接消化（之前就支援 array），UI 零變更。',
+      '**驗證**：`npm run build` 通過。FlowEditor 儲存 flow 行為應該 byte-identical（shim 直接 re-export 同一個函式）；Excel 匯入路徑多了一段 warning lines append，原本的 gateway-chain warning 不變。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: 'Phase 2 PR-6：抽出 src/model/flowSelectors.js — flow 衍生資料單一來源',
     items: [
       '**動機**：承接 PR-5 把連線文字搬到 model 層後，`flow` 衍生資料還散在多處：`computeDisplayLabels`（編號顯示）住 `taskDefs.js` 17.4KB（已超 15KB 軟上限），`incoming` 邊計數 map 在 `validateFlow.js` 和 `connectionFormat.js`（PR-5 剛抽完的 model 層）兩邊各寫一次（byte-identical 8 行）。',
