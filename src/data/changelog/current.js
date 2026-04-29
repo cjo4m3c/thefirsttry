@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-04-29',
+    title: '表格欄寬統一 + L3 欄位可隱藏（預設隱藏）',
+    items: [
+      '**緣由**：使用者：「(1) L3 編號 / L3 名稱在頁面上方已有，瀏覽時不需要，但下載 Excel 時需要。請設成正常寬度（≥ 5-7 中文字）並加 toggle 控制 (2) L4 任務編號 / 任務負責角色 / 任務產出成品三欄寬度應一致，至少 5-7 中文字」。',
+      '**ReadCell 寬度策略一致化**：移除 `max-w-[180px]` 上限改成 `min-w-[140px]`（≈ 8-9 中文字，滿足 5-7 字下限）。所有 ReadCell（L3 編號 / L3 名稱 / L4 任務編號）統一最小寬度 140px，內容多自然撐開。`wide` ReadCell（任務關聯說明）`min-w-[260px]` 不變。',
+      '**RoleCell 寬度提升**：`min-w-[100px]` → `min-w-[140px]`，跟 L4 任務編號 / 任務產出成品（EditCell 預設 140）三欄統一。',
+      '**L3 欄位可隱藏 toggle**：`FlowTable.jsx` 加 `showL3` state + localStorage 持久化（key `bpm_flow_table_show_l3`，預設 `false`）。標題列右側加按鈕「顯示 L3 欄位 ▼」/「隱藏 L3 欄位 ▲」，藍色 outlined 風格，hover 淡藍。thead `<th>` 過濾 i=0/1；tbody 條件 render。',
+      '**Excel 匯出仍包含全部 10 欄**：toggle 只影響畫面顯示，匯出資料完整（使用者明確要求）。`EXCEL_HEADERS` 結構不動。',
+      '**動到的檔案**：`src/components/FlowTable.jsx`（ReadCell 寬度 / RoleCell 寬度 / showL3 state + toggle button + thead/tbody 條件 render）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '捲動操作優化：表格預設 2 行 + Toolbar/Thead 互斥 sticky',
     items: [
       '**緣由**：使用者：「(1) 下方表格的預設高度調整為 2 行 (2) 網頁向下捲動時，流程圖的標題列可以一直置頂 (3) 捲動到表格的時候，換表格標題列位置固定」。主要使用瀏覽器 Chrome / Edge（同 Chromium 引擎）。',
