@@ -8,6 +8,7 @@ import {
   parseConnection,
   detectGatewayFromText,
 } from '../model/connectionFormat.js';
+import { validateFlow } from '../model/validation.js';
 
 // Backward-compat alias — use parseConnection in new code.
 export const parseFlowAnnotations = parseConnection;
@@ -361,5 +362,15 @@ export function parseExcelToFlow(arrayBuffer) {
   if (groups.length === 0) throw new Error('無法識別 L3 活動編號（第 1 欄）');
 
   const flows = groups.map(buildFlow);
-  return { flows, warnings };
+
+  // PR-7: surface model-layer validation warnings on the Dashboard banner
+  // since import skips the editor's save gate. Blocking-tier prefixed with
+  // ❌; multi-L3 imports prefix each line with the L3 number.
+  const validationLines = flows.flatMap(flow => {
+    const { blocking: vB, warnings: vW } = validateFlow(flow);
+    const pfx = flows.length > 1 ? `[L3 ${flow.l3Number}] ` : '';
+    return [...vB.map(b => `${pfx}❌ ${b}`), ...vW.map(w => `${pfx}${w}`)];
+  });
+
+  return { flows, warnings: [...warnings, ...validationLines] };
 }
