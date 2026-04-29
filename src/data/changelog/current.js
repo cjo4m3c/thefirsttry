@@ -1,9 +1,22 @@
 /**
  * Changelog "current tip" — new entries since last freeze land here.
- * When this file grows beyond ~10KB, freeze: rename to c{next}.js + reset to [].
+ * When this file grows beyond ~7KB, freeze: rename to c{next}.js + reset to [].
  * Entries are newest-first within file.
  */
 export default [
+  {
+    date: '2026-04-28',
+    title: '規則更新：單檔 ≤15KB / changelog 凍結門檻降到 7KB / 新增 /sync-views skill',
+    items: [
+      '**承接前三個拆檔 PR（layout / DiagramRenderer / FlowEditor）的硬性規則**：把「單檔大小上限」明文寫進 `CLAUDE.md` §6，避免下次再養出 40KB+ 怪物檔案。',
+      '**CLAUDE.md §6 新規則**：軟上限 15KB / 硬上限 20KB。靠近 15KB 主動拆檔；> 20KB 直接擋下任何邏輯改動，先拆檔再說。拆檔走「shim re-export + 子目錄」pattern，importer 一律不動。',
+      '**CLAUDE.md §4 changelog 凍結門檻 10KB → 7KB**（使用者觀察「c13 一次衝到 17KB 直接超過 MCP 推送臨界值」），下調留 buffer。',
+      '**新增 `/sync-views` skill**（`.claude/skills/sync-views.md`）：跑 `find src -size +15k` size check + grep 確認共用層字串沒散到視圖層 + 七視圖 walk 清單。`/ship-feature` 改成呼叫它。',
+      '**CLAUDE.md 自身大瘦身（23KB → 7.2KB）**：原本 23KB 自己違反 15KB 規則。再加一條「CLAUDE.md 軟上限 10KB / 硬上限 12KB」（更嚴於 source 因每 PR 都動且不能 shim）。詳細內容拆到外部檔：`.claude/business-rules.md`（5 條核心規則 + 閘道分類 + 工程慣例 + 協作偏好）、`.claude/orphans.md`（已清理孤兒檔案）、`.claude/backlog.md`（跨 session 待辦）。CLAUDE.md 留 1 行 pointer + 規則摘要表。',
+      '**已知 follow-up（規則生效後現存的命中）**：`HelpPanel.jsx` 26KB / `Dashboard.jsx` 26KB / `excelImport.js` 23KB / `ContextMenu.jsx` 19KB / `taskDefs.js` 17KB / `c13.js` 17KB — 列入 backlog 後續批次拆檔。',
+      '**Phase 1 拆檔三部曲總結**：layout.js 58→14.6KB / DiagramRenderer.jsx 44→12.9KB / FlowEditor.jsx 43→12.5KB；MCP push 全部成功無 timeout。Phase 2 將抽出 `src/model/` 共用層解決「改一處要追多檔」。',
+    ],
+  },
   {
     date: '2026-04-28',
     title: '重構：拆解 FlowEditor.jsx（43KB → 8 個 ≤13KB 檔案）',
