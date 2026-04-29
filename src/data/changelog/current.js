@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-04-29',
+    title: 'LAYOUT -10% 密度調整（字級不動，解使用者「需瀏覽器縮放 80%」訴求）',
+    items: [
+      '**緣由**：使用者：「電腦上測試要用瀏覽器縮放 80% 比較符合期望的版面比例，但這樣字會太小」。問題本質是「版面密度」vs「字級可讀性」分離訴求 — 瀏覽器縮放等比縮一切沒法挑字不縮。解法是直接改 source 縮 LAYOUT 但字級全部不動。',
+      '**LAYOUT 常數 -10%**（除 NODE_H 外）：`TITLE_H` 74→66 / `LANE_HEADER_W` 108→96 / `COL_W` 184→164 / `LANE_H` 152→136 / `NODE_W` 156→140 / `DIAMOND_SIZE` 54→48 / `CIRCLE_R` 32→28 / `PADDING_RIGHT/BOTTOM` 56→48。**`NODE_H` 84 不動** — 字級不變必須保留 3 行字空間（3×lineH 32 + 字高 16 + padding 4 = 84）。',
+      '**Wrap maxChars 10→8 連動**：NODE_W 156→140 後，原本 maxChars 10×16px=160px 會 overflow 140px 框。改 8×16=128 ≤ 140，左右各 6px buffer。`shapes.jsx` 兩處（subprocess l3activity / 一般 task）maxChars 改成 8。',
+      '**字級 / lineH 完全不動**：`text.jsx` lineH 32 / 三層字級 16/14/13 / Header text-base text-sm / FlowTable text-base 全部保持。確保使用者「不縮放」狀態看到的版面 ≈「縮放 90%」的密度，但字仍是 100% 可讀大小。',
+      '**LANE_H buffer 縮減**：原本 LANE_H 152 - MAX_SHAPE_BOTTOM_OFFSET 130 留 22px buffer；現在 LANE_H 136 - MAX_SHAPE_BOTTOM_OFFSET (NODE_VOFFSET 76 + DIAMOND_SIZE 48 = 124) 留 12px buffer，仍夠 (`minLaneH(slots)` 在 routing slot 多時會自動撐高)。',
+      '**業務規格 §13.1 / §13.4 / §13.5 同步**：表格數字更新；§13.1 加 -10% 密度調整 設計筆記；§13.4 maxChars 改 8 + 加 8×16=128 ≤ 140 計算說明；§13.5 padding 計算更新。',
+      '**動到的檔案（4 個）**：`src/diagram/constants.js`（9 個 LAYOUT 數值）/ `src/components/DiagramRenderer/shapes.jsx`（2 處 maxChars 10→8）/ `docs/business-spec.md`（§13.1 / §13.4 / §13.5 表格 + 設計筆記）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證重點**：部署後不縮放看版面是否密度 OK；字仍是清楚 16px。如果還太鬆可再縮 5-10%（可調回 -15% 或 -20%）。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '圖例移到 Header 彈窗 + 下載按鈕去 icon（頁面只剩流程圖 + 表格）',
     items: [
       '**緣由**：使用者：「(1) Header 上的下載按鈕不要有 icon、純文字就好 (2) 把圖例也整合到 Header，點選後彈窗或下拉抽屜顯示，這樣頁面中就只會有流程圖和表格兩個區塊」。',

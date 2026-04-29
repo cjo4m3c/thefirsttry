@@ -81,10 +81,10 @@ export function L3ActivityShape({ task, pos, l4Number, isHovered }) {
             fontSize={14} fill="#6B7280" fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
             [子流程]
           </text>
-          <SvgLabel text={task.name || ''} cx={cx} cy={cy + 14} maxChars={10} lineH={20} />
+          <SvgLabel text={task.name || ''} cx={cx} cy={cy + 14} maxChars={8} lineH={20} />
         </>
       ) : (
-        <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={10} lineH={22} />
+        <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={8} lineH={22} />
       )}
     </>
   );
@@ -127,7 +127,7 @@ export function GatewayShape({ task, pos, l4Number, isHovered }) {
       <L4Number number={l4Number} cx={cx} y={cy - d} />
       <polygon points={pts} fill={fill} stroke={stroke} strokeWidth={strokeW} />
       {symbol}
-      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={9} lineH={22} fontSize={14} />
+      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={8} lineH={22} fontSize={14} />
     </>
   );
 }

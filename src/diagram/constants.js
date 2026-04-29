@@ -1,14 +1,18 @@
 export const LAYOUT = {
-  TITLE_H: 74,
-  LANE_HEADER_W: 108,
-  COL_W: 184,
-  LANE_H: 152,
-  NODE_W: 156,
+  // PR 2026-04-29 (-10% density pass): user reported needing browser-zoom 80%
+  // for the desired page density, but that shrinks fonts too. Decoupled by
+  // shrinking LAYOUT 10% while keeping font sizes (text.jsx lineH 32, font
+  // tiers 16/14/13) intact. NODE_H unchanged to preserve 3-line task names.
+  TITLE_H: 66,
+  LANE_HEADER_W: 96,
+  COL_W: 164,
+  LANE_H: 136,
+  NODE_W: 140,
   NODE_H: 84,
-  DIAMOND_SIZE: 54,
-  CIRCLE_R: 32,
-  PADDING_RIGHT: 56,
-  PADDING_BOTTOM: 56,
+  DIAMOND_SIZE: 48,
+  CIRCLE_R: 28,
+  PADDING_RIGHT: 48,
+  PADDING_BOTTOM: 48,
 };
 
 export const COLORS = {
