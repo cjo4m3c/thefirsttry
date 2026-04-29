@@ -23,8 +23,8 @@ export const StickyHeader = forwardRef(function StickyHeader(
         const prevBottom = i === 0 ? TITLE_H : laneTopY[i - 1] + laneHeights[i - 1];
         const fillTop = prevBottom;
         const fillH = laneY + laneH - fillTop;
-        const lineH = 22;
-        const lines = wrapText(role.name, 7);
+        const lineH = 26;
+        const lines = wrapText(role.name, 4);
         const total = (lines.length - 1) * lineH;
         return (
           <g key={`sticky-${role.id}`}>

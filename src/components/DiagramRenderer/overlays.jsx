@@ -87,8 +87,8 @@ export function HoverTooltip({ tooltip, tasks }) {
         transform: 'translate(-50%, -100%)',
       }}
     >
-      <div className="text-xs font-semibold text-gray-700 mb-1">任務重點說明</div>
-      <div className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
+      <div className="text-[13px] font-semibold text-gray-700 mb-1">任務重點說明</div>
+      <div className="text-[13px] text-gray-600 whitespace-pre-wrap leading-relaxed">
         {t.description}
       </div>
     </div>

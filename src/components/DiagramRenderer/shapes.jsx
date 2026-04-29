@@ -127,7 +127,7 @@ export function GatewayShape({ task, pos, l4Number, isHovered }) {
       <L4Number number={l4Number} cx={cx} y={cy - d} />
       <polygon points={pts} fill={fill} stroke={stroke} strokeWidth={strokeW} />
       {symbol}
-      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={10} lineH={20} fontSize={15} />
+      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={9} lineH={22} fontSize={14} />
     </>
   );
 }

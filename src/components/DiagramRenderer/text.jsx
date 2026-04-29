@@ -38,7 +38,7 @@ export function wrapText(text, maxChars, maxTotal) {
   return lines;
 }
 
-export function SvgLabel({ text, cx, cy, maxChars = 10, lineH = 22, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 16 }) {
+export function SvgLabel({ text, cx, cy, maxChars = 9, lineH = 24, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 16 }) {
   const lines = wrapText(text, maxChars, maxTotal);
   const total = (lines.length - 1) * lineH;
   return (
@@ -57,7 +57,7 @@ export function SvgLabel({ text, cx, cy, maxChars = 10, lineH = 22, fontSize = 1
 export function L4Number({ number, cx, y }) {
   if (!number) return null;
   return (
-    <text x={cx} y={y - 7} textAnchor="middle" fontSize={13} fill={COLORS.TASK_NUMBER}
+    <text x={cx} y={y - 7} textAnchor="middle" fontSize={14} fill={COLORS.TASK_NUMBER}
       fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
       {number}
     </text>
@@ -66,13 +66,13 @@ export function L4Number({ number, cx, y }) {
 
 export function EventLabel({ cx, y, name, desc }) {
   const fontFamily = 'Microsoft JhengHei, PingFang TC, sans-serif';
-  // Events (start/end) sit in roughly one column width (224px after +40%);
-  // wrap at ~14 CJK chars for the name and ~18 for the smaller description
+  // Events (start/end) sit in roughly one column width (184px);
+  // wrap at ~11 CJK chars for the name and ~14 for the smaller description
   // so long labels don't spill past the column / lane boundary.
-  const nameLines = wrapText(name || '', 14);
-  const descLines = wrapText(desc || '', 18);
-  const nameLineH = 18;
-  const descLineH = 17;
+  const nameLines = wrapText(name || '', 11);
+  const descLines = wrapText(desc || '', 14);
+  const nameLineH = 20;
+  const descLineH = 19;
   const gap = 4;
   let cursor = y;
   return (
