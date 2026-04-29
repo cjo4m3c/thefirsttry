@@ -101,18 +101,18 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
               <button
                 onClick={() => pickDownload('png')}
                 className="block w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-blue-50">
-                匯出 PNG
+                下載 PNG
               </button>
               <button
                 onClick={() => pickDownload('drawio')}
                 title="可用 diagrams.net（免費）或 VS Code Draw.io 擴充套件開啟編輯"
                 className="block w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-blue-50">
-                匯出 .drawio
+                下載 Drawio
               </button>
               <button
                 onClick={() => pickDownload('excel')}
                 className="block w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-blue-50">
-                下載 Excel 表格
+                下載 Excel
               </button>
             </div>
           )}

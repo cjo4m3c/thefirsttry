@@ -14,17 +14,17 @@ export function LegendSection() {
     { shape: 'arrow',       label: '順序流' },
   ];
 
+  // No outer border / title here — when used inside LegendModal the modal
+  // already provides a "圖例說明" header and the panel frame, so a second
+  // pair would duplicate. The grid stands alone.
   return (
-    <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg">
-      <div className="text-sm font-semibold text-gray-700 mb-3">圖例說明</div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {items.map(item => (
-          <div key={item.shape} className="flex items-center gap-2">
-            <LegendIcon type={item.shape} />
-            <span className="text-xs text-gray-600">{item.label}</span>
-          </div>
-        ))}
-      </div>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      {items.map(item => (
+        <div key={item.shape} className="flex items-center gap-2">
+          <LegendIcon type={item.shape} />
+          <span className="text-xs text-gray-600">{item.label}</span>
+        </div>
+      ))}
     </div>
   );
 }

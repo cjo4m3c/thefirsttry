@@ -364,8 +364,9 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             {sortedFlows.map(flow => (
               <div key={flow.id}
                 className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col gap-3">
-                {/* Header */}
-                <div className="flex items-start gap-2">
+                {/* Header — title row reserves min-h-[3rem] so 1-line titles
+                    align with 2-line titles across the same grid row. */}
+                <div className="flex items-start gap-2 min-h-[3rem]">
                   <input type="checkbox" checked={selectedIds.has(flow.id)}
                     onChange={() => toggleSelected(flow.id)}
                     className="mt-0.5 w-4 h-4 flex-shrink-0 cursor-pointer"
@@ -384,7 +385,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                     style={{ background: '#2A5598' }}>
                     {flow.l3Number}
                   </span>
-                  <span className="font-semibold text-gray-800 leading-tight">{flow.l3Name}</span>
+                  <span className="font-semibold text-gray-800 leading-tight line-clamp-2">{flow.l3Name}</span>
                 </div>
 
                 {/* Stats */}
@@ -393,16 +394,22 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                   <span>·</span>
                   <span>任務 {flow.tasks?.length ?? 0}</span>
                 </div>
-                <div className="flex flex-col gap-0.5 text-xs text-gray-400">
+                {/* Reserves 2-row height even when one of createdAt /
+                    updatedAt is missing (legacy pre-versioned flows). */}
+                <div className="flex flex-col gap-0.5 text-xs text-gray-400 min-h-[2rem]">
                   {flow.createdAt && <span>建立：{fmtDateTime(flow.createdAt)}</span>}
                   {flow.updatedAt && <span>更新：{fmtDateTime(flow.updatedAt)}</span>}
                 </div>
 
-                {/* Roles preview */}
-                <div className="flex flex-wrap gap-1">
+                {/* Roles preview — fixed 2-row height (≈ 2 × 22px chip + gap)
+                    so cards align across the grid regardless of role count.
+                    overflow-hidden keeps long lists from breaking the layout
+                    (rare; usually 1-5 roles). */}
+                <div className="flex flex-wrap gap-1 content-start overflow-hidden"
+                  style={{ minHeight: '3rem', maxHeight: '3rem' }}>
                   {(flow.roles ?? []).map(r => (
                     <span key={r.id}
-                      className="px-2 py-0.5 rounded-full text-xs text-white"
+                      className="px-2 py-0.5 rounded-full text-xs text-white h-fit"
                       style={{ background: r.type === 'external' ? '#009900' : '#0066CC' }}>
                       {r.name}
                     </span>
@@ -428,15 +435,15 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                   <div className="flex gap-1.5">
                     <button onClick={() => setPendingPngFlow(flow)}
                       className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
-                      PNG
+                      下載 PNG
                     </button>
                     <button onClick={() => exportDrawio(flow)}
                       className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
-                      draw.io
+                      下載 Drawio
                     </button>
                     <button onClick={() => exportFlowToExcel(flow)}
                       className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
-                      Excel
+                      下載 Excel
                     </button>
                   </div>
                 </div>

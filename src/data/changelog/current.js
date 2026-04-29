@@ -6,6 +6,22 @@
 export default [
   {
     date: '2026-04-29',
+    title: '操作體驗 8 項：角色 InsertSlot、role 寬度+對齊、下載文字、Tooltip 去 icon、LegendModal、卡片對齊',
+    items: [
+      '**緣由**：使用者批次 8 項：(1) 設定泳道角色加 InsertSlot + 移除底部新增按鈕 (2) 角色下拉拉寬 (3) 任務名稱 vs 序列流向左對齊 (4) Header 下載文字統一 (5) 首頁卡片下載文字統一 (6) Tooltip 內選單去 icon (7) LegendModal 去重複框 (8) 卡片角色固定 2 行 + 檢查對齊問題。',
+      '**1 — Role InsertSlot**：`DrawerContent.jsx` role 區塊改用跟 task 一樣的 hover-between-rows InsertSlot（共用元件加 `label` / `title` props），點擊呼叫 `addRoleAt(index)`。底部「+ 新增角色」按鈕移除，改成上方「+ 新增角色（加到最後）」（跟 task 風格一致）。',
+      '**2 — Role select 拉寬**：`TaskCard.jsx` Row 1 角色 select 從 `w-24` (96px) → **`w-40`** (160px)，多 64px 收編號 badge 跟角色之間的「空白」。',
+      '**3 — 任務名稱 vs 序列流向左對齊**：原本 ConnectionSection 從 `px-3` (12px) 起，跟 Row 1 任務名稱起點（drag + badge + role + gaps ≈ 300px）差很多。**ConnectionSection 改包進跟 Row 2 一樣的 spacer 結構** `<div className="flex"><div w-[300px] /><div flex-1>{ConnectionSection}</div></div>`，讓「序列流向 → 目標」這類 control 跟上方任務名稱左側對齊。Row 2 spacer 也從 240→300 配合新 role 寬度。',
+      '**4 — Header 下載文字**：dropdown 三項從「匯出 PNG / 匯出 .drawio / 下載 Excel 表格」→ **「下載 PNG / 下載 Drawio / 下載 Excel」**（統一動詞 + 簡稱）。',
+      '**5 — 首頁卡片下載文字**：`Dashboard.jsx` 三按鈕從「PNG / draw.io / Excel」→ **「下載 PNG / 下載 Drawio / 下載 Excel」**（跟 Header 一致）。',
+      '**6 — ContextMenu 去 icon**：移除 actions list 前綴 emoji（`⬇️ ◇ ➕ 📚 🔁 🧩 ↔ 🗑️`），ActionToggle 元件 drop 掉 icon prop。各 sub-form 內元件符號（`○ ● ▭ ◇× ◇+ ◇⊙`）保留作為元件類型 visual identifier。Header `✕` 關閉按鈕保留（標準 functional UI）；右側 `▴/▾` chevron 保留作為 dropdown 指示。',
+      '**7 — LegendModal 去重複**：`legend.jsx` `LegendSection` 移除外層白底卡片（`mt-4 p-4 bg-white border rounded-lg`）+ 內部「圖例說明」標題（modal 已提供）。剩下 9 項 grid 直接 render，跟 modal 框框只一層。',
+      '**8 — 首頁卡片對齊**：`Dashboard.jsx` 兩處 min-h 修正：(a) Header L3 名稱列加 `min-h-[3rem]` + `line-clamp-2`（最多 2 行，1 行短標題仍佔 2 行高度）(b) Roles preview 加 `style={{ minHeight: \'3rem\', maxHeight: \'3rem\' }}` + `content-start overflow-hidden`，固定 2 行高度。其他區塊（Stats 1 行 / DateInfo 2 行 / Actions mt-auto）已對齊。**還可能不對齊的情境**：DateInfo 若 flow 只有 createdAt 缺 updatedAt（剛建立未存）會 1 行高，實務罕見；如有需要可再加 min-h-[2rem]。',
+      '**動到的檔案（5 個）**：`src/components/FlowEditor/DrawerContent.jsx`（role InsertSlot + 上方按鈕）/ `src/components/FlowEditor/TaskCard.jsx`（role w-24→w-40 / Row 2 spacer 240→300 / ConnectionSection 包 spacer 對齊）/ `src/components/FlowEditor/Header.jsx`（dropdown 三項文字）/ `src/components/Dashboard.jsx`（卡片下載文字 + min-h 對齊）/ `src/components/ContextMenu/index.jsx`（icons 全清）/ `src/components/DiagramRenderer/legend.jsx`（去重複）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '業務邏輯：移除流程斷點/迴圈返回入口、加外部互動編輯入口+lane 警告、連續閘道改 _g1/_g2/_g3',
     items: [
       '**緣由**：使用者：「(1) 圖上沒有流程斷點 (2) 編輯器下拉不能選流程斷點/迴圈返回 (3) 編輯器要可新增外部互動，使用灰色底元件，儲存時若放內部角色泳道要跳警告但仍可存 (4) 連續閘道編號 _g1 _g2 _g3，單一才 _g」',

@@ -142,9 +142,9 @@ export default function ContextMenu({
     onClose?.();
   }
 
-  // Action button — toggles sub-form visibility. Common style across all
-  // expandable actions.
-  function ActionToggle({ formKey, icon, label }) {
+  // Action button — toggles sub-form visibility. Per user request, no leading
+  // icons; chevron on the right is kept as a functional dropdown indicator.
+  function ActionToggle({ formKey, label }) {
     const active = subForm === formKey;
     return (
       <button
@@ -152,7 +152,7 @@ export default function ContextMenu({
         className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 ${
           active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
         }`}>
-        <span className="text-blue-500">{icon}</span> {label}
+        {label}
         <span className="ml-auto text-gray-400">{active ? '▴' : '▾'}</span>
       </button>
     );
@@ -220,12 +220,12 @@ export default function ContextMenu({
         {canAddOutgoing && (
           <button onClick={() => { onAddAfter?.(task.id); onClose?.(); }}
             className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
-            <span className="text-blue-500">⬇️</span> 新增任務
+            新增任務
           </button>
         )}
 
         {/* 2. 新增閘道 */}
-        {canAddOutgoing && <ActionToggle formKey="gateway" icon="◇" label="新增閘道（兩條連線）" />}
+        {canAddOutgoing && <ActionToggle formKey="gateway" label="新增閘道（兩條連線）" />}
         {subForm === 'gateway' && (
           <GatewaySubForm
             gwType={gwType} setGwType={setGwType}
@@ -238,7 +238,7 @@ export default function ContextMenu({
         )}
 
         {/* 3. 新增連線 */}
-        {canAddOutgoing && <ActionToggle formKey="connection" icon="➕" label="新增連線" />}
+        {canAddOutgoing && <ActionToggle formKey="connection" label="新增連線" />}
         {subForm === 'connection' && (
           <ConnectionSubForm
             connTarget={connTarget} setConnTarget={setConnTarget}
@@ -247,7 +247,7 @@ export default function ContextMenu({
         )}
 
         {/* 4. 新增 L3 流程 */}
-        {canAddOutgoing && <ActionToggle formKey="l3activity" icon="📚" label="新增 L3 流程（子流程調用）" />}
+        {canAddOutgoing && <ActionToggle formKey="l3activity" label="新增 L3 流程（子流程調用）" />}
         {subForm === 'l3activity' && (
           <L3ActivitySubForm
             l3Number={l3Number} setL3Number={setL3Number}
@@ -256,7 +256,7 @@ export default function ContextMenu({
         )}
 
         {/* 6 (gateway-only). 編輯閘道 — type switch + conditions list */}
-        {isGateway && <ActionToggle formKey="gw-edit" icon="🔁" label="編輯閘道（種類 / 條件）" />}
+        {isGateway && <ActionToggle formKey="gw-edit" label="編輯閘道（種類 / 條件）" />}
         {subForm === 'gw-edit' && (
           <GatewayEditorSubForm
             task={task} allTasks={allTasks} displayLabels={displayLabels}
@@ -264,13 +264,13 @@ export default function ContextMenu({
         )}
 
         {/* 5. 新增其他 */}
-        {canAddOutgoing && <ActionToggle formKey="other" icon="🧩" label="新增其他" />}
+        {canAddOutgoing && <ActionToggle formKey="other" label="新增其他" />}
         {subForm === 'other' && (
           <OtherSubForm onPick={pickOther} onCancel={() => setSubForm(null)} />
         )}
 
         {/* 6b (non-gateway). 轉換為 — change this element's type in place */}
-        {!isStart && <ActionToggle formKey="convert" icon="↔" label="轉換為..." />}
+        {!isStart && <ActionToggle formKey="convert" label="轉換為..." />}
         {subForm === 'convert' && (
           <ConvertSubForm task={task} onPick={pickConvert} onCancel={() => setSubForm(null)} />
         )}
@@ -278,7 +278,7 @@ export default function ContextMenu({
         {/* 7. 刪除 */}
         <button onClick={() => { onDelete?.(task.id); onClose?.(); }}
           className="w-full px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-2">
-          <span>🗑️</span> 刪除此元件
+          刪除此元件
         </button>
       </div>
     </div>

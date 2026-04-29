@@ -48,9 +48,10 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           )}
         </div>
 
-        {/* Role */}
+        {/* Role — wider (was w-24=96px) so multi-CJK role names fit without
+            truncation while still leaving the badge column un-stretched. */}
         <select value={task.roleId} onChange={e => onUpdate({ ...task, roleId: e.target.value })}
-          className="w-24 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+          className="w-40 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
           <option value="">角色 *</option>
           {roles.filter(r => r.name).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
@@ -72,10 +73,12 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           className="w-6 flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-base">✕</button>
       </div>
 
-      {/* Row 2: connection type + shape type (offset to align under name) */}
+      {/* Row 2: connection type + shape type (offset to align under name).
+          Spacer ≈ drag(~16) + gap(8) + badge w-[120] + gap(8) + role w-40(160) + gap(8) = 320.
+          Same spacer reused for the ConnectionSection row below so 序列流向
+          / 條件分支至 etc. line up under the task-name input. */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
-        {/* Spacer matches drag (~20) + badge (100) + role (96) + 3×gap (24) = 240 */}
-        <div className="w-[240px] flex-shrink-0" aria-hidden="true" />
+        <div className="w-[300px] flex-shrink-0" aria-hidden="true" />
 
         {/* Connection type */}
         <select value={ct} onChange={e => onUpdate(applyConnectionType(task, e.target.value))}
@@ -93,9 +96,14 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
         )}
       </div>
 
-      {/* Connection config */}
-      <div className="px-3 pb-2.5">
-        <ConnectionSection task={task} allTasks={allTasks} displayLabels={displayLabels} onUpdate={onUpdate} />
+      {/* Connection config — wrapped in the same spacer pattern as Row 2 so
+          the inner "序列流向 / 條件分支至 ..." controls line up under the
+          task-name input on Row 1. */}
+      <div className="flex items-start gap-2 px-2 pb-2.5 min-w-0">
+        <div className="w-[300px] flex-shrink-0" aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <ConnectionSection task={task} allTasks={allTasks} displayLabels={displayLabels} onUpdate={onUpdate} />
+        </div>
       </div>
 
       {/* Expandable detail fields */}
