@@ -80,12 +80,19 @@ export function useDragReorder(items, onReorder) {
 /** Six-dot drag affordance icon used by every draggable row.
  *  Pass the parent's `handleProps(i)` so this element is the draggable
  *  trigger (draggable=true + onDragStart), keeping the rest of the row
- *  free for normal input/select interaction. */
+ *  free for normal input/select interaction.
+ *
+ *  Caveat (fixed 2026-04-29): the inner <svg> needs `pointer-events: none`
+ *  because SVG elements default to draggable=false and will swallow the
+ *  drag attempt before it bubbles to the parent <div draggable=true>. The
+ *  six-dot grid covers the whole DragHandle, so without this fix the user
+ *  can't actually trigger drag from the handle. */
 export function DragHandle(props) {
   return (
     <div {...props}
       className="flex items-center justify-center w-5 flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 select-none">
-      <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+      <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"
+        style={{ pointerEvents: 'none' }}>
         <circle cx="3" cy="3"  r="1.4"/><circle cx="7" cy="3"  r="1.4"/>
         <circle cx="3" cy="8"  r="1.4"/><circle cx="7" cy="8"  r="1.4"/>
         <circle cx="3" cy="13" r="1.4"/><circle cx="7" cy="13" r="1.4"/>
