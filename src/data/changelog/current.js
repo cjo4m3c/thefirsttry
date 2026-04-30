@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-04-29',
+    title: 'Excel 匯入：自動修正 L4 編號 + 合併 source 缺漏提醒（採方案 3 折衷）',
+    items: [
+      '**緣由**：使用者：「匯入時編號可以做初步檢核，但讓使用者匯入並主動提醒自動調整了哪些」+「條件合併來自多個分支」舊格式匯入時無法辨別來源 → 跳提醒讓使用者調整。',
+      '**Step 1 — `normalizeL4Numbers` 自動修正編號**：parseExcelToFlow 末段呼叫，對每個 flow 的 tasks 採「strip stored l4Number → 跑 computeDisplayLabels（fully generated 模式）→ 比對 stored 跟 generated → 寫回 stored」做法。涵蓋 spec §2 規則：(a) 順號從 1 起連續（`1-1-1-1, 1-1-1-3, 1-1-1-5` → `1-1-1-1, 1-1-1-2, 1-1-1-3`）(b) 連續閘道 `_g, _g2` → `_g1, _g2` (c) 單一閘道從 `_g1` → `_g` (d) 連續子流程 `_s, _s` 衝突 → `_s1, _s2` (e) 第一個非閘道任務從 `${L3}-1` 起。每個修正項回傳 `{ before, after, name }`。',
+      '**Step 2 — `collectMergeIncomingWarnings` 合併 source 缺漏提醒**：對所有 task 檢查：`flowAnnotation` 含「並行/條件/包容合併」字串但實際 graph 上 incoming-edge < 2 → warning。**典型情境**：使用者用舊 Excel 寫「條件合併來自多個分支，序列流向 Z」沒列 source 編號，同時 source task 也沒寫「序列流向 Z」 → graph 結構沒形成 ≥2 incoming → formatConnection 衍生計算產不出 source 列表。匯入時用此 warning 提醒：「任務 X 標記為合併目標但實際只 N 個前置任務指向。請補上 source 任務「序列流向 X」，或檢查連線是否正確」。',
+      '**Step 3 — Wiring**：parseExcelToFlow return 的 `warnings` array 加兩段：normalizeWarnings（修正項清單）+ mergeWarnings（合併缺漏提醒）。Dashboard import banner 已支援 array 格式，**UI 完全不用改**。',
+      '**為什麼選方案 3**：方案 1（嚴格擋）UX 摩擦大；方案 2（隱性自動修）使用者不知改了什麼；方案 3 自動修正 stored 確保系統內部編號永遠合規，**且透明告知使用者改動清單**。三種方案下「匯入編號 vs 系統自動編號不同」都不會技術衝突，因為 `computeDisplayLabels` 用 usedCounters 邏輯規避；差別只在使用者心智模型透明度。',
+      '**驗證情境**：(a) 使用者寫 `1-1-1-1, 1-1-1-3, 1-1-1-5`（跳號）→ 匯入後 stored 變 `1-1-1-1, 1-1-1-2, 1-1-1-3`，banner 列出 2 個調整 (b) 使用者寫舊格式「條件合併來自多個分支」但 source 任務沒寫對應流向 → banner 提醒「實際 0 個前置任務」 (c) 使用者匯入合規 Excel → 無 normalize warnings、無 merge warnings、純成功訊息。',
+      '**動到的檔案（2 個）**：`src/utils/excelImport.js`（+ normalizeL4Numbers + collectMergeIncomingWarnings + parseExcelToFlow 末段串接）/ `src/data/changelog/current.js`（本條）。`build` 通過。`Dashboard.jsx` 跟 banner UI 零變更。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '編輯器卡片三列欄位垂直對齊（角色↔流程設定 / 任務名稱↔形狀 / 下一步↔編號）+ 字級一致',
     items: [
       '**緣由**：使用者：「編輯區塊內的欄位要排列整齊：(1) 角色 ↔ 流程設定 靠左對齊且寬度相同 (2) 任務名稱 ↔ 任務說明 靠左對齊且寬度相同 (3) 下一步 ↔ 編號 靠左對齊 (4) 下一步 + 內文字級跟其他欄位一致」。',
