@@ -21,15 +21,13 @@
 
 ## 2. Git 推送規則
 
-- `git push` 被 local proxy 擋下（HTTP 503），**不可使用**
-- 推送主要用 `mcp__github__push_files` 或 `mcp__github__create_or_update_file`（單檔 <7KB 最穩）
-- **一次只推 1 個檔案 / batch 3-4 個小檔**，避免 stream idle timeout
-- **大檔案 timeout SOP（硬性）**：
-  1. `wc -c <path>` 算大小；> 15KB **直接走手動**，不試 MCP push
-  2. 邊界值（7-15KB）試 MCP **一次**；timeout 立即切手動，**禁止重試**（重試只會再 timeout）
-  3. 手動：給使用者 `https://github.com/cjo4m3c/FlowSprite/edit/<branch>/<path>` + 完整內容 + commit message → 使用者貼上 commit
-  4. 手動完成後本地 `git fetch origin <branch> && git reset --hard origin/<branch>` 同步
-- **刪檔**用 `mcp__github__delete_file`（快，無 content 傳輸）
+- **`git push -u origin <branch>` 是預設管道**（2026-04-30 起確認穩定運作）
+- 早期受 local proxy 擋下時改走 MCP push；現在不需要，直接 `git push` 即可
+- **PR 開立用 `mcp__github__create_pull_request`**（不要叫使用者手動到網頁建）
+- **PR 開立後立即 `mcp__github__subscribe_pr_activity`** 訂閱 CI / review 事件（§8 step 6）
+- **大檔（>15KB）若 git push 失敗才走 fallback**：給使用者 `https://github.com/cjo4m3c/FlowSprite/edit/<branch>/<path>` 手動貼上；完成後本地 `git fetch origin <branch> && git reset --hard origin/<branch>` 同步
+- **`git push origin --delete <branch>` 仍被擋（403）**：遠端分支刪除靠 GitHub 自動「branch deletion after merge」設定處理
+- **刪檔**走一般 `git rm` + commit；MCP `delete_file` 是備案
 - commit message 用英文，描述變更原因
 - 絕不 push 到其他分支或建 PR（除非使用者明確要求）
 

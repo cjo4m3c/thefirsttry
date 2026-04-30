@@ -14,6 +14,9 @@
 | `src/constants/defaultInput.js` | 只給已刪的 InputPanel 用 |
 | `swimlane.html` | 舊版獨立 HTML，已遷移至 React + Vite |
 | `src/components/DiagramRenderer/Toolbar.jsx` | 2026-04-29 移除：下載按鈕移到 `FlowEditor/Header.jsx` 的「↓ 下載 ▾」dropdown；editable 操作提示移除（重複使用者不需要）；選中連線反饋移除（使用者再點一次即可取消）。L3 標籤已在 Header input 顯示，不再需要重複。 |
+| `src/components/dragReorder.jsx` | 2026-04-30 移除（PR #112）：HTML5 drag-reorder 三度修不靈光，砍掉改用 `src/components/reorderButtons.jsx` 的 ▲ ▼ 按鈕。 |
+| `.claude/handover-2026-04-29.md` | 2026-04-30 移除：session-specific 快照（其自身 §7 已寫「可直接刪掉」），承接的 Phase 2 / spec doc refactor 已全部完成、main 早已遠超該檔描述狀態。永久規則去 `CLAUDE.md` / `docs/business-spec.md` / `HANDOVER.md` / `.claude/business-rules.md`。 |
+| `.claude/phase2-handover.md` | 2026-04-30 移除：Phase 2 model 層三個 PR（#80/#81/#82 抽出 `src/model/` 的 `connectionFormat` / `flowSelectors` / `validation`）已全部 merge。原檔的 wip 計畫已不適用；§10「常見陷阱」屬通用工程慣例，已濃縮進 `.claude/business-rules.md` §1。 |
 
 相關可移除 deps：`js-yaml`、`jszip` 已於 2026-04-21 移除（伴隨孤兒檔案清理）。
 

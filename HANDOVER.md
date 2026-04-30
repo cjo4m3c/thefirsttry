@@ -42,17 +42,17 @@
 
 | 角色 | 負責 |
 |---|---|
-| AI（Claude Code）| 改碼、`npm run build` 驗證、用 node 跑 trace 測試、`git push` 分支、維護 `ChangelogPanel.jsx` 與 `CLAUDE.md` |
+| AI（Claude Code）| 改碼、`npm run build` 驗證、用 node 跑 trace 測試、`git push` 分支、維護 `src/data/changelog/current.js` 與 `CLAUDE.md` |
 | 人類使用者 | 提出需求、截圖回報、在 GitHub 網頁建 PR + squash merge、驗證部署結果 |
 
 每個功能走以下流程：
 1. 使用者描述需求（可能含截圖）
 2. AI 提出 root cause + 修正計畫 → 等 OK
 3. AI 切新分支 `claude/<feature-name>` 改碼 + build 驗證
-4. AI 在 `ChangelogPanel.jsx` 最前面新增 changelog 條目（newest first）
-5. AI `git push -u origin <branch>`
-6. 使用者在 GitHub 網頁建 PR → **Squash and merge**
-7. AI 同步本地 `git reset --hard origin/main`
+4. AI 在 `src/data/changelog/current.js` 最前面新增 changelog 條目（newest first；>7KB 凍結成 `c{N}.js`）
+5. AI 用 `mcp__github__create_pull_request` 開 PR + 立即 `mcp__github__subscribe_pr_activity` 訂閱 CI / review 事件
+6. 使用者在 GitHub 網頁 **Squash and merge**
+7. AI 同步本地：`git checkout main && git pull origin main` + `git branch -d claude/<feature-name>`
 
 ---
 
@@ -67,46 +67,65 @@ FlowSprite/
 ├── vite.config.js                 # base = '/FlowSprite/' 跟 repo 名稱綁定
 ├── tailwind.config.js / postcss.config.js / index.html
 ├── .github/workflows/deploy.yml   # GitHub Actions 自動部署
+├── docs/
+│   └── business-spec.md           # 業務規則單一來源（13 章；給協作者看，HelpPanel data 對應這份）
 ├── .claude/
-│   └── skills/                # AI 重用流程（/<skill-name> 可觸發）
-│       ├── ship-feature.md    # PR 前檢查清單 + squash merge + 回報
-│       ├── sync-main.md       # 使用者合併後本地同步 + 清 branch
-│       ├── doc-audit.md       # Changelog / HelpPanel / README / HANDOVER 對齊性檢查
-│       ├── trace-layout.md    # 流程圖路由 node trace 樣板
-│       ├── ui-rules.md        # 藍色主題色票、按鈕 / banner / modal pattern
-│       └── paste-bundle.md    # 大檔（>15KB）走 GitHub 網頁手工貼上的 SOP
+│   ├── business-rules.md          # Claude 工作流慣例（trace 驗證 / Excel I/O / CJK wrap / 文件同步）
+│   ├── backlog.md                 # 跨 session 待辦（4 分類 + 已完成）
+│   ├── orphans.md                 # 已清理檔案清單（勿再建立同名）
+│   └── skills/                    # AI 重用流程（/<skill-name> 可觸發）
+│       ├── ship-feature.md        # PR 前檢查清單 + squash merge + 回報
+│       ├── sync-main.md           # 使用者合併後本地同步 + 清 branch
+│       ├── sync-views.md          # 七視圖一致性 walk + size check
+│       ├── doc-audit.md           # Changelog / HelpPanel / README / HANDOVER 對齊性檢查
+│       ├── trace-layout.md        # 流程圖路由 node trace 樣板
+│       ├── ui-rules.md            # 藍色主題色票、按鈕 / banner / modal pattern
+│       ├── paste-bundle.md        # 大檔（>15KB）走 GitHub 網頁手工貼上的 SOP
+│       ├── preview-branch.md      # 開預覽分支（VITE_BASE_PATH 子路徑部署）
+│       └── wrap-pr.md             # PR 收尾 / 描述模板
 └── src/
     ├── main.jsx                   # React entry
     ├── App.jsx                    # Route: Dashboard / Wizard / FlowEditor
     ├── index.css                  # Tailwind + logo 動畫 + scrollbar
     ├── components/
-    │   ├── Dashboard.jsx          # 首頁清單、Excel 上傳、批量操作
+    │   ├── Dashboard.jsx          # 首頁清單、Excel 上傳、批量操作（單檔 26KB，仍在拆檔 backlog）
     │   ├── Wizard.jsx             # 新增 L3 的 2 步驟精靈（L3 資訊 → 角色），完成後進 FlowEditor
-    │   ├── FlowEditor.jsx         # 編輯 L3（流程圖 + 右側 drawer 編輯 + ContextMenu + 儲存前檢核兩層）
+    │   ├── FlowEditor/            # 編輯 L3 主控（PR-3 拆 7 檔；index.jsx + Header / DrawerContent / TaskCard / SaveModals / useFlowActions / validateFlow）
     │   ├── FlowTable.jsx          # L4 任務明細表（流程圖下方常駐顯示）
-    │   ├── DiagramRenderer.jsx    # SVG 泳道圖 + PNG/drawio 按鈕 + hover tooltip + onTaskClick
+    │   ├── DiagramRenderer/       # SVG 泳道圖 + 圖例 modal + hover tooltip + onTaskClick（PR-2 拆 10+ 檔；shapes / overlays / legend / 等）
     │   ├── RightDrawer.jsx        # 右側滑出面板（hosts 設定流程 + 設定泳道角色 tabs）
-    │   ├── ContextMenu.jsx        # 點任務元件彈出的編輯選單（inline name/role/desc + 新增/刪除/連線/閘道）
+    │   ├── ContextMenu/           # 點任務元件彈出的編輯選單（PR-0 拆 2 檔；index.jsx + subforms.jsx）
     │   ├── ConnectionSection.jsx  # 任務卡的連線設定 UI（drawer flow tab 內）
     │   ├── BackToTop.jsx          # 右下角浮動回到頂端按鈕
-    │   ├── reorderButtons.jsx    # ReorderButtons ▲ ▼ 排序按鈕 + moveItem 純函式（Wizard / FlowEditor 共用，2026-04-30 取代 HTML5 drag）
-    │   ├── HelpPanel.jsx          # 規則說明 Modal（使用者可編輯操作 + 不能違反的規則）
-    │   └── ChangelogPanel.jsx     # 版本更新紀錄 Modal（每次功能後加一筆）
+    │   ├── reorderButtons.jsx     # ReorderButtons ▲ ▼ 排序按鈕 + moveItem 純函式（Wizard / FlowEditor 共用，2026-04-30 取代 HTML5 drag）
+    │   ├── HelpPanel.jsx          # 規則說明 Modal（使用者可編輯操作 + 不能違反的規則；data 來自 helpPanelData.js）
+    │   └── ChangelogPanel.jsx     # 版本更新紀錄 Modal（讀 src/data/changelog/index.js）
+    ├── data/
+    │   ├── helpPanelData.js       # HelpPanel 規則摘要 data，每個 array 對應 docs/business-spec.md 章節
+    │   └── changelog/
+    │       ├── current.js         # 「tip」當前 PR 條目寫這裡（>7KB 就凍結成 c{N}.js）
+    │       ├── c01.js…c21.js      # 凍結 chunks（newest first 順序由 index.js 串接）
+    │       └── index.js           # 串接 current + 所有 frozen chunks
+    ├── model/                     # 純函式共用層（Phase 2 PR #80/#81/#82 抽出，視圖層只 import 不重複實作）
+    │   ├── connectionFormat.js    # task ↔ 中文字串（「條件分支至 X、Y」）正反向轉換 + auto-merge 偵測
+    │   ├── flowSelectors.js       # computeDisplayLabels / getTaskIncoming / 等 derived selectors
+    │   └── validation.js          # 儲存前 blocking + warning 檢核（FlowEditor + Excel 匯入共用）
     ├── diagram/
     │   ├── constants.js           # LAYOUT 尺寸 + COLORS 主題色
-    │   └── layout.js              # 核心：DAG 欄位分配 + smart routing + corridor slot 系統（~1000 行，複雜度最高）
+    │   ├── violations.js          # routing-aware 違規偵測（端點混用 / 線跨任務矩形）
+    │   └── layout/                # 核心：DAG 欄位分配 + smart routing + corridor slot 系統（PR-1 拆 11 檔，~58KB → 各 ≤15KB）
     └── utils/
         ├── taskDefs.js            # 編號 regex、connectionType 常數、makeTask 等工廠函式
-        ├── elementTypes.js        # ELEMENT_TYPES 8 種元件類型 catalog + detectElementKind / makeTypeChange（TaskCard Row 2 / ContextMenu convertTaskType 共用，2026-04-30 加）
-        ├── storage.js             # localStorage 讀寫 + 載入時遷移（點→橫線、閘道補 _g）
+        ├── elementTypes.js        # ELEMENT_TYPES 8 種元件類型 catalog + detectElementKind / makeTypeChange / applyRoleChange / syncTasksToRoles（TaskCard / ContextMenu / convertTaskType / Excel migration 共用）
+        ├── storage.js             # localStorage 讀寫 + 載入時 4 個 migration（點→橫線、閘道補 _g、子流程補 _s、merge type→branch、外部互動 shape sync）
         ├── excelImport.js         # parseExcelToFlow：解析 Excel → flow 物件 + validator + 軟警告
         ├── excelExport.js         # 匯出 .xlsx
         └── drawioExport.js        # 匯出 .drawio
 ```
 
-### 2.5 layout.js 內部路由規則（開發者參考）
+### 2.5 routing 內部規則（開發者參考）
 
-> 這段內容原本在 HelpPanel.jsx，後來改成讓使用者可以直接拖端點 / 換目標，所以從使用者面板搬到這裡作為內部技術參考。動 `layout.js` 前要先讀懂這部分。
+> 這段內容原本在 HelpPanel.jsx，後來改成讓使用者可以直接拖端點 / 換目標，所以從使用者面板搬到這裡作為內部技術參考。動 `src/diagram/layout/` 前要先讀懂這部分。
 
 **dr / dc 定義**
 - `dr = 目標角色列 − 來源角色列`（正 = 下方角色, 負 = 上方角色）
@@ -147,7 +166,7 @@ FlowSprite/
 
 ## 3. 核心業務規則
 
-> **單一來源**：`src/utils/taskDefs.js` 的 5 個 regex 常數；`CLAUDE.md` 規則 3 有完整文字說明。
+> **單一來源**：完整版在 `docs/business-spec.md`（13 章；給協作者看）+ `src/data/helpPanelData.js`（給使用者看）+ `src/utils/taskDefs.js` 6 個 regex 常數（程式驗證）。本節是索引摘要，**改規則絕對不在這裡改**，去 spec doc。
 
 ### 3.1 編號格式
 
@@ -158,10 +177,12 @@ FlowSprite/
 | 開始事件 | 尾碼 `0` | `1-1-1-0` |
 | 結束事件 | 尾碼 `99` | `1-1-1-99` |
 | 閘道 | 前置任務 + `_g`（單一）或 `_g1` / `_g2` / `_g3`（連續）| `1-1-1-4_g`、`1-1-1-4_g1` |
+| 子流程調用 | 前置任務 + `_s`（單一）或 `_s1` / `_s2`（連續）| `1-1-1-4_s`、`1-1-1-4_s1` |
 
 - **只接受 `-` 分隔**（載入舊資料時自動把 `.` 轉成 `-`）
-- **閘道前綴必為既有 L4 任務**（`1-1-1-4_g` → 同 Excel 必有 `1-1-1-4` 任務列）
-- **連續閘道編號鏈**：`X_g1` 接在 X 後、`X_g2` 接在 `X_g1` 後，依此類推
+- **閘道 / 子流程前綴必為既有 L4 任務**（或 `-0` 開始事件，例 `1-1-1-0_g`）
+- **`_g` 與 `_s` 共用 anchor**：兩者都不佔流水順號，連續計數器互不重置（規格範例 `_s1 → _g → _s2`，中間 `_g` 不打斷 `_s` 連續性）
+- **連續閘道編號鏈**：`X_g1` 接在 X 後、`X_g2` 接在 `X_g1` 後
 
 ### 3.2 哪些算獨立閘道（需要 `_g` 尾碼）
 
@@ -219,9 +240,9 @@ FlowSprite/
    npm run dev        # http://localhost:5173/FlowSprite/
    ```
 3. 依序讀這三個檔建立脈絡：
-   - `CLAUDE.md` 規則 3（業務規則、編號格式）
-   - `src/components/ChangelogPanel.jsx` 的 `CHANGELOG` 陣列（變更歷史+脈絡）
-   - `src/diagram/layout.js`（核心複雜度所在）
+   - `docs/business-spec.md`（業務規則完整版，13 章）+ `CLAUDE.md`（長期規則 / SOP / 編號 regex 索引）
+   - `src/data/changelog/` 內 `index.js` 串接的 `CHANGELOG` 陣列（變更歷史+脈絡，newest first）
+   - `src/diagram/layout/`（核心複雜度所在；先看 `index.js` 串起的 phase 順序）
 4. 開發流程：`git checkout -b feature/xxx` → 改碼 → push → 網頁建 PR → squash merge
 5. **建議閱讀最近 10 筆 merged PR 的 description**（每個都有寫 root cause + fix 解說，是重要脈絡）
 
@@ -244,7 +265,7 @@ FlowSprite/
 - [ ] 把這份 HANDOVER.md 交給接手人（repo 裡已有）
 - [ ] 告知「此工具無後端 / 無帳號 / 無同步」，最終使用者備份唯一管道是 Excel 下載
 - [ ] 告知 `main` push 自動部署、只能 squash merge
-- [ ] 告知 backlog（最新狀態看 `ChangelogPanel.jsx` 跟 GitHub issues）
+- [ ] 告知 backlog（`.claude/backlog.md`）+ 變更歷史（`src/data/changelog/`）+ GitHub Closed PRs
 
 ---
 
@@ -252,7 +273,7 @@ FlowSprite/
 
 - **無後端**：資料無法跨裝置、無版本歷史（只有使用者自己下載 Excel 當備份）
 - **瀏覽器限制**：Excel/PNG 匯出受 `html-to-image` + browser memory 限制，非常大的流程圖可能產出失敗
-- **`layout.js` 龐大（~1200 行）**：連線路由有多個 phase（Phase 1 sibling 分配 → Phase 2 target entry 分配 → Phase 3 跨閘道衝突 + Pass 2 sibling-sharing fallback + corridor guard → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 + cross-edge 重疊偵測 → **Phase 3e 使用者手動 override** → 上下 corridor slot 分配），改動容易牽一髮動全身；改前先讀 §2.5 內部路由規則 + 最近 10 筆 PR 的 description
+- **`src/diagram/layout/` 龐大**：PR-1 拆成 11 檔但總邏輯仍 ~58KB。連線路由有多個 phase（Phase 1 sibling 分配 → Phase 2 target entry 分配 → Phase 3 跨閘道衝突 + Pass 2 sibling-sharing fallback + corridor guard → Phase 3b 任務 backward → Phase 3c 任務 forward 長跳欄 → Phase 3d 跨列 forward 障礙避開 + cross-edge 重疊偵測 → **Phase 3e 使用者手動 override** → 上下 corridor slot 分配），改動容易牽一髮動全身；改前先讀 §2.5 內部路由規則 + 最近 10 筆 PR 的 description
 - **中文 regex 敏感**：`excelImport.js` 用中文關鍵字（`條件分支至` 等），對全形/半形、多餘空白、標點符號變體敏感
 - **無自動化測試**：驗證靠 `npm run build` + 手動瀏覽器測試 + `node trace.mjs` 臨時腳本
 
@@ -260,6 +281,10 @@ FlowSprite/
 
 ## 8. 歷史參考資料
 
-- `src/components/ChangelogPanel.jsx` 的 `CHANGELOG` 陣列：使用者可見的變更紀錄（按日期 newest first）
+- `src/data/changelog/`（`index.js` 串接 `current.js` + `c01.js`…`c21.js`）：使用者可見的變更紀錄（newest first）。動程式時先看最近幾條了解 in-flight 規則演進
 - GitHub `Closed PRs`：每個 PR description 都有 root cause + fix 解說
-- `CLAUDE.md`：AI 長期記憶，含 regex 單一來源、已清理孤兒檔案清單、每次 PR 前的檢查步驟
+- `CLAUDE.md`：AI 長期規則（regex 索引、PR SOP、CI 追蹤、單檔大小上限）
+- `docs/business-spec.md`：業務規則完整版（13 章），跟 `src/data/helpPanelData.js` 一一對應
+- `.claude/business-rules.md`：Claude 工作流慣例（trace 驗證、Excel I/O、CJK wrap）
+- `.claude/backlog.md`：跨 session 待辦
+- `.claude/orphans.md`：已刪檔案清單（不要再建同名）

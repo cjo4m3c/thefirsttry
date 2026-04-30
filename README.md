@@ -74,14 +74,22 @@ FlowSprite/
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml             ← push main 自動部署到 GitHub Pages
+├── docs/
+│   └── business-spec.md           ← 業務規則單一來源（13 章；HelpPanel / changelog 都對齊這份）
 ├── .claude/
-│   └── skills/
+│   ├── business-rules.md          ← Claude 工作流慣例
+│   ├── backlog.md                 ← 跨 session 待辦
+│   ├── orphans.md                 ← 已刪檔案清單
+│   └── skills/                    ← AI 重用流程（/<skill-name> 觸發）
 │       ├── ship-feature.md        ← PR 前檢查清單 + squash merge + 回報
 │       ├── sync-main.md           ← 使用者合併後本地同步 + 清 branch
+│       ├── sync-views.md          ← 七視圖一致性 walk + size check
 │       ├── doc-audit.md           ← Changelog / HelpPanel / README / HANDOVER 對齊性檢查
 │       ├── trace-layout.md        ← 流程圖路由 node trace 樣板
 │       ├── ui-rules.md            ← 藍色主題色票、按鈕 / banner / modal pattern
-│       └── paste-bundle.md        ← 大檔（>15KB）走 GitHub 網頁手工貼上的 SOP
+│       ├── paste-bundle.md        ← 大檔（>15KB）走 GitHub 網頁手工貼上的 SOP
+│       ├── preview-branch.md      ← 開預覽分支（VITE_BASE_PATH 子路徑）
+│       └── wrap-pr.md             ← PR 收尾 / 描述模板
 ├── public/                        ← 靜態資源（logo 等）
 └── src/
     ├── main.jsx                   ← React entry point
@@ -90,23 +98,31 @@ FlowSprite/
     ├── components/
     │   ├── Dashboard.jsx          ← 首頁：L3 清單、Excel 上傳、批量操作
     │   ├── Wizard.jsx             ← 新增 L3 的 2 步驟精靈（L3 資訊 → 角色 → 進入 FlowEditor）
-    │   ├── FlowEditor.jsx         ← 編輯既有 L3（流程圖 + 右側 drawer 編輯 + ContextMenu + 儲存前檢核）
+    │   ├── FlowEditor/            ← 編輯 L3 主控（PR-3 拆 7 檔；index + Header / DrawerContent / TaskCard / SaveModals / useFlowActions / validateFlow）
     │   ├── FlowTable.jsx          ← L4 任務明細表（流程圖下方常駐顯示）
-    │   ├── DiagramRenderer.jsx    ← SVG 泳道圖 + PNG / Draw.io 匯出按鈕 + hover tooltip + 點任務觸發 ContextMenu
+    │   ├── DiagramRenderer/       ← SVG 泳道圖 + PNG / Draw.io 匯出 + hover tooltip + onTaskClick（PR-2 拆 10+ 檔）
     │   ├── RightDrawer.jsx        ← 右側滑出面板（hosts 設定流程 + 設定泳道角色 tabs）
-    │   ├── ContextMenu.jsx        ← 點任務元件彈出的編輯選單（inline 編輯 + 新增/刪除/連線/閘道）
+    │   ├── ContextMenu/           ← 點任務元件彈出的編輯選單（PR-0 拆 2 檔；index + subforms）
     │   ├── ConnectionSection.jsx  ← 任務卡片內的連線設定 UI
     │   ├── BackToTop.jsx          ← 右下角浮動回到頂端按鈕
-    │   ├── reorderButtons.jsx    ← `ReorderButtons` ▲ ▼ 排序按鈕 + `moveItem` 純函式（2026-04-30 取代 HTML5 drag）
-    │   ├── HelpPanel.jsx          ← 規則說明 Modal（可編輯操作 + 不能違反的規則）
-    │   └── ChangelogPanel.jsx     ← 版本更新紀錄 Modal（功能後新增條目）
+    │   ├── reorderButtons.jsx     ← `ReorderButtons` ▲ ▼ 排序按鈕 + `moveItem` 純函式（2026-04-30 取代 HTML5 drag）
+    │   ├── HelpPanel.jsx          ← 規則說明 Modal（data 來自 helpPanelData.js）
+    │   └── ChangelogPanel.jsx     ← 版本更新紀錄 Modal（讀 src/data/changelog/index.js）
+    ├── data/
+    │   ├── helpPanelData.js       ← HelpPanel 規則摘要 data，每個 array 對應 docs/business-spec.md 章節
+    │   └── changelog/             ← current.js（tip）+ c01.js…c21.js（凍結）+ index.js 串接
+    ├── model/                     ← 純函式共用層（Phase 2 抽出）
+    │   ├── connectionFormat.js    ← task ↔ 中文字串雙向轉換 + auto-merge 偵測
+    │   ├── flowSelectors.js       ← computeDisplayLabels / getTaskIncoming / 等 derived selectors
+    │   └── validation.js          ← 儲存前 blocking + warning 檢核
     ├── diagram/
     │   ├── constants.js           ← LAYOUT 尺寸 + COLORS 主題色
-    │   └── layout.js              ← 核心：DAG 欄位分配 + 連線 smart routing + top/bottom corridor slot 分配
+    │   ├── violations.js          ← routing-aware 違規偵測
+    │   └── layout/                ← 核心：DAG 欄位分配 + smart routing + corridor slot（PR-1 拆 11 檔）
     └── utils/
         ├── taskDefs.js            ← 編號 regex、connectionType 常數、工廠函式
-        ├── elementTypes.js        ← `ELEMENT_TYPES` 8 種元件類型 catalog + `detectElementKind` / `makeTypeChange` 純函式（TaskCard Row 2 / ContextMenu 共用）
-        ├── storage.js             ← localStorage I/O + 載入時遷移（點→橫線、閘道補 _g）
+        ├── elementTypes.js        ← `ELEMENT_TYPES` 8 種元件 catalog + `detectElementKind` / `makeTypeChange` / `applyRoleChange` / `syncTasksToRoles`
+        ├── storage.js             ← localStorage I/O + 載入時 5 個 migration（點→橫線 / 閘道 _g / 子流程 _s / merge type / 外部互動 shape）
         ├── excelImport.js         ← 解析 Excel → flow 物件 + validator + 軟警告
         ├── excelExport.js         ← 匯出 .xlsx
         └── drawioExport.js        ← 匯出 .drawio
@@ -114,11 +130,11 @@ FlowSprite/
 
 ### 關鍵檔案
 
-- `src/diagram/layout.js` — 複雜度最高的檔案（~1100 行）。負責把 flow 物件轉成 SVG 座標、計算連線路由
+- `src/diagram/layout/` — 複雜度最高（PR-1 拆成 11 檔但總邏輯仍龐大）。負責把 flow 物件轉成 SVG 座標、計算連線路由。改前先讀 `HANDOVER.md §2.5`
 - `src/utils/taskDefs.js` — 所有編號 regex 的單一來源（修改編號規則只改這裡的常數）
-- `src/utils/storage.js` — localStorage 為唯一儲存層；載入時自動遷移舊資料格式
+- `src/utils/storage.js` — localStorage 為唯一儲存層；載入時自動跑 5 個 migration
 - `src/utils/excelImport.js` — Excel 匯入的 parser + validator，是業務規則落地的地方
-- `CLAUDE.md` — 業務規則、工作流程 SOP；動任何程式碼前建議先讀
+- `docs/business-spec.md` + `CLAUDE.md` — 業務規則完整版 + AI 工作流 SOP；動任何程式碼前建議先讀
 
 ### 無後端 / 無測試套件
 
