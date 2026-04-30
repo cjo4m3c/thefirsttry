@@ -1,21 +1,34 @@
 /**
  * ConnectionSection — renders the BPMN connection configuration UI
- * for a single task, based on its connectionType.
- * Shared between Wizard (Step 3) and FlowEditor.
+ * for a single task, based on its connectionType. Embedded inside
+ * TaskCard's Row 3 (the "下一步 / 條件分支至 ..." row).
+ *
+ * Layout convention (matches TaskCard's other rows):
+ *   col-A label    w-[120px]   ← aligns with TaskCard badge column
+ *   col-B middle   w-40        ← aligns with TaskCard role column
+ *                              (used by branch cases for the condition
+ *                              label input; spacer otherwise)
+ *   col-C target   flex-1      ← aligns with TaskCard name column
+ *   col-D action   w-6 + spacer ← row remove button + reserved space for ▼/✕
+ *
+ * Font sizes: text-sm everywhere so the connection row reads at the
+ * same density as the role / task-name inputs above it.
  */
 import { generateId } from '../utils/storage.js';
 import { makeCondition, taskOptionLabel } from '../utils/taskDefs.js';
 
 export default function ConnectionSection({ task, allTasks, displayLabels, onUpdate }) {
   const ct = task.connectionType || 'sequence';
-  // Gateways and L3 activities skip the roleId filter — both can be valid
-  // connection targets without a role assigned (gateway: freshly added, no
-  // role yet; L3 activity: subprocess call may not need a role). validateFlow
-  // surfaces "gateway without roleId" as a save-time warning.
   const opts = allTasks.filter(t => t.id !== task.id && (t.type === 'gateway' || t.type === 'l3activity' || t.roleId));
-  const sel = 'flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400';
-  const inp = 'flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400';
-  const lbl = 'text-xs text-gray-500 w-16 flex-shrink-0';
+  // Shared style fragments — keep the row layout identical across all
+  // connection-type cases so columns align with TaskCard rows above.
+  const lbl = 'text-sm text-gray-600 w-[120px] flex-shrink-0 truncate';
+  const midSpacer = 'w-40 flex-shrink-0';                 // when no middle field
+  const midInput = 'w-40 flex-shrink-0 px-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-1';
+  const sel = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400';
+  const inp = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400';
+  const rowGap = 'flex items-center gap-2';
+  const removeBtn = 'w-6 flex-shrink-0 text-red-400 hover:text-red-600 text-sm disabled:opacity-20';
 
   function renderOpts() {
     return opts.map(t => (
@@ -39,8 +52,9 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
 
   if (ct === 'sequence' || ct === 'start') {
     return (
-      <div className="flex items-center gap-2 mt-1.5">
+      <div className={`${rowGap} mt-1.5`}>
         <span className={lbl}>{ct === 'start' ? '流程開始 →' : '下一步 →'}</span>
+        <div className={midSpacer} aria-hidden="true" />
         <select value={task.nextTaskIds?.[0] || ''} className={sel}
           onChange={e => onUpdate({ ...task, nextTaskIds: [e.target.value] })}>
           <option value="">選擇目標任務</option>{renderOpts()}
@@ -52,13 +66,15 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
   if (ct === 'subprocess') {
     return (
       <div className="flex flex-col gap-1.5 mt-1.5">
-        <div className="flex items-center gap-2">
+        <div className={rowGap}>
           <span className={lbl}>子流程 L3 編號</span>
+          <div className={midSpacer} aria-hidden="true" />
           <input className={inp} value={task.subprocessName || ''} placeholder="例：5-3-2"
             onChange={e => onUpdate({ ...task, subprocessName: e.target.value })} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className={rowGap}>
           <span className={lbl}>返回後 →</span>
+          <div className={midSpacer} aria-hidden="true" />
           <select value={task.nextTaskIds?.[0] || ''} className={sel}
             onChange={e => onUpdate({ ...task, nextTaskIds: [e.target.value] })}>
             <option value="">選擇目標任務</option>{renderOpts()}
@@ -76,23 +92,22 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
     return (
       <div className="mt-1.5">
         {conds.map((cond, idx) => (
-          <div key={cond.id} className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-yellow-600 flex-shrink-0">◇</span>
+          <div key={cond.id} className={`${rowGap} mt-1`}>
+            <span className={lbl}>條件 {idx + 1} →</span>
             <input
-              className="w-20 flex-shrink-0 px-2 py-1 border border-yellow-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-yellow-400"
+              className={`${midInput} border-yellow-300 focus:ring-yellow-400`}
               value={cond.label} placeholder="條件標籤"
               onChange={e => updCond(idx, 'label', e.target.value)} />
-            <span className="text-xs text-gray-400 flex-shrink-0">→</span>
             <select value={cond.nextTaskId} className={sel}
               onChange={e => updCond(idx, 'nextTaskId', e.target.value)}>
               <option value="">選擇目標任務</option>{renderOpts()}
             </select>
             <button onClick={() => remCond(idx)} disabled={conds.length <= 1}
-              className="text-red-400 hover:text-red-600 text-xs flex-shrink-0 disabled:opacity-20">✕</button>
+              className={removeBtn}>✕</button>
           </div>
         ))}
         <button onClick={() => addCond()}
-          className="mt-1.5 text-xs text-yellow-700 hover:text-yellow-900">
+          className="mt-1.5 text-sm text-yellow-700 hover:text-yellow-900">
           + 新增條件分支
         </button>
       </div>
@@ -104,23 +119,22 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
     return (
       <div className="mt-1.5">
         {conds.map((cond, idx) => (
-          <div key={cond.id} className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-green-600 flex-shrink-0">+{idx + 1}</span>
+          <div key={cond.id} className={`${rowGap} mt-1`}>
+            <span className={lbl}>並行 {idx + 1} →</span>
             <input
-              className="w-20 flex-shrink-0 px-2 py-1 border border-green-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+              className={`${midInput} border-green-300 focus:ring-green-400`}
               value={cond.label} placeholder="標籤（選填）"
               onChange={e => updCond(idx, 'label', e.target.value)} />
-            <span className="text-xs text-gray-400 flex-shrink-0">→</span>
             <select value={cond.nextTaskId} className={sel}
               onChange={e => updCond(idx, 'nextTaskId', e.target.value)}>
               <option value="">選擇並行目標</option>{renderOpts()}
             </select>
             <button onClick={() => remCond(idx)} disabled={conds.length <= 1}
-              className="text-red-400 hover:text-red-600 text-xs flex-shrink-0 disabled:opacity-20">✕</button>
+              className={removeBtn}>✕</button>
           </div>
         ))}
         <button onClick={() => addCond('')}
-          className="mt-1.5 text-xs text-green-700 hover:text-green-900">
+          className="mt-1.5 text-sm text-green-700 hover:text-green-900">
           + 新增並行目標
         </button>
         <p className="text-xs text-gray-400 mt-1 pl-1">
@@ -135,25 +149,23 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
     return (
       <div className="mt-1.5">
         {conds.map((cond, idx) => (
-          <div key={cond.id} className="flex items-center gap-2 mt-1">
-            <span className="text-xs flex-shrink-0" style={{ color: '#854D0E' }}>◇⊙</span>
+          <div key={cond.id} className={`${rowGap} mt-1`}>
+            <span className={lbl}>包容 {idx + 1} →</span>
             <input
-              className="w-20 flex-shrink-0 px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1"
+              className={midInput}
               style={{ borderColor: '#FDE68A' }}
               value={cond.label} placeholder="條件標籤"
               onChange={e => updCond(idx, 'label', e.target.value)} />
-            <span className="text-xs text-gray-400 flex-shrink-0">→</span>
             <select value={cond.nextTaskId} className={sel}
               onChange={e => updCond(idx, 'nextTaskId', e.target.value)}>
               <option value="">選擇包容目標</option>{renderOpts()}
             </select>
             <button onClick={() => remCond(idx)} disabled={conds.length <= 1}
-              className="text-red-400 hover:text-red-600 text-xs flex-shrink-0 disabled:opacity-20">✕</button>
+              className={removeBtn}>✕</button>
           </div>
         ))}
         <button onClick={() => addCond()}
-          className="mt-1.5 text-xs"
-          style={{ color: '#854D0E' }}>
+          className="mt-1.5 text-sm" style={{ color: '#854D0E' }}>
           + 新增包容分支
         </button>
         <p className="text-xs text-gray-400 mt-1 pl-1">
@@ -164,27 +176,25 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
   }
 
   // PR-B 2026-04-29: parallel-merge / conditional-merge / inclusive-merge
-  // removed from CONNECTION_TYPES. Merge is now derived from incoming-edge
-  // count at render time (formatConnection auto-emits "X合併 ..."). Old
-  // saved data with these connectionTypes gets migrated to the matching
-  // -branch by storage.migrateMergeConnectionType, so this block is
-  // unreachable in practice — kept removed.
+  // removed from CONNECTION_TYPES. Merge is derived from incoming-edge count
+  // at render time (formatConnection auto-emits "X合併 ..."). Old saved data
+  // gets migrated to the matching -branch by storage.migrateMergeConnectionType,
+  // so this block is unreachable in practice — kept removed.
 
   if (ct === 'loop-return') {
-    // New single-target model: loop-return is a regular task with a
-    // back-edge in nextTaskIds[0]. No conditional branches; forward
-    // continuation (if any) comes from a preceding gateway, not here.
     const backTarget = task.nextTaskIds?.[0] || '';
     return (
       <div className="flex flex-col gap-1.5 mt-1.5">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 flex-shrink-0">迴圈說明</span>
+        <div className={rowGap}>
+          <span className={lbl}>迴圈說明</span>
+          <div className={midSpacer} aria-hidden="true" />
           <input className={inp} value={task.loopDescription || ''}
             placeholder="說明迴圈觸發條件（選填）"
             onChange={e => onUpdate({ ...task, loopDescription: e.target.value })} />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-red-500 w-20 flex-shrink-0">迴圈返回至 ↺</span>
+        <div className={rowGap}>
+          <span className={`${lbl} text-red-500`}>迴圈返回至 ↺</span>
+          <div className={midSpacer} aria-hidden="true" />
           <select value={backTarget} className={sel}
             onChange={e => onUpdate({ ...task, nextTaskIds: [e.target.value] })}>
             <option value="">選擇返回目標任務</option>{renderOpts()}
@@ -199,8 +209,9 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
 
   if (ct === 'breakpoint') {
     return (
-      <div className="flex items-center gap-2 mt-1.5">
+      <div className={`${rowGap} mt-1.5`}>
         <span className={lbl}>斷點說明</span>
+        <div className={midSpacer} aria-hidden="true" />
         <input className={inp} value={task.breakpointReason || ''}
           placeholder="說明斷點原因（選填）"
           onChange={e => onUpdate({ ...task, breakpointReason: e.target.value })} />

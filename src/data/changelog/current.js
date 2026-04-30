@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-04-29',
+    title: '編輯器卡片三列欄位垂直對齊（角色↔流程設定 / 任務名稱↔形狀 / 下一步↔編號）+ 字級一致',
+    items: [
+      '**緣由**：使用者：「編輯區塊內的欄位要排列整齊：(1) 角色 ↔ 流程設定 靠左對齊且寬度相同 (2) 任務名稱 ↔ 任務說明 靠左對齊且寬度相同 (3) 下一步 ↔ 編號 靠左對齊 (4) 下一步 + 內文字級跟其他欄位一致」。',
+      '**統一 5-col 欄結構**：TaskCard 三列改用同一 column 配置 — col1: drag (w-5) / col2: badge (w-[120px]) / col3: role (w-40) / col4: name (flex-1) / col5: ▼✕ 按鈕 (w-14 spacer)。Row 1 / Row 2 / Row 3 全部 inherit 同樣 column 寬度。',
+      '**Row 2 對齊**：流程設定 select 從 `w-32` → **`w-40`**（對齊 col3 role 寬度）；shape-type select 從 `w-24` → **`flex-1 min-w-0`**（對齊 col4 name 寬度）。Row 2 spacer 從 `w-[300px]` 拆成 `w-5 + w-[120px]` 對應 col1 + col2。',
+      '**Row 3（ConnectionSection）對齊**：原本整段包在 `w-[300px]` spacer 內，改成 `w-5` drag spacer + `flex-1` ConnectionSection。ConnectionSection 內每個 case 使用統一 layout：`<label w-[120px]>` (對齊 col2 badge) + `<spacer w-40 / 或 condition input w-40>` (對齊 col3 role) + `<select / input flex-1>` (對齊 col4 name) + 可選 `<remove btn w-6>`（對齊 col5 ▼✕）。',
+      '**字級一致化**：ConnectionSection 內的所有 label / input / select 從 `text-xs` (12px) → **`text-sm`** (14px)，跟 Row 1/2 的 role / 任務名稱 / 流程設定 / 形狀 select 同字級。padding 從 `py-1` → `py-1.5` 也跟著一致。',
+      '**branches case 重整**：原本「[icon ◇/+/◇⊙] [標籤 input w-20] [→] [target select]」改成「[label w-[120px]「條件 N→/並行 N→/包容 N→」] [標籤 input w-40 (col3)] [target select flex-1 (col4)] [✕ btn (col5)]」。每個 case 都套同樣 column 結構。',
+      '**動到的檔案（3 個）**：`src/components/FlowEditor/TaskCard.jsx`（5-col layout 註解 + Row 2 改用 w-40/flex-1 + Row 3 wrapper 簡化）/ `src/components/ConnectionSection.jsx`（共用 lbl/midSpacer/midInput/sel 樣式 + 7 個 case 全部套用）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+    ],
+  },
+  {
+    date: '2026-04-29',
     title: '編輯器：InsertSlot 涵蓋首尾、移除「新增任務/角色」按鈕、修拖曳只能拖第一個 row 的 bug',
     items: [
       '**緣由**：使用者：「(1) 設定流程：InsertSlot 在第一個 / 最後一個編輯區塊前後也可用，移除「新增任務」按鈕 (2) 設定泳道角色：現在只有第一個 row 可拖，其他不行 (3) 設定泳道角色：跟 (1) 一樣 InsertSlot 涵蓋首尾、移除「新增角色」按鈕」。',
