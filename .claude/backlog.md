@@ -14,7 +14,7 @@
 - **U. 插入閘道操作邏輯拉齊**（使用者：「拉齊插入閘道的操作邏輯（現在圖上是插入閘道、編輯器是序列規則）」）— `DiagramRenderer` ContextMenu「插入閘道」與 `FlowEditor` 編輯器內的插入流程不一致，要統一
 - **V. 儲存事件閃亮提醒**（使用者：「新增儲存事件閃亮亮動態提醒」）— 儲存按鈕被按下後加 logo 閃光 / 按鈕短暫變綠等視覺回饋（取代原 J「儲存提醒優化」的待選方向）
 - **C. Phase 3.5 gateway obstacle avoidance**（`src/diagram/layout/`）— 閘道作為跨列 forward obstacle 時走 vertical-detour
-- **N. 泳道角色拖曳視覺提示** — 複用 `useDragReorder` 的 `dropAfter` + DropLine pattern
+- ~~**N. 泳道角色拖曳視覺提示**~~ — **OBSOLETED 2026-04-30**：HTML5 drag 整個被砍（PR #112 改用 ▲ ▼ 按鈕），`useDragReorder` / DropLine 都不存在了。如果使用者真的有跨欄移動需求，再以「跳到位置 N」`<input type="number">` 補強
 - **Y. tooltip 上編輯既有閘道分流條件**（使用者：「各種閘道：要可以在 tooltip 上編輯分流點」）— T 已做新增閘道時的條件標籤輸入；本項補**既有閘道**的 inline 編輯。動到 `ContextMenu`：對既有閘道展開 sub-form 加 label inputs，state 寫回 `task.connections[].label`
 - **Z. 閘道 fork + merge 自動填入任務關聯說明**（使用者：「閘道的自動填入說明，新增填入任務關聯說明欄的『條件分支、並行分支、包容分支』」+「條件合併、包容合併、並行合併也要出現在任務關聯說明，看能不能自動補」）— `src/model/connectionFormat.js` `formatConnection` 已能產生對應字串，但**任務關聯說明欄**（task.description / task.notes）目前不自動寫入；要在 `taskDefs.applyConnectionType` 或 save flow 時 sync。注意：使用者手動編輯過的 description 不能被覆蓋
 - **AA. 新增任務時自動帶入泳道角色**（使用者：「在哪裡點新增任務，就會自動帶入該泳道角色，無主的自動放當下泳道第一個角色」）— `src/components/FlowEditor/useFlowActions.js` `addTask` / `addTaskAfter` 加 default `roleId` 邏輯：若呼叫端有上下文（例 ContextMenu 在某泳道按右鍵）→ 該泳道；否則 → `flow.roles[0].id`
@@ -37,6 +37,13 @@
 - ~~**PR-5**：`src/model/connectionFormat.js`~~ ✅ DONE（PR #80）
 - ~~**PR-6**：`src/model/flowSelectors.js`~~ ✅ DONE（PR #81，`getL4Index` / `getL3Summary` / `getSwimlaneRows` 暫不抽，等真需要再補）
 - ~~**PR-7**：`src/model/validation.js`~~ ✅ DONE（PR #82）
+
+## 已完成（2026-04-30 出清）
+
+- **PR #110**：TaskCard 顯示衍生「任務關聯說明」preview（formatConnection 自動產生，使用者改任何欄位即時更新）+ removeTask wiring 重連（`A → B → C` 刪 B 自動變 `A → C`）
+- **PR #111**：TaskCard Row 2 統一為「元件類型」單一選單（8 種跟 InsertPicker 一致：L4 任務 / 排他 / 並行 / 包容 閘道 / 開始 / 結束 / L3 / 外部互動）；新增 `src/utils/elementTypes.js` 純函式（`detectElementKind` / `makeTypeChange`）；修閘道命名 bug（GatewaySubForm 「條件 ◇×」→「排他 ◇×」、legend 「闘道」typo → 「閘道」）
+- **PR #112**：拖曳排序砍掉重來，HTML5 drag → ▲ ▼ 按鈕。三度修都失敗（#104 / #106 / #108），改方案二零 deps、100% 可靠、accessibility 友善，淨減 113 行 fragile code
+- **PR #113**：規則文件 / changelog / HANDOVER / README 同步到 PR #110-112 最新狀態；HelpPanel 移除「連線規則」段落（連線型態現由元件類型自動衍生，使用者不需手動選）
 
 ## 已完成（2026-04-28 至 2026-04-29 出清）
 
