@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import TaskCard from './TaskCard.jsx';
 import { ReorderButtons } from '../reorderButtons.jsx';
 import { makeRole, taskOptionLabel } from '../../utils/taskDefs.js';
-import { syncTasksToRoles } from '../../utils/elementTypes.js';
+import { ELEMENT_TYPES, getElementType, syncTasksToRoles } from '../../utils/elementTypes.js';
 
 // InsertPicker — drawer-side equivalent of the diagram's ContextMenu, used
 // to add elements between TaskCards. Collapsed state looks identical to the
@@ -86,27 +86,16 @@ function InsertPicker({ index, allTasks, displayLabels,
 
   return (
     <div className="my-1 p-3 bg-blue-50 border border-blue-300 rounded-lg flex flex-col gap-2">
-      {/* Type selector */}
+      {/* Type selector — options + helperText come from ELEMENT_TYPES schema
+          so adding a new element kind only needs a single edit there. */}
       <div className="flex items-center gap-2">
         <span className={lbl}>新增類型</span>
         <select value={type} onChange={e => setType(e.target.value)}
           className={`${midInput} bg-white`}>
-          <option value="task">L4 任務</option>
-          <option value="gateway-xor">排他閘道（XOR）</option>
-          <option value="gateway-and">並行閘道（AND）</option>
-          <option value="gateway-or">包容閘道（OR）</option>
-          <option value="start">開始事件</option>
-          <option value="end">結束事件</option>
-          <option value="l3activity">L3 流程（子流程調用）</option>
-          <option value="interaction">外部互動</option>
+          {ELEMENT_TYPES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <div className="flex-1 min-w-0 text-xs text-gray-500 pl-2">
-          {type === 'task' && '一般 L4 任務（自動接續上下任務）'}
-          {type.startsWith('gateway-') && '請設定兩條分支條件 + 目標'}
-          {type === 'start' && 'BPMN 流程起點。建議單一起點'}
-          {type === 'end' && 'BPMN 流程終點。可多個（不同情境收尾）'}
-          {type === 'l3activity' && '調用其他 L3 流程；填入該 L3 編號'}
-          {type === 'interaction' && '外部關係人 / 系統互動（如：客戶補件）'}
+          {getElementType(type)?.helperText}
         </div>
       </div>
 

@@ -6,6 +6,22 @@
 export default [
   {
     date: '2026-04-30',
+    title: 'PR-B：ELEMENT_TYPES schema 收斂 — 4 個 UI view 讀同一份元件型錄',
+    items: [
+      '**緣由**：code review P2-4「element-type catalog 三處重複」— 元件清單在 elementTypes.js 是「canonical」，但 DrawerContent InsertPicker hard-code 8 個 `<option>` + switch helperText、ContextMenu OtherSubForm hard-code 3 個（start/end/interaction）含 `hint` 文字、ConvertSubForm hard-code 8 個含 `match` predicate（重複 `detectElementKind` 邏輯）。新增 / 修改 / 刪除元件種類要改 4 個地方，正是使用者要避免的「修一個改很多」痛點。',
+      '**Schema 設計**：`ELEMENT_TYPES` 從 8 個 `{value, label}` 擴成含 5 個欄位的元資料 — `value` / `label`（長標）/ `shortLabel`（含 icon 短標 `○ 開始事件 / ▭ 外部互動`）/ `helperText`（單行提示，原本散在 InsertPicker switch / OtherSubForm hint）/ `inOther`（OtherSubForm「新增其他」是否顯示，目前 start/end/interaction 三個）。`inConvert` 預設 true 給 ConvertSubForm 用。',
+      '**新 helper**：`getElementType(kind)` lookup / `getOtherElementTypes()` 過濾 `inOther === true` / `getConvertibleElementTypes()` 過濾 `inConvert !== false`。新增元件種類只要在 ELEMENT_TYPES 加一行 entry，三個 view 自動同步、不需再改 view code。',
+      '**View 1 — `DrawerContent.jsx InsertPicker`**：`<option>` 8 行 hard-code → `ELEMENT_TYPES.map`；helperText switch 6 條 → `getElementType(type)?.helperText`。淨減約 12 行。',
+      '**View 2 — `ContextMenu/subforms.jsx OtherSubForm`**：3 行 hard-code items（含 hint 文字）→ `getOtherElementTypes()`，欄位名從 `kind/label/hint` 對齊 schema 的 `value/shortLabel/helperText`。淨減約 4 行。',
+      '**View 3 — `ContextMenu/subforms.jsx ConvertSubForm`**：8 行 hard-code items（含 8 個 `match` predicate 各自重做 `detectElementKind` 邏輯）→ `getConvertibleElementTypes()` + 一行 `currentKind = detectElementKind(task)`，每個 button `isCurrent = currentKind === it.value`。delegation pattern：UI 不再判斷 task shape ↔ kind 的映射，model 層 `detectElementKind` 是 SOT。淨減約 10 行 + 消滅 8 個 drift point。',
+      '**View 4（已用）— `TaskCard.jsx Row 2`**：本來就讀 ELEMENT_TYPES，沒動。但這次升級後 helperText / shortLabel 等新欄位 TaskCard 也可選用（暫不啟用，留給未來需求）。',
+      '**動到的檔案（4 個）**：`src/utils/elementTypes.js`（schema + 3 個 helper）/ `src/components/FlowEditor/DrawerContent.jsx`（InsertPicker map）/ `src/components/ContextMenu/subforms.jsx`（OtherSubForm + ConvertSubForm）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) InsertPicker 下拉 8 個選項 + 對應 helperText 不變 ✓ (b) ContextMenu「新增其他」3 個按鈕 + hint 不變 ✓ (c) ContextMenu「轉換為...」8 個選項，當前 task 的 kind 標「（目前）」+ disabled，跟 TaskCard Row 2 認知一致 ✓ (d) 試著加新元件種類（demo）：只要在 ELEMENT_TYPES 加一行就同時出現在 3 個 view，無需改其他檔案 ✓',
+      '**Refactor 路徑進度**：PR-A（資料模型 bug）✓ → **PR-B（catalog schema）✓ now** → PR-C（addXBefore 系列解 P1-2）→ PR-D（mutation spec 化）。',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: 'PR-A：修兩個資料模型 bug — 新建 start 不能有 incoming / 新建 interaction 由 lane 決定 shape',
     items: [
       '**緣由**：使用者轉貼 code review，4 個 finding 中的 P1-1 + P1-3 是真實資料模型 bug — 新建立的元件直接違反系統其他層假設的 invariant（BPMN start no-incoming、PR #119 lane-driven shape）。Refactor 路徑 PR-A，先修兩個資料 bug，後續 PR-B/-C/-D 才做擴充性 refactor。',

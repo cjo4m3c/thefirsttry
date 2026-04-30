@@ -1,5 +1,10 @@
 import { taskOptionLabel, applyGatewayPrefix } from '../../utils/taskDefs.js';
 import { generateId } from '../../utils/storage.js';
+import {
+  detectElementKind,
+  getOtherElementTypes,
+  getConvertibleElementTypes,
+} from '../../utils/elementTypes.js';
 
 /**
  * Add-action sub-forms for the ContextMenu — one block per add type.
@@ -259,18 +264,16 @@ export function GatewayEditorSubForm({
  * Each button creates the corresponding element after the anchor task.
  */
 export function OtherSubForm({ onPick, onCancel }) {
-  const items = [
-    { kind: 'start',       label: '○ 開始事件',   hint: '流程起點（每張圖僅能有一個）' },
-    { kind: 'end',         label: '● 結束事件',   hint: '流程正常終點' },
-    { kind: 'interaction', label: '▭ 外部互動',  hint: '系統互動 / 跨角色協作（建議放外部角色泳道）' },
-  ];
+  // Drawn from ELEMENT_TYPES (entries with inOther=true) so the available
+  // "其他" choices stay in sync with the rest of the catalog.
+  const items = getOtherElementTypes();
   return (
     <div className="px-3 py-2 bg-gray-50 border-t border-b border-gray-100 flex flex-col gap-1">
       {items.map(it => (
-        <button key={it.kind} onClick={() => onPick(it.kind)}
+        <button key={it.value} onClick={() => onPick(it.value)}
           className="text-left px-2 py-1.5 text-xs rounded hover:bg-blue-50 hover:text-blue-700 flex flex-col">
-          <span className="font-medium">{it.label}</span>
-          <span className="text-gray-400">{it.hint}</span>
+          <span className="font-medium">{it.shortLabel || it.label}</span>
+          <span className="text-gray-400">{it.helperText}</span>
         </button>
       ))}
       <div className="flex justify-end pt-1">
@@ -286,31 +289,29 @@ export function OtherSubForm({ onPick, onCancel }) {
  * Lists all valid target types; current type is highlighted and disabled.
  */
 export function ConvertSubForm({ task, onPick, onCancel }) {
-  const items = [
-    { kind: 'task',         label: '一般任務',       match: task.type === 'task' && task.shapeType !== 'interaction' && task.connectionType !== 'subprocess' },
-    { kind: 'l3activity',   label: 'L3 活動（子流程調用）', match: task.type === 'l3activity' },
-    { kind: 'interaction',  label: '外部互動',       match: task.shapeType === 'interaction' },
-    { kind: 'gateway-xor',  label: '排他閘道 ◇×',   match: task.type === 'gateway' && task.gatewayType === 'xor' },
-    { kind: 'gateway-and',  label: '並行閘道 ◇+',   match: task.type === 'gateway' && task.gatewayType === 'and' },
-    { kind: 'gateway-or',   label: '包容閘道 ◇⊙',  match: task.type === 'gateway' && task.gatewayType === 'or' },
-    { kind: 'start',        label: '開始事件',       match: task.type === 'start' },
-    { kind: 'end',          label: '結束事件',       match: task.type === 'end' && task.connectionType === 'end' },
-  ];
+  // Drawn from ELEMENT_TYPES; "current" detection delegated to the same
+  // detectElementKind function TaskCard Row 2 uses, so all three views
+  // agree on what task shape maps to what kind.
+  const items = getConvertibleElementTypes();
+  const currentKind = detectElementKind(task);
   return (
     <div className="px-3 py-2 bg-gray-50 border-t border-b border-gray-100 flex flex-col gap-1">
       <p className="text-xs text-gray-400 pl-1">
         ℹ 轉換後現有連線會收斂到第一個目標；多分支需手動補
       </p>
-      {items.map(it => (
-        <button key={it.kind} onClick={() => onPick(it.kind)} disabled={it.match}
-          className={`text-left px-2 py-1.5 text-xs rounded ${
-            it.match
-              ? 'bg-blue-100 text-blue-700 cursor-not-allowed'
-              : 'hover:bg-blue-50 hover:text-blue-700 text-gray-700'
-          }`}>
-          {it.label} {it.match && <span className="text-gray-400">（目前）</span>}
-        </button>
-      ))}
+      {items.map(it => {
+        const isCurrent = currentKind === it.value;
+        return (
+          <button key={it.value} onClick={() => onPick(it.value)} disabled={isCurrent}
+            className={`text-left px-2 py-1.5 text-xs rounded ${
+              isCurrent
+                ? 'bg-blue-100 text-blue-700 cursor-not-allowed'
+                : 'hover:bg-blue-50 hover:text-blue-700 text-gray-700'
+            }`}>
+            {it.shortLabel || it.label} {isCurrent && <span className="text-gray-400">（目前）</span>}
+          </button>
+        );
+      })}
       <div className="flex justify-end pt-1">
         <button onClick={onCancel}
           className="px-3 py-1 text-xs text-gray-600 hover:text-gray-900">取消</button>

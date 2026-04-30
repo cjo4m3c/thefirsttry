@@ -1,9 +1,14 @@
 /**
  * elementTypes.js — Single source of truth for the unified "元件類型" catalog.
- * Mirrors InsertPicker (DrawerContent.jsx) and ConvertSubForm (subforms.jsx)
- * so the editor's TaskCard Row 2, the diagram's "新增" / "轉換為..." menus,
- * and the drawer's insert picker all show the same 8 options in the same
- * order.
+ *
+ * Three view-layer consumers all read from this file (PR-B 2026-04-30):
+ *   - TaskCard Row 2 元件類型 select (FlowEditor/TaskCard.jsx)
+ *   - InsertPicker 新增類型 select + helper text (FlowEditor/DrawerContent.jsx)
+ *   - ContextMenu OtherSubForm + ConvertSubForm (ContextMenu/subforms.jsx)
+ *
+ * Adding a new element type = add one entry here; adjust makeTypeChange +
+ * detectElementKind if it has model-side semantics. No view-layer edits
+ * needed for label / icon / helper text.
  *
  * Naming convention (audited 2026-04-30):
  *   xor → 排他閘道 (NOT「條件閘道」/「條件」). 條件 is reserved for the *connection
@@ -12,20 +17,58 @@
 import { generateId } from './storage.js';
 import { applyGatewayPrefix } from './taskDefs.js';
 
-// User-pickable element types in canonical order (matches InsertPicker).
+// Per-entry metadata fields:
+//   value         — kind id; matches detectElementKind / makeTypeChange
+//   label         — long-form label for InsertPicker / TaskCard / Convert ("L4 任務")
+//   shortLabel    — compact label with icon for ContextMenu OtherSubForm
+//                   ("○ 開始事件") and ConvertSubForm short list. Falls back
+//                   to label when not specified.
+//   helperText    — one-liner shown next to the InsertPicker select / under
+//                   each OtherSubForm button as a hint
+//   inOther       — true: shown in ContextMenu OtherSubForm "新增其他" button
+//                   row (start/end/interaction). Other values omitted.
+//   inConvert     — true: shown in ConvertSubForm "轉換為..." list. Defaults
+//                   to true; set false to hide a kind from convert flow.
+//
 // Breakpoint is intentionally excluded — phased out 2026-04-29; legacy data
 // still renders but no UI creates new ones. detectElementKind handles the
 // legacy breakpoint round-trip.
 export const ELEMENT_TYPES = [
-  { value: 'task',         label: 'L4 任務' },
-  { value: 'gateway-xor',  label: '排他閘道（XOR）' },
-  { value: 'gateway-and',  label: '並行閘道（AND）' },
-  { value: 'gateway-or',   label: '包容閘道（OR）' },
-  { value: 'start',        label: '開始事件' },
-  { value: 'end',          label: '結束事件' },
-  { value: 'l3activity',   label: 'L3 流程（子流程調用）' },
-  { value: 'interaction',  label: '外部互動' },
+  { value: 'task',         label: 'L4 任務',
+    helperText: '一般 L4 任務（自動接續上下任務）' },
+  { value: 'gateway-xor',  label: '排他閘道（XOR）', shortLabel: '排他閘道 ◇×',
+    helperText: '請設定兩條分支條件 + 目標' },
+  { value: 'gateway-and',  label: '並行閘道（AND）', shortLabel: '並行閘道 ◇+',
+    helperText: '請設定兩條分支條件 + 目標' },
+  { value: 'gateway-or',   label: '包容閘道（OR）',  shortLabel: '包容閘道 ◇⊙',
+    helperText: '請設定兩條分支條件 + 目標' },
+  { value: 'start',        label: '開始事件',        shortLabel: '○ 開始事件',
+    helperText: 'BPMN 流程起點。建議單一起點',
+    inOther: true },
+  { value: 'end',          label: '結束事件',        shortLabel: '● 結束事件',
+    helperText: 'BPMN 流程終點。可多個（不同情境收尾）',
+    inOther: true },
+  { value: 'l3activity',   label: 'L3 流程（子流程調用）', shortLabel: 'L3 活動（子流程調用）',
+    helperText: '調用其他 L3 流程；填入該 L3 編號' },
+  { value: 'interaction',  label: '外部互動',        shortLabel: '▭ 外部互動',
+    helperText: '外部關係人 / 系統互動（如：客戶補件）',
+    inOther: true },
 ];
+
+/** Lookup helper — returns the entry whose value matches `kind`, or null. */
+export function getElementType(kind) {
+  return ELEMENT_TYPES.find(e => e.value === kind) || null;
+}
+
+/** Subset filter for the OtherSubForm "新增其他" button row. */
+export function getOtherElementTypes() {
+  return ELEMENT_TYPES.filter(e => e.inOther);
+}
+
+/** Subset filter for the ConvertSubForm "轉換為..." list. Default = all. */
+export function getConvertibleElementTypes() {
+  return ELEMENT_TYPES.filter(e => e.inConvert !== false);
+}
 
 /**
  * Inverse of makeTypeChange — given an existing task, return its element-type
