@@ -86,8 +86,13 @@
 2. **Changelog 條目**：`src/data/changelog/current.js` 最前面加今天日期記錄
 3. **CLAUDE.md / 外部規則檔同步**：改 regex = §3、改 push 流程 = §1 / §2、改檔案結構 = §6 拆檔表、**改業務規則 = `docs/business-spec.md` + `src/data/helpPanelData.js` + changelog 三件組**、改 Claude 工作流慣例 = `.claude/business-rules.md`、孤兒清理 = `.claude/orphans.md`
 4. **程式碼品質**：新孤兒 / 未使用 deps → 列入 `.claude/backlog.md` 或當次清理
-5. **git + PR + 同步**：clean → `mcp__github__create_pull_request` → squash merge → `git fetch origin main && git reset --hard origin/main`
-6. **回報**：commit SHA、部署網址、驗證清單、後續調整
+5. **git + PR + 同步**：clean → `mcp__github__create_pull_request` → **`mcp__github__subscribe_pr_activity` 立即訂閱**（2026-04-30 使用者：「未來 pr 後都要追蹤 ci」）→ squash merge → `git fetch origin main && git reset --hard origin/main`
+6. **PR 後 CI 追蹤（新規則 2026-04-30）**：
+   - 開 PR 後立即呼叫 `mcp__github__subscribe_pr_activity`，無須再問使用者
+   - 若 `pull_request_read get_check_runs` 顯示 0 個 checks，那是因為本 repo 的 `deploy.yml` 只在 `main` push 觸發（不跑 PR-level CI）— 屬正常
+   - 使用者回報 merge 完成後，可呼叫 `mcp__github__get_commit` 看 merge commit、用 `WebFetch` 打 `https://cjo4m3c.github.io/FlowSprite/` 驗證部署成功（live site 已含本次 PR 變更為準）
+   - 若 deploy 失敗（live site 未更新），開新 PR 修正，**不 revert 已 merge 的 commit**
+7. **回報**：commit SHA、部署網址、驗證清單、後續調整
 
 直接叫 `/ship-feature` skill 會按此跑。
 
