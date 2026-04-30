@@ -97,7 +97,7 @@ FlowSprite/
     │   ├── ContextMenu.jsx        ← 點任務元件彈出的編輯選單（inline 編輯 + 新增/刪除/連線/閘道）
     │   ├── ConnectionSection.jsx  ← 任務卡片內的連線設定 UI
     │   ├── BackToTop.jsx          ← 右下角浮動回到頂端按鈕
-    │   ├── dragReorder.jsx        ← 共用的 `useDragReorder` hook（dropAfter 指示器）+ `DragHandle` 元件
+    │   ├── reorderButtons.jsx    ← `ReorderButtons` ▲ ▼ 排序按鈕 + `moveItem` 純函式（2026-04-30 取代 HTML5 drag）
     │   ├── HelpPanel.jsx          ← 規則說明 Modal（可編輯操作 + 不能違反的規則）
     │   └── ChangelogPanel.jsx     ← 版本更新紀錄 Modal（功能後新增條目）
     ├── diagram/
@@ -105,6 +105,7 @@ FlowSprite/
     │   └── layout.js              ← 核心：DAG 欄位分配 + 連線 smart routing + top/bottom corridor slot 分配
     └── utils/
         ├── taskDefs.js            ← 編號 regex、connectionType 常數、工廠函式
+        ├── elementTypes.js        ← `ELEMENT_TYPES` 8 種元件類型 catalog + `detectElementKind` / `makeTypeChange` 純函式（TaskCard Row 2 / ContextMenu 共用）
         ├── storage.js             ← localStorage I/O + 載入時遷移（點→橫線、閘道補 _g）
         ├── excelImport.js         ← 解析 Excel → flow 物件 + validator + 軟警告
         ├── excelExport.js         ← 匯出 .xlsx

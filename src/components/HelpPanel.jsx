@@ -4,7 +4,6 @@ import {
   NUMBERING,
   ELEMENTS,
   VALIDATION,
-  CONNECTIONS,
   EDITABLE_ACTIONS,
   FORBIDDEN_RULES,
   EXPORTS,
@@ -153,18 +152,6 @@ export default function HelpPanel() {
                       </div>
                     );
                   })}
-                </div>
-              </Section>
-
-              {/* ── 4. Connections ── */}
-              <Section title="連線規則 Connections">
-                <div className="grid gap-2">
-                  {CONNECTIONS.map((c, i) => (
-                    <div key={i} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                      <div className="font-medium text-blue-800 mb-0.5">{c.title}</div>
-                      <div className="text-gray-600">{c.desc}</div>
-                    </div>
-                  ))}
                 </div>
               </Section>
 

@@ -119,17 +119,17 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 
 ## 4. 連線與序列類型
 
-每個任務在編輯器內透過「流程設定」決定連線型態。共 7 種（2026-04-29 移除「流程斷點」與「迴圈返回」兩個編輯器選項；既有資料仍可正常 render，但不再從編輯器產生新的）：
+**UX（2026-04-30 起）**：使用者**不直接選連線型態**，而是在編輯器 Row 2「元件類型」單一選單選 8 種元件之一（見 §3）；連線型態由元件類型自動衍生（例：選「排他閘道」→ `connectionType=conditional-branch`）。底層仍是這 7 種連線型態（2026-04-29 移除「流程斷點」與「迴圈返回」兩個編輯器選項；既有資料仍可正常 render，但不再從編輯器產生新的）：
 
-| 流程設定 | 行為 | 對應元件 |
+| 連線型態 | 行為 | 由哪個「元件類型」衍生 |
 |---|---|---|
-| 序列流向 | 單一下一步任務（最常用） | 一般任務的箭頭 |
-| 條件分支 | 可新增多個分支，每個分支設「條件標籤」+「目標」。**每次只走一條** | XOR 閘道 |
-| 並行分支 | 同時啟動多個並行目標。**不評估條件**，標籤僅作註記用 | AND 閘道 |
-| 包容分支 | 每個條件獨立評估，凡為真者建立並行路徑 | OR 閘道 |
+| 序列流向 | 單一下一步任務（最常用） | L4 任務 / 外部互動 |
+| 條件分支 | 可新增多個分支，每個分支設「條件標籤」+「目標」。**每次只走一條** | 排他閘道（XOR） |
+| 並行分支 | 同時啟動多個並行目標。**不評估條件**，標籤僅作註記用 | 並行閘道（AND） |
+| 包容分支 | 每個條件獨立評估，凡為真者建立並行路徑 | 包容閘道（OR） |
 | 流程開始 | 流程起始點，設定第一個任務目標 | 開始事件 |
 | 流程結束 | 流程正常結束點，不需設定下一步 | 結束事件 |
-| 子流程調用 | 調用另一個 L3 子流程，填寫子流程 L3 編號 + 返回後的下一步 | L3 活動 |
+| 子流程調用 | 調用另一個 L3 子流程，填寫子流程 L3 編號 + 返回後的下一步 | L3 流程（子流程調用） |
 
 ### 4.1 合併（merge）= 自動偵測，不是流程設定
 
@@ -162,7 +162,7 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 | `包容合併 X、Y，序列流向 Z` | OR join target（**自動產生**） |
 | `迴圈返回至 X`（新格式）/ `若未通過則返回 X、若通過則序列流向 Y`（舊格式） | back-edge 合併進 `nextTaskIds` |
 
-**對應實作**：`src/components/`（`ConnectionSection` 連線型態 UI、`RightDrawer` 編輯器右側容器）、`src/utils/`（`applyConnectionType` 連線型態變更副作用）、`src/model/`（`connectionFormat.formatConnection` + `flowSelectors.getTaskIncomingSources` 自動合併偵測）、`src/components/`（`HelpPanel` CONNECTIONS array）
+**對應實作**：`src/utils/elementTypes.js`（`ELEMENT_TYPES` / `detectElementKind` / `makeTypeChange` 元件類型 → 連線型態衍生）、`src/components/ConnectionSection.jsx`（依連線型態渲染對應的目標 / 條件欄位）、`src/components/RightDrawer.jsx`（編輯器右側容器）、`src/utils/taskDefs.js`（`applyConnectionType` 連線型態變更副作用，內部呼叫）、`src/model/connectionFormat.js`（`formatConnection` 衍生關聯說明文字）、`src/model/flowSelectors.js`（`getTaskIncomingSources` 自動合併偵測）。HelpPanel 不再顯示連線規則段落（§4 完整內容仍在本文）。
 
 ---
 
@@ -263,14 +263,16 @@ FlowEditor 儲存前跑 `validateFlow` 兩層檢核。
 
 | 操作 | 行為 |
 |---|---|
-| 拖曳排序任務 | 「設定流程」分頁按住 `⠿` 拖曳。中間出現藍色橫線指示**插入位置**。順序改了之後 L4 編號自動重排 |
-| 拖曳排序泳道角色 | 「設定泳道角色」分頁同樣拖曳 `⠿`。角色綁定（`task.roleId`）不變，只調整視覺位置 |
+| ▲ ▼ 排序任務 | 「設定流程」分頁點任務左側 ▲ ▼ 按鈕（最上 / 最下自動 disabled）。順序改了之後 L4 編號自動重排。**2026-04-30 起改用按鈕**（HTML5 drag 三度修不好，改方案二：點按鈕） |
+| ▲ ▼ 排序泳道角色 | 「設定泳道角色」分頁同樣點 ▲ ▼ 改變泳道由上到下的順序。角色綁定（`task.roleId`）不變，只調整視覺位置 |
+| 元件類型切換 | TaskCard Row 2「元件類型」單一選單可隨時改成 8 種任一（L4 任務 / 排他 / 並行 / 包容 閘道 / 開始 / 結束 / L3 / 外部互動）。連線文字（任務關聯說明）即時衍生，不必手動編輯 |
+| 任務關聯說明 preview | TaskCard 下方的灰色斜體「關聯說明」是 `formatConnection` 自動產生，使用者改任何欄位都即時更新（不可編輯） |
 
 ### 8.3 統一行為
 
 新增任務 / 閘道 / L3 活動的按鈕**統一加在後面**（不再有「在前面新增」選項）。
 
-**對應實作**：`src/components/DiagramRenderer/`（圖上互動）、`src/components/FlowEditor/`（drawer + ContextMenu）、`src/hooks/`（`useDragReorder`）、`src/components/`（`HelpPanel` EDITABLE_ACTIONS array）
+**對應實作**：`src/components/DiagramRenderer/`（圖上互動）、`src/components/FlowEditor/`（drawer + ContextMenu + TaskCard Row 2 元件類型 select）、`src/components/reorderButtons.jsx`（`ReorderButtons` ▲ ▼ 元件 + `moveItem` helper，2026-04-30 取代 HTML5 drag）、`src/components/`（`HelpPanel` EDITABLE_ACTIONS array）
 
 ---
 
