@@ -15,16 +15,12 @@
 - **V. 儲存事件閃亮提醒**（使用者：「新增儲存事件閃亮亮動態提醒」）— 儲存按鈕被按下後加 logo 閃光 / 按鈕短暫變綠等視覺回饋（取代原 J「儲存提醒優化」的待選方向）
 - **C. Phase 3.5 gateway obstacle avoidance**（`src/diagram/layout/`）— 閘道作為跨列 forward obstacle 時走 vertical-detour
 - ~~**N. 泳道角色拖曳視覺提示**~~ — **OBSOLETED 2026-04-30**：HTML5 drag 整個被砍（PR #112 改用 ▲ ▼ 按鈕），`useDragReorder` / DropLine 都不存在了。如果使用者真的有跨欄移動需求，再以「跳到位置 N」`<input type="number">` 補強
-- **Y. tooltip 上編輯既有閘道分流條件**（使用者：「各種閘道：要可以在 tooltip 上編輯分流點」）— T 已做新增閘道時的條件標籤輸入；本項補**既有閘道**的 inline 編輯。動到 `ContextMenu`：對既有閘道展開 sub-form 加 label inputs，state 寫回 `task.connections[].label`
-- **Z. 閘道 fork + merge 自動填入任務關聯說明**（使用者：「閘道的自動填入說明，新增填入任務關聯說明欄的『條件分支、並行分支、包容分支』」+「條件合併、包容合併、並行合併也要出現在任務關聯說明，看能不能自動補」）— `src/model/connectionFormat.js` `formatConnection` 已能產生對應字串，但**任務關聯說明欄**（task.description / task.notes）目前不自動寫入；要在 `taskDefs.applyConnectionType` 或 save flow 時 sync。注意：使用者手動編輯過的 description 不能被覆蓋
-- **AA. 新增任務時自動帶入泳道角色**（使用者：「在哪裡點新增任務，就會自動帶入該泳道角色，無主的自動放當下泳道第一個角色」）— `src/components/FlowEditor/useFlowActions.js` `addTask` / `addTaskAfter` 加 default `roleId` 邏輯：若呼叫端有上下文（例 ContextMenu 在某泳道按右鍵）→ 該泳道；否則 → `flow.roles[0].id`
 - **AC. 複製整個 L3 工作流**（使用者：「可以在頁面上複製一整個工作流」）— Dashboard 卡片加「複製」按鈕，複製後產生新 flow（編號自動 +1 或讓使用者改），tasks / roles / connections 全套複製。動到 `Dashboard` + `src/utils/storage.js` 加 `cloneFlow` 函式
 
 ## 規格待確認、不能直接動手
 
 - **F. Excel 部分匯入**（使用者：「只匯入＋覆蓋 excel 部分內容欄位、或自動略過部分欄位」）— 單一欄位 / 部分行覆蓋邏輯
 - **G. 匯出圖等比寬度**（使用者：「匯出的圖檔要符合 ISO 文件適用寬度」）— PNG 匯出規格 / ISO A4 等比
-- **AB. 任務連線到閘道自動新增分支欄位**（使用者：「任務也可以藉由連線連到閘道，自動新增分支欄位（待確認）」）— 拖曳連線端點到既有閘道時，閘道會自動加一條分支條件欄位。需先確認規格：(1) 加完之後 label 留空還是給預設值（推測「分支 N」）(2) merge 閘道也適用嗎（推測不適用，merge 沒分支條件）(3) 多個 source 連到同個 fork 閘道時行為
 
 ## Nice-to-have / 有空再修
 
