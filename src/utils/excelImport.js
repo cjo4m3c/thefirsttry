@@ -4,12 +4,14 @@ import {
   L3_NUMBER_PATTERN, L4_NUMBER_PATTERN,
   L4_START_PATTERN, L4_END_PATTERN,
   L4_GATEWAY_PATTERN, L4_SUBPROCESS_PATTERN,
+  computeDisplayLabels,
 } from './taskDefs.js';
 import {
   parseConnection,
   detectGatewayFromText,
 } from '../model/connectionFormat.js';
 import { validateFlow } from '../model/validation.js';
+import { getTaskIncoming } from '../model/flowSelectors.js';
 
 // Backward-compat alias — use parseConnection in new code.
 export const parseFlowAnnotations = parseConnection;
@@ -338,6 +340,77 @@ function collectGatewayChainWarnings(allRows) {
   return warnings;
 }
 
+/**
+ * Auto-fix stored l4Number per spec §2 (post-2026-04-29 rules).
+ *
+ * Strategy: strip every task.l4Number, run computeDisplayLabels in fully-
+ * generated mode (auto sequential 1..N for regular tasks; -0 / -99 for
+ * start/end; `_g` / `_g1+_g2+...` for gateways; `_s` / `_s1+_s2+...` for
+ * subprocesses), then compare to the original and write back the
+ * normalized number. Differences become user-visible warnings on the
+ * import banner.
+ *
+ * Why strip first: computeDisplayLabels respects stored l4Number when
+ * present, so leaving the user's possibly-wrong value in place would just
+ * pass it through unchanged. Stripping forces it to recompute, which is
+ * exactly the "正規化" behavior we want.
+ *
+ * Returns { tasks: normalizedTasks, fixes: [{ before, after, name }] }.
+ */
+function normalizeL4Numbers(tasks, l3Number) {
+  const stripped = tasks.map(t => {
+    if (!t.l4Number) return t;
+    const { l4Number, ...rest } = t;
+    return rest;
+  });
+  const generated = computeDisplayLabels(stripped, l3Number);
+  const fixes = [];
+  const next = tasks.map(t => {
+    const expected = generated[t.id];
+    if (expected && t.l4Number && t.l4Number !== expected) {
+      fixes.push({ before: t.l4Number, after: expected, name: t.name || '（未命名）' });
+      return { ...t, l4Number: expected };
+    }
+    if (!t.l4Number && expected) {
+      // Synthetic start/end (no l4Number on Excel row) — fill it in.
+      return { ...t, l4Number: expected };
+    }
+    return t;
+  });
+  return { tasks: next, fixes };
+}
+
+/**
+ * Detect tasks whose Excel flowAnnotation declares a merge ("並行合併" /
+ * "條件合併" / "包容合併") but whose graph incoming-edge count is < 2 —
+ * meaning the source tasks didn't actually point at this merge target.
+ * formatConnection auto-derives merge text from incoming, so without
+ * the wiring the rendered annotation will be empty / wrong.
+ *
+ * Common cause: Excel uses the legacy "X合併來自多個分支，序列流向 Z"
+ * wording without listing the source numbers, and the source tasks'
+ * 任務關聯說明 didn't reference Z. Importer can't infer the missing
+ * sources, so it warns the user to manually add "序列流向 Z" on each
+ * source row (or remove the merge wording if it was wrong).
+ */
+function collectMergeIncomingWarnings(tasks, l3Number, l4Map) {
+  const incomingCount = getTaskIncoming(tasks);
+  const warnings = [];
+  const MERGE_RE = /(?:並行|條件|包容)合併/;
+  tasks.forEach(t => {
+    const text = t.flowAnnotation || '';
+    if (!MERGE_RE.test(text)) return;
+    const incoming = incomingCount[t.id] || 0;
+    if (incoming < 2) {
+      const num = l4Map[t.id] || t.l4Number || '';
+      warnings.push(
+        `[L3 ${l3Number}] 任務「${t.name || '（未命名）'}」(${num}) 標記為合併目標，但實際只有 ${incoming} 個前置任務指向。請補上 source 任務「序列流向 ${num}」，或檢查連線是否正確。`
+      );
+    }
+  });
+  return warnings;
+}
+
 export function parseExcelToFlow(arrayBuffer) {
   const workbook  = XLSX.read(arrayBuffer, { type: 'array' });
   const sheet     = workbook.Sheets[workbook.SheetNames[0]];
@@ -376,6 +449,31 @@ export function parseExcelToFlow(arrayBuffer) {
 
   const flows = groups.map(buildFlow);
 
+  // 2026-04-29: Auto-normalize l4Number to match spec §2 (順號從 1 起;
+  // 連續 _g1/_g2 vs single _g; same for _s). Collect every change and
+  // surface them as warnings so the user sees what was auto-adjusted.
+  const normalizeWarnings = [];
+  flows.forEach(flow => {
+    const { tasks, fixes } = normalizeL4Numbers(flow.tasks, flow.l3Number);
+    flow.tasks = tasks;
+    if (fixes.length > 0) {
+      const pfx = flows.length > 1 ? `[L3 ${flow.l3Number}] ` : '';
+      normalizeWarnings.push(`${pfx}已自動調整 ${fixes.length} 個 L4 編號以符合規則：`);
+      fixes.forEach(f => {
+        normalizeWarnings.push(`  • 「${f.name}」 ${f.before} → ${f.after}`);
+      });
+    }
+  });
+
+  // 2026-04-29: Detect merge-target tasks whose incoming wiring is missing,
+  // typically because the Excel used the legacy "X合併來自多個分支" wording
+  // without listing source numbers. formatConnection now derives the merge
+  // text from incoming edges, so missing wiring → empty / wrong rendering.
+  const mergeWarnings = flows.flatMap(flow => {
+    const l4Map = computeDisplayLabels(flow.tasks, flow.l3Number);
+    return collectMergeIncomingWarnings(flow.tasks, flow.l3Number, l4Map);
+  });
+
   // PR-7: surface model-layer validation warnings on the Dashboard banner
   // since import skips the editor's save gate. Blocking-tier prefixed with
   // ❌; multi-L3 imports prefix each line with the L3 number.
@@ -385,5 +483,8 @@ export function parseExcelToFlow(arrayBuffer) {
     return [...vB.map(b => `${pfx}❌ ${b}`), ...vW.map(w => `${pfx}${w}`)];
   });
 
-  return { flows, warnings: [...warnings, ...validationLines] };
+  return {
+    flows,
+    warnings: [...normalizeWarnings, ...mergeWarnings, ...warnings, ...validationLines],
+  };
 }
