@@ -11,11 +11,18 @@ import { generateId } from '../../../utils/storage.js';
  */
 export function makeConverterActions({ liveFlow, patch }) {
   // Insert "其他" element types (start / end / breakpoint / interaction) after
-  // anchor. Same insertion pattern as addTaskAfter but with type-specific
-  // overrides. Roles inherit anchor's roleId. Connection rewiring:
-  //   - start: takes anchor's downstream as its outgoing
-  //   - end / breakpoint: no outgoing; anchor's downstream is dropped
-  //   - interaction: same as addTaskAfter (anchor → new → old downstream)
+  // anchor. Insertion + rewiring depends on the kind:
+  //   - start: NEW (PR-A 2026-04-30) — appended without rewiring anchor.
+  //     Start nodes must have no incoming per BPMN; the previous behavior
+  //     made anchor → newStart which violated that invariant + bypassed the
+  //     "1 start only" warning. User wires the new start manually.
+  //   - end / breakpoint: anchor → new (no outgoing); anchor's downstream
+  //     is dropped.
+  //   - interaction: anchor → new → old downstream. shape derived from the
+  //     anchor's lane role.type — external lane gets shapeType='interaction',
+  //     internal lane silently downgrades to shapeType='task' so the lane
+  //     auto-sync invariant (PR #119) holds. Moving the task to an external
+  //     lane later promotes it to interaction via syncTasksToRoles.
   // `name` is optional; when provided it's set on the new task so the editor's
   // InsertPicker can ship "name + type" together in a single create.
   function addOtherAfter(anchorId, kind, name = '') {
@@ -25,10 +32,11 @@ export function makeConverterActions({ liveFlow, patch }) {
     const downstream = (anchor.nextTaskIds || []).filter(Boolean);
     let overrides;
     if (kind === 'start') {
+      // No anchor rewire — new start is orphan until user wires it.
       overrides = {
         type: 'start', shapeType: 'task', connectionType: 'start',
         roleId: anchor.roleId || '',
-        nextTaskIds: downstream.length ? [downstream[0]] : [''],
+        nextTaskIds: [''],
       };
     } else if (kind === 'end') {
       overrides = {
@@ -41,8 +49,12 @@ export function makeConverterActions({ liveFlow, patch }) {
         roleId: anchor.roleId || '', nextTaskIds: [],
       };
     } else if (kind === 'interaction') {
+      const anchorRole = (liveFlow.roles || []).find(r => r.id === anchor.roleId);
+      const isExternalLane = anchorRole?.type === 'external';
       overrides = {
-        type: 'task', shapeType: 'interaction', connectionType: 'sequence',
+        type: 'task',
+        shapeType: isExternalLane ? 'interaction' : 'task',
+        connectionType: 'sequence',
         roleId: anchor.roleId || '',
         nextTaskIds: downstream.length ? [downstream[0]] : [''],
       };
@@ -50,9 +62,14 @@ export function makeConverterActions({ liveFlow, patch }) {
       return;
     }
     const newTask = makeTask({ ...overrides, name: name || '' });
-    const rewired = liveFlow.tasks.map(t =>
-      t.id === anchorId ? { ...t, nextTaskIds: [newTask.id] } : t
-    );
+    // Skip rewire for start (it must have no incoming). All other kinds
+    // continue to wire anchor → newTask.
+    const rewireAnchor = kind !== 'start';
+    const rewired = rewireAnchor
+      ? liveFlow.tasks.map(t =>
+          t.id === anchorId ? { ...t, nextTaskIds: [newTask.id] } : t
+        )
+      : liveFlow.tasks;
     const next = [...rewired];
     next.splice(idx + 1, 0, newTask);
     const renumbered = next.map(t => {

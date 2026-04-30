@@ -47,6 +47,12 @@ export function validateFlow(flow) {
   startTasks.forEach(s => {
     const outs = (s.nextTaskIds || []).filter(Boolean);
     if (outs.length === 0) blocking.push('「流程開始」必須連接到其他任務元件');
+    // PR-A 2026-04-30: start must have NO incoming. Backstops the
+    // converters fix (P1-1) — if any other code path sneaks an incoming
+    // edge onto a start, save is blocked.
+    if (incoming[s.id] > 0) {
+      blocking.push(`「流程開始」「${s.name || '（未命名）'}」不能有任何元件連接到它（BPMN 規定）`);
+    }
   });
   endTasks.forEach(e => {
     if (!(incoming[e.id] > 0)) blocking.push('「流程結束」/「流程斷點」必須有其他任務連接到它');

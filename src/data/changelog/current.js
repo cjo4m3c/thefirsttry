@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-04-30',
+    title: 'PR-A：修兩個資料模型 bug — 新建 start 不能有 incoming / 新建 interaction 由 lane 決定 shape',
+    items: [
+      '**緣由**：使用者轉貼 code review，4 個 finding 中的 P1-1 + P1-3 是真實資料模型 bug — 新建立的元件直接違反系統其他層假設的 invariant（BPMN start no-incoming、PR #119 lane-driven shape）。Refactor 路徑 PR-A，先修兩個資料 bug，後續 PR-B/-C/-D 才做擴充性 refactor。',
+      '**P1-1 修法（`useFlowActions/converters.js addOtherAfter`）**：原本 `kind === \'start\'` 也走 `anchor.nextTaskIds = [newStart.id]` 的 rewire branch → start 永遠有 incoming edge，違反 BPMN「流程開始為入口節點」規定。改成：(a) start 不 rewire anchor、(b) `nextTaskIds = [\'\']`（孤兒，使用者手動接線）、(c) `rewireAnchor = kind !== \'start\'` 控制下方 rewire 邏輯。',
+      '**Validation 補強（backstop）**：`model/validation.js` 加新 blocking rule — 任何 start 若 `incoming[id] > 0` 直接擋儲存，跳訊息「流程開始 X 不能有任何元件連接到它（BPMN 規定）」。即使其他 code path 未來偷渡 incoming 也擋得住。`helpPanelData.js` VALIDATION 同步加對應條目。',
+      '**P1-3 修法（同檔 interaction branch）**：原本 `kind === \'interaction\'` 直接 hard-code `shapeType=\'interaction\'` + 沿用 `anchor.roleId` — 若 anchor 在內部泳道，產生的 task 會是 `roleId=internal-lane + shapeType=interaction`，違反 PR #119 的 lane-sync invariant（external lane → interaction、internal lane → task）。改成：先 lookup `anchor.roleId` 對應的 role，是 external 才用 `interaction`，是 internal（或無 role）就 silently 降成 `task`。使用者後續把任務拖到外部泳道會自動 sync 回 interaction（既有 PR #119 邏輯）。',
+      '**動到的檔案（4 個）**：`src/components/FlowEditor/useFlowActions/converters.js`（兩個 branch + 新增 `rewireAnchor` flag）/ `src/model/validation.js`（新 blocking rule）/ `src/data/helpPanelData.js`（VALIDATION 條目）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) tooltip / InsertPicker 新增「開始事件」→ 新 start 為孤兒、anchor 不再被 rewire ✓ (b) 試圖儲存有 incoming edge 的 start → 跳 blocking ✓ (c) 在內部泳道 anchor 上新增「外部互動」→ 產生 `shapeType=task`（不違反 invariant），把它拖到外部泳道後 auto-promote 成 interaction ✓ (d) 在外部泳道 anchor 上新增「外部互動」→ 直接 `shapeType=interaction` ✓',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: '新增閘道操作拉齊：tooltip / 編輯器都可從預設 2 條擴充到 N 條分支',
     items: [
       '**緣由**：使用者：「我希望拉齊新增閘道的操作：(1) 在tooltip 新增閘道時，預設增加兩條線，但是使用者也可以像編輯器操作一樣，可以自行新增多條 (2) 在編輯器中，點選新增閘道後預設就會增加兩個條件編輯列，使用者也依樣可以自行新增多條」。對應 backlog 條目 U「插入閘道操作邏輯拉齊」。',

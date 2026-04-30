@@ -115,6 +115,11 @@ export const VALIDATION = [
   },
   {
     tier: 'blocking',
+    rule: '開始事件不能被連接（不可有 incoming）',
+    detail: 'BPMN 規定：「流程開始」是流程入口，不可有任何元件連接到它。違反時擋下儲存。新建立的開始事件不會被自動串接到既有節點，使用者要手動設定它的下一步。',
+  },
+  {
+    tier: 'blocking',
     rule: '結束事件必須有其他任務連接到它',
     detail: '「流程結束」/「流程斷點」節點的 incoming 不能為空，否則無法儲存。',
   },
