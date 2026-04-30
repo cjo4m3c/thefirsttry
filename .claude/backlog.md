@@ -44,6 +44,8 @@
 - **PR #111**：TaskCard Row 2 統一為「元件類型」單一選單（8 種跟 InsertPicker 一致：L4 任務 / 排他 / 並行 / 包容 閘道 / 開始 / 結束 / L3 / 外部互動）；新增 `src/utils/elementTypes.js` 純函式（`detectElementKind` / `makeTypeChange`）；修閘道命名 bug（GatewaySubForm 「條件 ◇×」→「排他 ◇×」、legend 「闘道」typo → 「閘道」）
 - **PR #112**：拖曳排序砍掉重來，HTML5 drag → ▲ ▼ 按鈕。三度修都失敗（#104 / #106 / #108），改方案二零 deps、100% 可靠、accessibility 友善，淨減 113 行 fragile code
 - **PR #113**：規則文件 / changelog / HANDOVER / README 同步到 PR #110-112 最新狀態；HelpPanel 移除「連線規則」段落（連線型態現由元件類型自動衍生，使用者不需手動選）
+- **PR #114**：CLAUDE.md §8 加 step 6 — 開 PR 後立即 `subscribe_pr_activity`，無須再問使用者（使用者：「未來 pr 後都要追蹤 ci」）；本 repo `deploy.yml` 只在 main push 觸發，PR-level check_runs = 0 屬正常；deploy 失敗開 fix-forward PR，不 revert
+- **PR #115**：TaskCard 佈局收緊 — col 2 從 `w-[120px]` → `w-24`（省 24px 給 col 3+4）+ ConnectionSection Row 3 五種單目標型態砍 col-3 spacer（target select 跨 col 3+4，消除「下一步 →」後面空白）+ 兩個 label 縮短避免被 truncate（「子流程 L3 編號」→「L3 編號」、「迴圈返回至 ↺」→「返回至 ↺」）
 
 ## 已完成（2026-04-28 至 2026-04-29 出清）
 
