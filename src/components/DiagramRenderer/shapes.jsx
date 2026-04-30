@@ -48,7 +48,7 @@ export function TaskShape({ task, pos, l4Number, isHovered }) {
       <L4Number number={l4Number} cx={cx} y={y} />
       <rect x={x} y={y} width={NODE_W} height={NODE_H}
         fill={fill} stroke={stroke} strokeWidth={strokeW} rx={3} />
-      <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={7} lineH={14} />
+      <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={7} lineH={24} />
     </>
   );
 }

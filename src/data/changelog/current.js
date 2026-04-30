@@ -6,6 +6,21 @@
 export default [
   {
     date: '2026-04-30',
+    title: '流程圖文字 UI 微調：任務元件行距 / 條件分支標籤白底寬度 / L4 編號白底',
+    items: [
+      '**緣由**：使用者提了 3 個 UI 問題：(1) 任務元件三行字擠在一起、中英文混排特別擠 (2) 條件分支連線上的標籤白底太大（固定 40×22px）跟字長不匹配 (3) 任務元件上方端點有線連入/連出時，編號文字直接被線穿過去看不清楚。',
+      '**問題 1 root cause**：`shapes.jsx:51` TaskShape 用 `lineH={14}` 但 fontSize 預設 16，ratio = 0.875（< 1.0 等於行距小於字高），三行會疊在一起。同檔其他 shape（L3 / Gateway）都用 22-32（1.4-2.0 ratio）— 這是 outlier bug。',
+      '**問題 1 修法**：(a) `lineH` 14 → 24（fontSize 16 × 1.5 ratio，跟使用者建議一致）(b) `SvgLabel` 加 `letterSpacing="0.02em"` 讓中英文混排稍微鬆一點。NODE_H=84 容得下 3 行 × 24px lineH + glyph height（總高 ~64px，餘 20px padding 上下平分）。',
+      '**問題 2 root cause**：`arrows.jsx:99` `<rect x={labelPt[0] - 20} ... width={40} height={22}>` 是固定 40×22 slab — 短 label（例「Y」單字）右半邊一片空白、長 label（例「條件 A」）會被裁掉。',
+      '**問題 2 修法**：抽 `estimateTextWidth(text, fontSize)` 純函式放到 `text.jsx`（CJK ~1× fontSize、Latin ~0.55×），arrows.jsx 改用 `labelW = estimateTextWidth(label, 14) + 8`、`labelH = fontSize + 4`。短長 label 都剛好包字。',
+      '**問題 3 root cause**：`L4Number` 只有 `<text>` 沒 background。任務上方端點是進/出口時，連線會經過編號文字所在區域（`y - 7` ≈ rect 上方 7px），線跟字直接重疊。雖然 paint order 上 L4Number 在 arrow 之上（`TasksLayer` 渲染在 connections 之後），但缺底色等於透明，使用者眼睛仍會被線干擾。',
+      '**問題 3 修法**：`L4Number` 加白底 pill（`<g>` + `<rect>` + `<text>`），width 用 `estimateTextWidth(number, 14) + 8`、height = 18，opacity 0.9。配合既有的 paint order（ConnectionArrow → TasksLayer），底色直接遮住下方線段，編號文字清晰可讀。',
+      '**動到的檔案（4 個）**：`src/components/DiagramRenderer/text.jsx`（+`estimateTextWidth` helper / `SvgLabel` 加 letterSpacing / `L4Number` 加白底 pill）/ `src/components/DiagramRenderer/shapes.jsx`（TaskShape lineH 14→24）/ `src/components/DiagramRenderer/arrows.jsx`（edge label 動態寬度）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 任務元件 3 行中英混排（例「提供計算Risk shipment及當月出貨達成狀況」）行距明顯拉開、字元間距微鬆 ✓ (b) 條件分支標籤「Y」「N」短字白底窄、長字「條件 A」白底寬，都剛好包住文字 ✓ (c) 任務上方端點有箭頭進出時，編號白底擋住線段，文字清晰可讀 ✓',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: '交接文件全面整理：HANDOVER / README / CLAUDE.md / orphans 同步到當前 main 狀態',
     items: [
       '**緣由**：使用者：「請檢查所有的交接檔案都有在最新，確保下一個人要看的時候完全知道怎麼操作，可以從0開始無縫接手」+「業務規則主檔、change log 也要在最新喔」。今日 8 個 PR（#114-#121）merge 後，多份交接文件還停留在 4/29 之前的狀態，新接手者讀會 broken。',

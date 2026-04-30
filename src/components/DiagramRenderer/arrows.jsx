@@ -1,5 +1,6 @@
 import { COLORS } from '../../diagram/constants.js';
 import { routeArrow } from '../../diagram/layout.js';
+import { estimateTextWidth } from './text.jsx';
 
 // PR H: red stroke / marker for override-induced violations.
 const VIOLATION_STROKE = '#EF4444';  // Tailwind red-500
@@ -94,17 +95,26 @@ export function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredCo
       <polyline points={pointsStr} fill="none" stroke="transparent" strokeWidth={10} />
       <polyline points={pointsStr} fill="none" stroke={strokeColor}
         strokeWidth={strokeW} markerEnd={`url(#${markerId})`} />
-      {conn.label && (
-        <>
-          <rect x={labelPt[0] - 20} y={labelPt[1] - 12} width={40} height={22}
-            fill={COLORS.ARROW_LABEL_BG} opacity={0.85} rx={2} />
-          <text x={labelPt[0]} y={labelPt[1]} textAnchor="middle" dominantBaseline="middle"
-            fontSize={14} fill={COLORS.ARROW_COLOR}
-            fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
-            {conn.label}
-          </text>
-        </>
-      )}
+      {conn.label && (() => {
+        // Bg width hugs the rendered text instead of a fixed 40px slab —
+        // long labels stop being clipped, short ones stop having a tail
+        // of empty white. Padding 4px each side, height = fontSize + 4.
+        const fontSize = 14;
+        const labelW = estimateTextWidth(conn.label, fontSize) + 8;
+        const labelH = fontSize + 4;
+        return (
+          <>
+            <rect x={labelPt[0] - labelW / 2} y={labelPt[1] - labelH / 2}
+              width={labelW} height={labelH}
+              fill={COLORS.ARROW_LABEL_BG} opacity={0.9} rx={2} />
+            <text x={labelPt[0]} y={labelPt[1]} textAnchor="middle" dominantBaseline="middle"
+              fontSize={fontSize} fill={COLORS.ARROW_COLOR}
+              fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
+              {conn.label}
+            </text>
+          </>
+        );
+      })()}
     </g>
   );
 }
