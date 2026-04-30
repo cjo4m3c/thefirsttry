@@ -13,7 +13,7 @@ import FlowTable from '../FlowTable.jsx';
 import BackToTop from '../BackToTop.jsx';
 import RightDrawer from '../RightDrawer.jsx';
 import ContextMenu from '../ContextMenu.jsx';
-import { useDragReorder } from '../dragReorder.jsx';
+import { moveItem } from '../reorderButtons.jsx';
 import {
   normalizeTask, applySequentialDefaults, computeDisplayLabels,
 } from '../../utils/taskDefs.js';
@@ -71,30 +71,28 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     setHasChanges(true);
   }
 
-  const taskDrag = useDragReorder(
-    liveFlow.tasks,
-    newTasks => {
-      // Drop stored l4Number on reorder so computeDisplayLabels falls back
-      // to its sequential auto-generation. Otherwise imported tasks keep
-      // their original numbers and don't re-sequence with the new order
-      // (e.g. dragging a new task between imported 5-1-1-1 and 5-1-1-2
-      // would still show NEW=5-1-1-4, B=5-1-1-1 — order ≠ numbers).
-      const renumbered = newTasks.map(t => {
-        if (!t.l4Number) return t;
-        const { l4Number, ...rest } = t;
-        return rest;
-      });
-      patch({ tasks: applySequentialDefaults(renumbered) });
-    }
-  );
-
-  // Separate hook instance for the role list inside the drawer's "roles"
-  // tab. Reorder = swimlane top-to-bottom order; no extra side effects
-  // (task.roleId is stable UUID-based, unaffected by lane index).
-  const roleDrag = useDragReorder(
-    liveFlow.roles || [],
-    newRoles => patch({ roles: newRoles })
-  );
+  // Reorder via ▲ ▼ buttons (replaced HTML5 drag 2026-04-30 — see
+  // src/components/reorderButtons.jsx for the rationale). On task reorder
+  // we strip stored l4Number so computeDisplayLabels re-sequences (without
+  // this, imported tasks keep their original numbers and the visible order
+  // diverges from the numbering — e.g. moving a new task between imported
+  // 5-1-1-1 and 5-1-1-2 would still show NEW=5-1-1-4 + B=5-1-1-1).
+  function moveTask(idx, dir) {
+    const next = moveItem(liveFlow.tasks, idx, dir);
+    if (next === liveFlow.tasks) return;
+    const renumbered = next.map(t => {
+      if (!t.l4Number) return t;
+      const { l4Number, ...rest } = t;
+      return rest;
+    });
+    patch({ tasks: applySequentialDefaults(renumbered) });
+  }
+  function moveRole(idx, dir) {
+    const arr = liveFlow.roles || [];
+    const next = moveItem(arr, idx, dir);
+    if (next === arr) return;
+    patch({ roles: next });
+  }
 
   // All graph mutations (addTask, addTaskAfter, insertGatewayAfter, ...)
   const actions = useFlowActions({ liveFlow, patch });
@@ -180,7 +178,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
       >
         <DrawerContent
           activeTab={drawerTab} liveFlow={liveFlow} displayLabels={displayLabels}
-          taskDrag={taskDrag} roleDrag={roleDrag}
+          onMoveTask={moveTask} onMoveRole={moveRole}
           onPatch={patch}
           onUpdateTask={actions.updateTask} onRemoveTask={actions.removeTask}
           onAddTaskAt={(index) => {

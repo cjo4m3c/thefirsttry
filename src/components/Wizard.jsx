@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { generateId } from '../utils/storage.js';
-import { useDragReorder, DragHandle } from './dragReorder.jsx';
+import { ReorderButtons, moveItem } from './reorderButtons.jsx';
 import {
   makeRole, makeTask,
   applySequentialDefaults,
@@ -88,12 +88,13 @@ function Step1({ data, onChange }) {
   );
 }
 
-// ── Step 2: Roles (with drag-and-drop) ──────────────────────────
+// ── Step 2: Roles (reorder via ▲ ▼ buttons) ─────────────────────
 function Step2({ data, onChange }) {
-  const { dragIdx, overIdx, dropAfter, rowProps } = useDragReorder(
-    data.roles,
-    newRoles => onChange({ roles: newRoles })
-  );
+  function moveRole(idx, dir) {
+    const next = moveItem(data.roles, idx, dir);
+    if (next === data.roles) return;
+    onChange({ roles: next });
+  }
 
   function addRole() { onChange({ roles: [...data.roles, makeRole()] }); }
   function removeRole(id) {
@@ -109,20 +110,17 @@ function Step2({ data, onChange }) {
       <h2 className="text-2xl font-bold text-gray-800 mb-1">泳道角色設定</h2>
       <p className="text-base text-gray-500 mb-2">設定流程中的參與角色（至少 1 個）</p>
       <p className="text-sm text-gray-400 mb-5 flex items-center gap-1">
-        <span className="text-gray-400">⠿</span> 可用滑鼠拖曳左側圓點改變泳道順序（由上到下）
+        點左側 ▲ ▼ 改變泳道順序（由上到下）
       </p>
 
       <div className="flex flex-col gap-2">
         {data.roles.map((role, i) => (
           <div
             key={role.id}
-            {...rowProps(i)}
-            className={`flex items-center gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none
-              ${dragIdx === i ? 'opacity-40 scale-95' : ''}
-              ${overIdx === i && dragIdx !== i
-                ? (dropAfter ? 'border-b-2 border-blue-500' : 'border-t-2 border-blue-500')
-                : 'border-gray-200'}`}>
-            <DragHandle />
+            className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg select-none">
+            <ReorderButtons
+              canUp={i > 0} canDown={i < data.roles.length - 1}
+              onUp={() => moveRole(i, -1)} onDown={() => moveRole(i, +1)} />
             <span className="text-sm text-gray-400 w-4 flex-shrink-0">#{i + 1}</span>
             <input type="text" placeholder="角色名稱" value={role.name}
               onChange={e => updateRole(role.id, 'name', e.target.value)}

@@ -6,6 +6,22 @@
 export default [
   {
     date: '2026-04-30',
+    title: '編輯器：拖曳改順序改用 ▲ ▼ 按鈕（HTML5 drag 三度修不好，砍掉重來）',
+    items: [
+      '**緣由**：使用者：「現在編輯器內拖曳功能還是不能用，我想討論看看哪種比較好操作和好維運。方案一：拖曳修到好，操作最直覺。方案二：使用者點擊任務編輯區塊後，可以由使用者自己點選向上移動或向下移動。」三次修 HTML5 native drag（PR #104 拆 rowProps/handleProps、PR #106 SVG pointer-events、PR #108 SVG → div+spans）依然在不同瀏覽器 / 觸控裝置 / Tailwind 版本碰到 edge case，使用者實測仍不能用。判斷 HTML5 drag 在含 `<input>` / `<select>` 的 row 裡本質上不可靠，砍掉重來。',
+      '**選方案二（▲ ▼ 按鈕）的理由**：(1) 100% 可靠跨瀏覽器 / 觸控 / 鍵盤 (2) 零 deps（不引入 @dnd-kit ~30KB）(3) 砍掉 ~80 行 fragile drag plumbing（dragIdx / overIdx / dropAfter state、DropLine 渲染、rowProps/handleProps split、useDragReorder hook 全砍）(4) accessibility 預設友善 (5) 觸控裝置友善（手機平板拖曳本來就笨）。代價是「跨多列移動需多次點擊」，但 L3 流程通常 5-10 個任務，兩三點不是問題。',
+      '**Step 1 — 新增 `src/components/reorderButtons.jsx`**：`ReorderButtons` 元件兩顆堆疊 ▲ ▼，用 `disabled={!canUp/canDown}` 在列表頭尾灰掉。佔 w-5 同 slot 維持 5-col 對齊。`moveItem(items, fromIdx, dir)` 純函式 helper：算 toIdx，越界回原 array（no-op），其餘 splice 後回新 array。',
+      '**Step 2 — `FlowEditor/index.jsx` 砍 useDragReorder**：兩個 hook instance（taskDrag / roleDrag）整段砍，換成 `moveTask(idx, dir)` / `moveRole(idx, dir)` callback。`moveTask` 保留 strip stored l4Number 邏輯（讓 computeDisplayLabels 重排）。',
+      '**Step 3 — `DrawerContent.jsx` 砍 drag plumbing**：移除 dragIdx/overIdx/dropAfter 推導、DropLine 元件、isDragging 守衛（拖曳時隱藏 InsertSlot 的邏輯不再需要）、所有 rowProps/handleProps spread。task tab 改傳 `onMoveUp` / `onMoveDown` 給 TaskCard；role tab 直接 inline render `ReorderButtons`。',
+      '**Step 4 — `TaskCard.jsx` props 重整**：`dragHandlers` / `dragHandleProps` / `isDragging` / `dropEdge` 四個 prop 砍掉，換成 `canMoveUp` / `canMoveDown` / `onMoveUp` / `onMoveDown` 四個。Row 1 第一格 `<DragHandle ... />` → `<ReorderButtons canUp={canMoveUp} ... />`。`dropEdge` 樣式邏輯（border-t-2 / border-b-2 highlight）整段砍。',
+      '**Step 5 — `Wizard.jsx` Step 2 同樣換**：`useDragReorder` hook → `moveRole(idx, dir)` 函式（用 `moveItem` helper）。每 row 用 `<ReorderButtons />`。提示文字從「可拖曳左側圓點」→「點左側 ▲ ▼ 改變泳道順序」。',
+      '**Step 6 — 刪除 `src/components/dragReorder.jsx`**：此檔（109 行）整個沒人用了，刪除。',
+      '**動到的檔案（6 個）**：`src/components/reorderButtons.jsx`（新增）/ `src/components/dragReorder.jsx`（刪除）/ `src/components/FlowEditor/index.jsx`（useDragReorder → moveTask/moveRole）/ `src/components/FlowEditor/DrawerContent.jsx`（砍 drag plumbing）/ `src/components/FlowEditor/TaskCard.jsx`（drag props → move callbacks）/ `src/components/Wizard.jsx`（Step 2 改用 ReorderButtons）/ `src/data/changelog/current.js`（本條）。`build` 通過，bundle 略小（-0.6KB gzipped）。',
+      '**驗證情境**：(a) 編輯器任務列表 row 0 ▲ disabled、最後一列 ▼ disabled ✓ (b) 點 ▼ task 往下移一格、編號自動重排 ✓ (c) 角色 tab 同樣 ▲ ▼ 可改泳道順序 ✓ (d) Wizard Step 2 角色設定同樣可用 ✓ (e) 鍵盤 Tab 可聚焦到 ▲ ▼，Enter 觸發（accessibility）✓',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: '編輯器 TaskCard：Row 2 統一為「元件類型」單一選單；閘道命名一致性修正',
     items: [
       '**緣由**：使用者：「但是新增後顯示的元件編輯區塊，我希望拉齊操作的邏輯。在任務元件的第二列，是直接編輯對應「任務關聯說明」的內容，反而不能選擇「元件」，但是其實我們現在操作的邏輯都統一為選擇元件，例如選擇「排他閘道」，並且由系統自動填入排他閘道對應的任務關聯說明標準文字。」+「跟 InsertPicker 一致：任務 / 排他 / 並行 / 包容 / 開始 / 結束 / L3 / 外部互動。這之外，請也確保流程圖tooltip、編輯器中的名稱是一致的（現在也發現在tooltip新增閘道時，顯示的文字是「條件」而非正確的「排他」，請統一檢查）。」',
