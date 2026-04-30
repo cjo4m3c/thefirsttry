@@ -83,7 +83,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           mental model matches "選元件，系統填預設關聯文字" — one knob, not two. */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
         <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
-        <div className="w-24 flex-shrink-0 text-xs text-gray-500 pl-1">元件類型</div>
+        <div className="w-24 flex-shrink-0 text-sm text-gray-600 pl-1">元件類型</div>
 
         {/* col 3 + col 4: element-type select stretches across both cols
             so all 8 labels (some long: "L3 流程（子流程調用）") fit comfortably */}
