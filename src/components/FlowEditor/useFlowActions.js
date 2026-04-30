@@ -117,6 +117,48 @@ export function useFlowActions({ liveFlow, patch }) {
   // anchor → newL3 → (anchor's old nextTaskIds[0]).
   // L3 activity uses connectionType='subprocess', shapeType='l3activity',
   // and stores the called L3 number in `subprocessName`. Name = activity name.
+  // Rewire helper used by *Before insertion paths: every task that pointed
+  // at `oldId` (regular task.nextTaskIds AND gateway condition.nextTaskId)
+  // is redirected to `newId`. Pure — returns a new tasks array.
+  function rewireIncomingTo(tasks, oldId, newId) {
+    return tasks.map(t => {
+      if (t.type === 'gateway') {
+        const conds = (t.conditions || []).map(c =>
+          c.nextTaskId === oldId ? { ...c, nextTaskId: newId } : c
+        );
+        return { ...t, conditions: conds };
+      }
+      const nexts = (t.nextTaskIds || []).map(id => id === oldId ? newId : id);
+      return { ...t, nextTaskIds: nexts };
+    });
+  }
+
+  // L3 activity inserted *before* anchor:
+  //   (everyone who pointed at anchor) → newL3 → anchor
+  function addL3ActivityBefore(anchorId, l3Number = '', l3Name = '') {
+    const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
+    if (idx < 0) return;
+    const anchor = liveFlow.tasks[idx];
+    const newL3 = makeTask({
+      type: 'l3activity',
+      shapeType: 'l3activity',
+      connectionType: 'subprocess',
+      roleId: anchor.roleId || '',
+      name: l3Name || '',
+      subprocessName: l3Number || '',
+      nextTaskIds: [anchorId],
+    });
+    const rewired = rewireIncomingTo(liveFlow.tasks, anchorId, newL3.id);
+    const next = [...rewired];
+    next.splice(idx, 0, newL3);
+    const renumbered = next.map(t => {
+      if (!t.l4Number) return t;
+      const { l4Number, ...rest } = t;
+      return rest;
+    });
+    patch({ tasks: applySequentialDefaults(renumbered) });
+  }
+
   function addL3ActivityAfter(anchorId, l3Number = '', l3Name = '') {
     const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
     if (idx < 0) return;
@@ -138,6 +180,52 @@ export function useFlowActions({ liveFlow, patch }) {
     );
     const next = [...rewired];
     next.splice(idx + 1, 0, newL3);
+    const renumbered = next.map(t => {
+      if (!t.l4Number) return t;
+      const { l4Number, ...rest } = t;
+      return rest;
+    });
+    patch({ tasks: applySequentialDefaults(renumbered) });
+  }
+
+  // Gateway inserted *before* anchor:
+  //   (everyone who pointed at anchor) → gateway → branches as user picked.
+  // Doesn't auto-include anchor in branches — user supplies them explicitly.
+  function insertGatewayBefore(anchorId, gatewayType, ...rest) {
+    const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
+    if (idx < 0) return;
+    const anchor = liveFlow.tasks[idx];
+    const ctMap = {
+      xor: 'conditional-branch',
+      and: 'parallel-branch',
+      or:  'inclusive-branch',
+    };
+    let conditions;
+    if (rest.length === 1 && Array.isArray(rest[0])) {
+      conditions = rest[0].map(c => ({
+        id: generateId(),
+        label: c.label || '',
+        nextTaskId: c.targetId || '',
+      }));
+    } else {
+      const [targetId1, targetId2, label1 = '', label2 = ''] = rest;
+      conditions = [
+        { id: generateId(), label: label1 || '', nextTaskId: targetId1 || '' },
+        { id: generateId(), label: label2 || '', nextTaskId: targetId2 || '' },
+      ];
+    }
+    const newGateway = makeTask({
+      type: 'gateway',
+      gatewayType,
+      connectionType: ctMap[gatewayType] || 'conditional-branch',
+      roleId: anchor.roleId || '',
+      name: applyGatewayPrefix('', gatewayType),
+      conditions,
+      nextTaskIds: [],
+    });
+    const rewired = rewireIncomingTo(liveFlow.tasks, anchorId, newGateway.id);
+    const next = [...rewired];
+    next.splice(idx, 0, newGateway);
     const renumbered = next.map(t => {
       if (!t.l4Number) return t;
       const { l4Number, ...rest } = t;
@@ -362,7 +450,9 @@ export function useFlowActions({ liveFlow, patch }) {
     addTaskBefore,
     addTaskAfter,
     addConnection,
+    addL3ActivityBefore,
     addL3ActivityAfter,
+    insertGatewayBefore,
     insertGatewayAfter,
     removeTask,
     updateConnectionOverride,

@@ -143,5 +143,76 @@ export function makeConverterActions({ liveFlow, patch }) {
     });
   }
 
-  return { addOtherAfter, convertTaskType, wireConnectionThroughGateway };
+  // Insert "其他" element types *before* anchor — mirror of addOtherAfter
+  // for the top insert slot (PR-C 2026-04-30; previous shortcut routed
+  // index<=0 through addOtherAfter and produced the wrong visual order).
+  // Rewiring per kind:
+  //   - start: orphan (no rewire); user wires manually. Mirrors PR-A.
+  //   - end / breakpoint: orphan no-rewire (semantically odd to put end
+  //     before anything; we just splice without wiring).
+  //   - interaction: (everyone pointing at anchor) → new → anchor.
+  //     Shape derived from anchor lane role.type, same as addOtherAfter.
+  function addOtherBefore(anchorId, kind, name = '') {
+    const idx = liveFlow.tasks.findIndex(t => t.id === anchorId);
+    if (idx < 0) return;
+    const anchor = liveFlow.tasks[idx];
+    let overrides;
+    let rewire = false;
+    if (kind === 'start') {
+      overrides = {
+        type: 'start', shapeType: 'task', connectionType: 'start',
+        roleId: anchor.roleId || '',
+        nextTaskIds: [anchorId],
+      };
+    } else if (kind === 'end') {
+      overrides = {
+        type: 'end', shapeType: 'task', connectionType: 'end',
+        roleId: anchor.roleId || '', nextTaskIds: [],
+      };
+    } else if (kind === 'breakpoint') {
+      overrides = {
+        type: 'end', shapeType: 'task', connectionType: 'breakpoint',
+        roleId: anchor.roleId || '', nextTaskIds: [],
+      };
+    } else if (kind === 'interaction') {
+      const anchorRole = (liveFlow.roles || []).find(r => r.id === anchor.roleId);
+      const isExternalLane = anchorRole?.type === 'external';
+      overrides = {
+        type: 'task',
+        shapeType: isExternalLane ? 'interaction' : 'task',
+        connectionType: 'sequence',
+        roleId: anchor.roleId || '',
+        nextTaskIds: [anchorId],
+      };
+      rewire = true;
+    } else {
+      return;
+    }
+    const newTask = makeTask({ ...overrides, name: name || '' });
+    let tasks = liveFlow.tasks;
+    if (rewire) {
+      // Redirect every task that pointed at anchor to point at newTask
+      // (covers regular task.nextTaskIds and gateway conditions[].nextTaskId).
+      tasks = tasks.map(t => {
+        if (t.type === 'gateway') {
+          const conds = (t.conditions || []).map(c =>
+            c.nextTaskId === anchorId ? { ...c, nextTaskId: newTask.id } : c
+          );
+          return { ...t, conditions: conds };
+        }
+        const nexts = (t.nextTaskIds || []).map(id => id === anchorId ? newTask.id : id);
+        return { ...t, nextTaskIds: nexts };
+      });
+    }
+    const next = [...tasks];
+    next.splice(idx, 0, newTask);
+    const renumbered = next.map(t => {
+      if (!t.l4Number) return t;
+      const { l4Number, ...rest } = t;
+      return rest;
+    });
+    patch({ tasks: applySequentialDefaults(renumbered) });
+  }
+
+  return { addOtherBefore, addOtherAfter, convertTaskType, wireConnectionThroughGateway };
 }
