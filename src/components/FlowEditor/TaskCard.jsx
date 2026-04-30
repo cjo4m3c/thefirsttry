@@ -32,11 +32,20 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
         ${dropEdgeClass}`}
       style={{ background: rowBg }}>
 
-      {/* Row 1: drag + badge + role + name (wide) + actions */}
+      {/* All three rows share the same 5-column flex layout so columns
+          align vertically:
+            col 1: DragHandle / spacer       (w-5)
+            col 2: badge / Row 3 label       (w-[120px])
+            col 3: role / connection-type    (w-40)
+            col 4: name / shape-type / target select (flex-1 min-w-0)
+            col 5: action buttons / spacer   (w-14)  ← ▼ + ✕ 24+24+gap8 + safety
+          ConnectionSection inherits this layout via the wrapper below. */}
+
+      {/* Row 1: drag + badge + role + name + actions */}
       <div className="flex items-center gap-2 px-2 pt-2 min-w-0">
         <DragHandle {...(dragHandleProps || {})} />
 
-        {/* Badge / number */}
+        {/* col 2: Badge / number */}
         <div className="w-[120px] flex-shrink-0 flex items-center">
           {ct === 'sequence' && num ? (
             <span className="text-sm font-mono text-gray-500 font-semibold whitespace-nowrap">{num}</span>
@@ -48,59 +57,58 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           )}
         </div>
 
-        {/* Role — wider (was w-24=96px) so multi-CJK role names fit without
-            truncation while still leaving the badge column un-stretched. */}
+        {/* col 3: Role */}
         <select value={task.roleId} onChange={e => onUpdate({ ...task, roleId: e.target.value })}
           className="w-40 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
           <option value="">角色 *</option>
           {roles.filter(r => r.name).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
 
-        {/* Name — gets all the remaining width on Row 1 */}
+        {/* col 4: Name */}
         <input type="text" placeholder={nameOptional ? '名稱（選填）' : '任務名稱 *'}
           value={task.name} onChange={e => onUpdate({ ...task, name: e.target.value })}
           className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
 
-        {/* Expand / collapse detail fields */}
+        {/* col 5: actions (expand / remove) */}
         <button onClick={() => setExpanded(v => !v)}
           title={expanded ? '收合詳細欄位' : '展開詳細欄位'}
           className="w-6 flex-shrink-0 text-gray-400 hover:text-gray-600 text-base">
           {expanded ? '▲' : '▼'}
         </button>
-
-        {/* Remove */}
         <button onClick={onRemove} disabled={!canRemove}
           className="w-6 flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-base">✕</button>
       </div>
 
-      {/* Row 2: connection type + shape type (offset to align under name).
-          Spacer ≈ drag(~16) + gap(8) + badge w-[120] + gap(8) + role w-40(160) + gap(8) = 320.
-          Same spacer reused for the ConnectionSection row below so 序列流向
-          / 條件分支至 etc. line up under the task-name input. */}
+      {/* Row 2: connection type (col 3, aligns with role) + shape type (col 4,
+          aligns with name) */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
-        <div className="w-[300px] flex-shrink-0" aria-hidden="true" />
+        <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: drag spacer */}
+        <div className="w-[120px] flex-shrink-0" aria-hidden="true" />    {/* col 2: badge spacer */}
 
-        {/* Connection type */}
+        {/* col 3: Connection type (aligned with role) */}
         <select value={ct} onChange={e => onUpdate(applyConnectionType(task, e.target.value))}
-          className="w-32 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+          className="w-40 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
           {CONNECTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
 
-        {/* Shape type (sequence/subprocess only) */}
-        {showShape && (
+        {/* col 4: Shape type (aligned with name; sequence/subprocess only) */}
+        {showShape ? (
           <select value={task.shapeType || 'task'}
             onChange={e => { const st = e.target.value; onUpdate({ ...task, shapeType: st, type: st }); }}
-            className="w-24 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+            className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
             {SHAPE_TYPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
+        ) : (
+          <div className="flex-1 min-w-0" aria-hidden="true" />
         )}
       </div>
 
-      {/* Connection config — wrapped in the same spacer pattern as Row 2 so
-          the inner "序列流向 / 條件分支至 ..." controls line up under the
-          task-name input on Row 1. */}
+      {/* Row 3: Connection config — wrapper provides drag spacer; the inner
+          ConnectionSection lays out its own [label | optional mid | select]
+          using the same w-[120px] / w-40 / flex-1 pattern so labels align
+          with the badge column and the inputs align with the name column. */}
       <div className="flex items-start gap-2 px-2 pb-2.5 min-w-0">
-        <div className="w-[300px] flex-shrink-0" aria-hidden="true" />
+        <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: drag spacer */}
         <div className="flex-1 min-w-0">
           <ConnectionSection task={task} allTasks={allTasks} displayLabels={displayLabels} onUpdate={onUpdate} />
         </div>
