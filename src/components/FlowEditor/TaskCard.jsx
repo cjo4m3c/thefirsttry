@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import ConnectionSection from '../ConnectionSection.jsx';
-import { DragHandle } from '../dragReorder.jsx';
+import { ReorderButtons } from '../reorderButtons.jsx';
 import { CONN_BADGE, CONN_ROW_BG } from '../../utils/taskDefs.js';
 import { ELEMENT_TYPES, detectElementKind, makeTypeChange } from '../../utils/elementTypes.js';
 import { formatConnection } from '../../model/connectionFormat.js';
 
 // ── TaskCard ────────────────────────────────────────
-export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove, dragHandlers, dragHandleProps, isDragging, dropEdge }) {
+export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove,
+  canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
   const ct = task.connectionType || 'sequence';
   const badge = CONN_BADGE[ct];
   const num = displayLabels[task.id];
@@ -25,37 +26,23 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
   // table below.
   const annotation = formatConnection(task, allTasks || [], displayLabels || {});
 
-  // dropEdge marks this row as adjacent to the drop slot:
-  //   'top'    → drop slot is above this row    (top edge highlighted)
-  //   'bottom' → drop slot is below this row    (bottom edge highlighted)
-  //   null     → not adjacent
-  // The DropLine sibling rendered between rows shows the actual insertion line.
-  const dropEdgeClass = dropEdge === 'top'
-    ? 'border-t-2 border-blue-500'
-    : dropEdge === 'bottom'
-      ? 'border-b-2 border-blue-500'
-      : 'border-gray-200';
-
   return (
     <div
-      {...dragHandlers}
-      className={`rounded-lg border overflow-hidden transition-all select-none
-        ${isDragging ? 'opacity-40 scale-95' : ''}
-        ${dropEdgeClass}`}
+      className="rounded-lg border border-gray-200 overflow-hidden select-none"
       style={{ background: rowBg }}>
 
       {/* All three rows share the same 5-column flex layout so columns
           align vertically:
-            col 1: DragHandle / spacer       (w-5)
+            col 1: ReorderButtons / spacer   (w-5)
             col 2: badge / Row 3 label       (w-[120px])
             col 3: role / connection-type    (w-40)
             col 4: name / shape-type / target select (flex-1 min-w-0)
             col 5: action buttons / spacer   (w-14)  ← ▼ + ✕ 24+24+gap8 + safety
           ConnectionSection inherits this layout via the wrapper below. */}
 
-      {/* Row 1: drag + badge + role + name + actions */}
+      {/* Row 1: reorder + badge + role + name + actions */}
       <div className="flex items-center gap-2 px-2 pt-2 min-w-0">
-        <DragHandle {...(dragHandleProps || {})} />
+        <ReorderButtons canUp={canMoveUp} canDown={canMoveDown} onUp={onMoveUp} onDown={onMoveDown} />
 
         {/* col 2: Badge / number */}
         <div className="w-[120px] flex-shrink-0 flex items-center">
@@ -95,7 +82,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           Replaces the previous connectionType + shapeType pair so the editor's
           mental model matches "選元件，系統填預設關聯文字" — one knob, not two. */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
-        <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: drag spacer */}
+        <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
         <div className="w-[120px] flex-shrink-0 text-xs text-gray-500 pl-1">元件類型</div>
 
         {/* col 3 + col 4: element-type select stretches across both cols
@@ -107,19 +94,19 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
         </select>
       </div>
 
-      {/* Row 3: Connection config — wrapper provides drag spacer; the inner
+      {/* Row 3: Connection config — wrapper provides reorder spacer; the inner
           ConnectionSection lays out its own [label | optional mid | select]
           using the same w-[120px] / w-40 / flex-1 pattern so labels align
           with the badge column and the inputs align with the name column. */}
       <div className="flex items-start gap-2 px-2 pb-2.5 min-w-0">
-        <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: drag spacer */}
+        <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
         <div className="flex-1 min-w-0">
           <ConnectionSection task={task} allTasks={allTasks} displayLabels={displayLabels} onUpdate={onUpdate} />
         </div>
       </div>
 
       {/* Auto-generated 任務關聯說明 preview — uses the same 5-col layout
-          (drag spacer / badge col / role col + name col flex-1 / actions
+          (reorder spacer / badge col / role col + name col flex-1 / actions
           col) so the text reads as "below the name column". Italic muted
           gray makes it clear this is system-generated, not editable. */}
       {annotation && (

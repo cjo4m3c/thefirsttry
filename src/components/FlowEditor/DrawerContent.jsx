@@ -1,18 +1,7 @@
 import { Fragment, useState } from 'react';
 import TaskCard from './TaskCard.jsx';
-import { DragHandle } from '../dragReorder.jsx';
+import { ReorderButtons } from '../reorderButtons.jsx';
 import { makeRole, taskOptionLabel } from '../../utils/taskDefs.js';
-
-// Shared blue insertion line for drag-reorder feedback (task list AND role
-// list share the same look). Sits between adjacent rows; rendered with
-// negative margin so it occupies near-zero vertical space.
-function DropLine() {
-  return (
-    <div className="relative h-0 my-[-4px]" aria-hidden="true">
-      <div className="absolute inset-x-2 -translate-y-1/2 h-1.5 bg-blue-500 rounded-full shadow-md shadow-blue-300" />
-    </div>
-  );
-}
 
 // InsertPicker — drawer-side equivalent of the diagram's ContextMenu, used
 // to add elements between TaskCards. Collapsed state looks identical to the
@@ -208,56 +197,27 @@ function InsertSlot({ onClick, label, title }) {
 
 /**
  * Drawer body — switches between "設定流程" (task cards) and
- * "設定泳道角色" (role rows). Drag-reorder handlers come from the parent's
- * useDragReorder hook instances (one per list).
+ * "設定泳道角色" (role rows). Reorder is via ▲ ▼ arrow buttons on each row
+ * (replaced HTML5 drag 2026-04-30 — see src/components/reorderButtons.jsx).
  *
- * UX (2026-04-29 rev):
+ * UX:
  *  - Both tabs use hover-between-rows InsertSlot exclusively for adding
  *    rows. Top "+ 新增任務 / 新增角色" buttons removed — InsertSlot covers
  *    every position (before first row, between rows, after last row).
- *  - Task tab keeps the dedicated "+ 新增外部互動" button (a different
- *    type from a regular task; InsertSlot only adds regular tasks).
- *  - Drag start lives on the DragHandle (handleProps); the row only
- *    handles drop events (rowProps). This avoids the HTML5 issue where
- *    draggable=true on a row containing input/select fields swallows
- *    drag attempts unless the user clicks at row edges. Now drag is
- *    triggered exclusively from the DragHandle, so all rows behave
- *    consistently.
  */
 export function DrawerContent({ activeTab, liveFlow, displayLabels,
-  taskDrag, roleDrag, onPatch, onUpdateTask, onRemoveTask,
+  onMoveTask, onMoveRole, onPatch, onUpdateTask, onRemoveTask,
   onAddTaskAt, onAddOtherAt, onAddL3At, onAddGatewayAt }) {
   if (activeTab === 'flow') {
-    const { dragIdx, overIdx, dropAfter, rowProps, handleProps } = taskDrag;
-    const dropTargetSlot = (dragIdx === null || overIdx === null) ? null
-      : (dropAfter ? overIdx + 1 : overIdx);
-    const adjacentTopIdx    = dropTargetSlot !== null ? dropTargetSlot - 1 : null;
-    const adjacentBottomIdx = dropTargetSlot;
-    const getDropEdge = (i) => {
-      if (dragIdx === null || dragIdx === i) return null;
-      if (i === adjacentTopIdx)    return 'bottom';
-      if (i === adjacentBottomIdx) return 'top';
-      return null;
-    };
-    const showLineAt = (slot) => dropTargetSlot === slot
-      && dragIdx !== null
-      && slot !== dragIdx
-      && slot !== dragIdx + 1;
-    const isDragging = dragIdx !== null;
     return (
       <div>
-        <p className="text-sm text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位；滑鼠移到任務間 / 列表前後可選擇要插入的元件類型（任務 / 閘道 / 開始 / 結束 / L3 流程 / 外部互動）</p>
+        <p className="text-sm text-gray-400 mb-3">▼ 點任務右側箭頭可展開說明、輸入、產出欄位；左側 ▲ ▼ 可改變順序；滑鼠移到任務間 / 列表前後可選擇要插入的元件類型（任務 / 閘道 / 開始 / 結束 / L3 流程 / 外部互動）</p>
         <div className="flex flex-col gap-2">
-          {/* Top InsertSlot — covers "before first task" AND "empty list".
-              Hidden during drag to avoid visual conflict with DropLine. */}
-          {!isDragging && (
-            <InsertPicker index={0} allTasks={liveFlow.tasks} displayLabels={displayLabels}
-              onAddTaskAt={onAddTaskAt} onAddOtherAt={onAddOtherAt}
-              onAddL3At={onAddL3At} onAddGatewayAt={onAddGatewayAt} />
-          )}
+          <InsertPicker index={0} allTasks={liveFlow.tasks} displayLabels={displayLabels}
+            onAddTaskAt={onAddTaskAt} onAddOtherAt={onAddOtherAt}
+            onAddL3At={onAddL3At} onAddGatewayAt={onAddGatewayAt} />
           {liveFlow.tasks.map((task, i) => (
             <Fragment key={task.id}>
-              {showLineAt(i) && <DropLine />}
               <TaskCard
                 task={task}
                 roles={liveFlow.roles || []}
@@ -266,60 +226,43 @@ export function DrawerContent({ activeTab, liveFlow, displayLabels,
                 onUpdate={updated => onUpdateTask(task.id, updated)}
                 onRemove={() => onRemoveTask(task.id)}
                 canRemove={liveFlow.tasks.length > 1}
-                dragHandlers={rowProps(i)}
-                dragHandleProps={handleProps(i)}
-                isDragging={dragIdx === i}
-                dropEdge={getDropEdge(i)}
+                canMoveUp={i > 0}
+                canMoveDown={i < liveFlow.tasks.length - 1}
+                onMoveUp={() => onMoveTask(i, -1)}
+                onMoveDown={() => onMoveTask(i, +1)}
               />
-              {/* InsertSlot after every task — including the last one
-                  (covers "after last task" / append-at-end). */}
-              {!isDragging && (
-                <InsertPicker index={i + 1} allTasks={liveFlow.tasks} displayLabels={displayLabels}
-                  onAddTaskAt={onAddTaskAt} onAddOtherAt={onAddOtherAt}
-                  onAddL3At={onAddL3At} onAddGatewayAt={onAddGatewayAt} />
-              )}
+              <InsertPicker index={i + 1} allTasks={liveFlow.tasks} displayLabels={displayLabels}
+                onAddTaskAt={onAddTaskAt} onAddOtherAt={onAddOtherAt}
+                onAddL3At={onAddL3At} onAddGatewayAt={onAddGatewayAt} />
             </Fragment>
           ))}
-          {showLineAt(liveFlow.tasks.length) && <DropLine />}
         </div>
       </div>
     );
   }
 
   // 'roles' tab — same pattern: no top button; InsertSlot at every slot.
-  // Drag start moved to DragHandle so all rows reorder reliably.
-  const { dragIdx: roleDragIdx, overIdx: roleOverIdx, dropAfter: roleDropAfter,
-    rowProps: roleRowProps, handleProps: roleHandleProps } = roleDrag;
-  const roleDropTargetSlot = (roleDragIdx === null || roleOverIdx === null) ? null
-    : (roleDropAfter ? roleOverIdx + 1 : roleOverIdx);
-  const showRoleLineAt = (slot) => roleDropTargetSlot === slot
-    && roleDragIdx !== null
-    && slot !== roleDragIdx
-    && slot !== roleDragIdx + 1;
-  const isRoleDragging = roleDragIdx !== null;
   function addRoleAt(index) {
     const arr = liveFlow.roles || [];
     const next = [...arr];
     next.splice(index, 0, makeRole());
     onPatch({ roles: next });
   }
+  const roles = liveFlow.roles || [];
   return (
     <div>
       <p className="text-sm text-gray-400 mb-3 flex items-center gap-1">
-        <span className="text-gray-400">⠨</span> 可拖曳左側圓點改變順序；滑鼠移到角色間 / 列表前後可插入新角色
+        <span className="text-gray-400">⠨</span> 點左側 ▲ ▼ 改變泳道順序；滑鼠移到角色間 / 列表前後可插入新角色
       </p>
       <div className="flex flex-col gap-2">
-        {!isRoleDragging && (
-          <InsertSlot onClick={() => addRoleAt(0)} label="+ 插入角色" title="在此位置插入新角色" />
-        )}
-        {(liveFlow.roles || []).map((role, i) => (
+        <InsertSlot onClick={() => addRoleAt(0)} label="+ 插入角色" title="在此位置插入新角色" />
+        {roles.map((role, i) => (
           <Fragment key={role.id}>
-            {showRoleLineAt(i) && <DropLine />}
             <div
-              {...roleRowProps(i)}
-              className={`flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg transition-all select-none
-                ${roleDragIdx === i ? 'opacity-40 scale-95' : ''}`}>
-              <DragHandle {...roleHandleProps(i)} />
+              className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg select-none">
+              <ReorderButtons
+                canUp={i > 0} canDown={i < roles.length - 1}
+                onUp={() => onMoveRole(i, -1)} onDown={() => onMoveRole(i, +1)} />
               <span className="text-sm text-gray-400 w-5 flex-shrink-0">#{i + 1}</span>
               <input type="text" placeholder="角色名稱" value={role.name}
                 onChange={e => onPatch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, name: e.target.value } : r) })}
@@ -336,12 +279,9 @@ export function DrawerContent({ activeTab, liveFlow, displayLabels,
                 disabled={liveFlow.roles.length <= 1}
                 className="text-red-400 hover:text-red-600 disabled:opacity-20 text-xl leading-none">✕</button>
             </div>
-            {!isRoleDragging && (
-              <InsertSlot onClick={() => addRoleAt(i + 1)} label="+ 插入角色" title="在此位置插入新角色" />
-            )}
+            <InsertSlot onClick={() => addRoleAt(i + 1)} label="+ 插入角色" title="在此位置插入新角色" />
           </Fragment>
         ))}
-        {showRoleLineAt((liveFlow.roles || []).length) && <DropLine />}
       </div>
     </div>
   );
