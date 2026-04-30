@@ -34,7 +34,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
       {/* All three rows share the same 5-column flex layout so columns
           align vertically:
             col 1: ReorderButtons / spacer   (w-5)
-            col 2: badge / Row 3 label       (w-[120px])
+            col 2: badge / Row 3 label       (w-24)
             col 3: role / connection-type    (w-40)
             col 4: name / shape-type / target select (flex-1 min-w-0)
             col 5: action buttons / spacer   (w-14)  ← ▼ + ✕ 24+24+gap8 + safety
@@ -45,7 +45,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
         <ReorderButtons canUp={canMoveUp} canDown={canMoveDown} onUp={onMoveUp} onDown={onMoveDown} />
 
         {/* col 2: Badge / number */}
-        <div className="w-[120px] flex-shrink-0 flex items-center">
+        <div className="w-24 flex-shrink-0 flex items-center">
           {ct === 'sequence' && num ? (
             <span className="text-sm font-mono text-gray-500 font-semibold whitespace-nowrap">{num}</span>
           ) : (
@@ -83,7 +83,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           mental model matches "選元件，系統填預設關聯文字" — one knob, not two. */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
         <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
-        <div className="w-[120px] flex-shrink-0 text-xs text-gray-500 pl-1">元件類型</div>
+        <div className="w-24 flex-shrink-0 text-xs text-gray-500 pl-1">元件類型</div>
 
         {/* col 3 + col 4: element-type select stretches across both cols
             so all 8 labels (some long: "L3 流程（子流程調用）") fit comfortably */}
@@ -96,7 +96,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
 
       {/* Row 3: Connection config — wrapper provides reorder spacer; the inner
           ConnectionSection lays out its own [label | optional mid | select]
-          using the same w-[120px] / w-40 / flex-1 pattern so labels align
+          using the same w-24 / w-40 / flex-1 pattern so labels align
           with the badge column and the inputs align with the name column. */}
       <div className="flex items-start gap-2 px-2 pb-2.5 min-w-0">
         <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
@@ -112,7 +112,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
       {annotation && (
         <div className="flex items-start gap-2 px-2 pb-2 min-w-0">
           <div className="w-5 flex-shrink-0" aria-hidden="true" />
-          <div className="w-[120px] flex-shrink-0 text-xs text-gray-400 italic pt-0.5">關聯說明</div>
+          <div className="w-24 flex-shrink-0 text-xs text-gray-400 italic pt-0.5">關聯說明</div>
           <div className="flex-1 min-w-0 text-xs text-gray-500 italic break-words pt-0.5">{annotation}</div>
         </div>
       )}

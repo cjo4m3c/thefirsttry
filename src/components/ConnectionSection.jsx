@@ -4,10 +4,13 @@
  * TaskCard's Row 3 (the "下一步 / 條件分支至 ..." row).
  *
  * Layout convention (matches TaskCard's other rows):
- *   col-A label    w-[120px]   ← aligns with TaskCard badge column
+ *   col-A label    w-24        ← aligns with TaskCard badge column
  *   col-B middle   w-40        ← aligns with TaskCard role column
  *                              (used by branch cases for the condition
- *                              label input; spacer otherwise)
+ *                              label input; for non-branch single-target
+ *                              cases the spacer is dropped — target select
+ *                              spans col-B + col-C so there's no empty
+ *                              gap between label and dropdown)
  *   col-C target   flex-1      ← aligns with TaskCard name column
  *   col-D action   w-6 + spacer ← row remove button + reserved space for ▼/✕
  *
@@ -22,11 +25,15 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
   const opts = allTasks.filter(t => t.id !== task.id && (t.type === 'gateway' || t.type === 'l3activity' || t.roleId));
   // Shared style fragments — keep the row layout identical across all
   // connection-type cases so columns align with TaskCard rows above.
-  const lbl = 'text-sm text-gray-600 w-[120px] flex-shrink-0 truncate';
-  const midSpacer = 'w-40 flex-shrink-0';                 // when no middle field
+  const lbl = 'text-sm text-gray-600 w-24 flex-shrink-0 truncate';
   const midInput = 'w-40 flex-shrink-0 px-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-1';
+  // Single-target cases (non-branch): select / input spans col-B + col-C
+  // (drops the empty col-B spacer that used to leave an awkward gap between
+  // "下一步 →" label and the dropdown — see 2026-04-30 user request).
+  const wide = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400';
+  // Branch cases keep col-C target select narrower because col-B is occupied
+  // by the condition-label input.
   const sel = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400';
-  const inp = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400';
   const rowGap = 'flex items-center gap-2';
   const removeBtn = 'w-6 flex-shrink-0 text-red-400 hover:text-red-600 text-sm disabled:opacity-20';
 
@@ -54,8 +61,7 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
     return (
       <div className={`${rowGap} mt-1.5`}>
         <span className={lbl}>{ct === 'start' ? '流程開始 →' : '下一步 →'}</span>
-        <div className={midSpacer} aria-hidden="true" />
-        <select value={task.nextTaskIds?.[0] || ''} className={sel}
+        <select value={task.nextTaskIds?.[0] || ''} className={wide}
           onChange={e => onUpdate({ ...task, nextTaskIds: [e.target.value] })}>
           <option value="">選擇目標任務</option>{renderOpts()}
         </select>
@@ -67,15 +73,13 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
     return (
       <div className="flex flex-col gap-1.5 mt-1.5">
         <div className={rowGap}>
-          <span className={lbl}>子流程 L3 編號</span>
-          <div className={midSpacer} aria-hidden="true" />
-          <input className={inp} value={task.subprocessName || ''} placeholder="例：5-3-2"
+          <span className={lbl}>L3 編號</span>
+          <input className={wide} value={task.subprocessName || ''} placeholder="例：5-3-2"
             onChange={e => onUpdate({ ...task, subprocessName: e.target.value })} />
         </div>
         <div className={rowGap}>
           <span className={lbl}>返回後 →</span>
-          <div className={midSpacer} aria-hidden="true" />
-          <select value={task.nextTaskIds?.[0] || ''} className={sel}
+          <select value={task.nextTaskIds?.[0] || ''} className={wide}
             onChange={e => onUpdate({ ...task, nextTaskIds: [e.target.value] })}>
             <option value="">選擇目標任務</option>{renderOpts()}
           </select>
@@ -187,15 +191,13 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
       <div className="flex flex-col gap-1.5 mt-1.5">
         <div className={rowGap}>
           <span className={lbl}>迴圈說明</span>
-          <div className={midSpacer} aria-hidden="true" />
-          <input className={inp} value={task.loopDescription || ''}
+          <input className={wide} value={task.loopDescription || ''}
             placeholder="說明迴圈觸發條件（選填）"
             onChange={e => onUpdate({ ...task, loopDescription: e.target.value })} />
         </div>
         <div className={rowGap}>
-          <span className={`${lbl} text-red-500`}>迴圈返回至 ↺</span>
-          <div className={midSpacer} aria-hidden="true" />
-          <select value={backTarget} className={sel}
+          <span className={`${lbl} text-red-500`}>返回至 ↺</span>
+          <select value={backTarget} className={wide}
             onChange={e => onUpdate({ ...task, nextTaskIds: [e.target.value] })}>
             <option value="">選擇返回目標任務</option>{renderOpts()}
           </select>
@@ -211,8 +213,7 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
     return (
       <div className={`${rowGap} mt-1.5`}>
         <span className={lbl}>斷點說明</span>
-        <div className={midSpacer} aria-hidden="true" />
-        <input className={inp} value={task.breakpointReason || ''}
+        <input className={wide} value={task.breakpointReason || ''}
           placeholder="說明斷點原因（選填）"
           onChange={e => onUpdate({ ...task, breakpointReason: e.target.value })} />
       </div>
