@@ -42,6 +42,10 @@
 - **PR #113**：規則文件 / changelog / HANDOVER / README 同步到 PR #110-112 最新狀態；HelpPanel 移除「連線規則」段落（連線型態現由元件類型自動衍生，使用者不需手動選）
 - **PR #114**：CLAUDE.md §8 加 step 6 — 開 PR 後立即 `subscribe_pr_activity`，無須再問使用者（使用者：「未來 pr 後都要追蹤 ci」）；本 repo `deploy.yml` 只在 main push 觸發，PR-level check_runs = 0 屬正常；deploy 失敗開 fix-forward PR，不 revert
 - **PR #115**：TaskCard 佈局收緊 — col 2 從 `w-[120px]` → `w-24`（省 24px 給 col 3+4）+ ConnectionSection Row 3 五種單目標型態砍 col-3 spacer（target select 跨 col 3+4，消除「下一步 →」後面空白）+ 兩個 label 縮短避免被 truncate（「子流程 L3 編號」→「L3 編號」、「迴圈返回至 ↺」→「返回至 ↺」）
+- **PR #116**：backlog log PR #114 + #115（doc-only follow-up）
+- **PR #117**：backlog remove Y / Z / AA / AB（使用者回報已做完）
+- **PR #118**：TaskCard Row 2「元件類型」label 字級 `text-xs` → `text-sm`，跟 ConnectionSection / 展開區塊 label 視覺對齊
+- **PR #119**：外部關係人互動元件全套規則 — `applyRoleChange` / `syncTasksToRoles` 純函式 + 5 個觸發點（TaskCard / ContextMenu 角色 select、DrawerContent / Wizard role.type cascade、storage 載入 fixup）+ `INTERACTION_FILL` 灰底 `#A0A0A0` + 拿掉 validation 3e + business-spec §3.1 新章節
 
 ## 已完成（2026-04-28 至 2026-04-29 出清）
 
