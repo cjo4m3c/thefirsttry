@@ -72,10 +72,10 @@ function InsertPicker({ index, allTasks, displayLabels,
     );
   }
 
-  // 5-col layout matching TaskCard rows: drag(w-5) / label(w-[120px]) /
+  // 5-col layout matching TaskCard rows: drag(w-5) / label(w-24) /
   // role-col(w-40) / name-col(flex-1) / actions(w-14). Picker reuses the
   // label column for "新增類型" and beyond.
-  const lbl = 'text-sm text-gray-600 w-[120px] flex-shrink-0';
+  const lbl = 'text-sm text-gray-600 w-24 flex-shrink-0';
   const midInput = 'w-40 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm';
   const sel = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm';
   const targetOptions = (allTasks || []);
