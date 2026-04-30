@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-04-30',
+    title: 'PR-C：Top insert slot 修語意 — addOtherBefore / addL3ActivityBefore / insertGatewayBefore',
+    items: [
+      '**緣由**：code review P1-2「top insert slot 對非 task 類型語意錯」— 編輯器 InsertPicker 第一格（`index <= 0`）對 task 類型走 `addTaskBefore` 正確、但對 start/end/interaction/l3activity/gateway 五種 fallback 成 `tasks[0]` + 呼叫 `*After`，結果新元件落在 tasks[0] **後面**而非前面。視覺位置跟使用者點擊位置不一致，且每加新元件種類就要重複此 hack。',
+      '**Action 層擴充（`useFlowActions.js` + `converters.js`）**：(a) 新增 `rewireIncomingTo(tasks, oldId, newId)` 私有 helper — 把所有指向 oldId 的 `task.nextTaskIds` + `gateway.condition.nextTaskId` 重定向到 newId，給 *Before 系列共用 (b) `addL3ActivityBefore(anchorId, l3Number, l3Name)` — `(everyone → anchor) → newL3 → anchor` (c) `insertGatewayBefore(anchorId, gatewayType, branches)` — 同 cascade rewire，branches 由使用者提供 (d) `addOtherBefore(anchorId, kind, name)` 在 converters.js — start/end/breakpoint orphan 不 rewire（mirror PR-A 對 start 的處理）；interaction `(everyone → anchor) → new → anchor`，shape 仍由 anchor lane.type 決定（mirror PR-A P1-3 邏輯）。',
+      '**Adapter 拉直（`FlowEditor/index.jsx`）**：原本 3 個 onAddXAt 都用 `index <= 0 ? tasks[0] : ...` 偷渡 fallback。改成明確分流：`if (index <= 0) actions.addXBefore(tasks[0].id) else actions.addXAfter(tasks[anchorIdx].id)`。三個 adapter（onAddOtherAt / onAddL3At / onAddGatewayAt）行為跟 onAddTaskAt 對齊（後者本來就有 Before 分流）。',
+      '**動到的檔案（4 個）**：`src/components/FlowEditor/useFlowActions.js`（+rewireIncomingTo helper / +addL3ActivityBefore / +insertGatewayBefore + return list 加兩個 export）/ `src/components/FlowEditor/useFlowActions/converters.js`（+addOtherBefore + return 加 export）/ `src/components/FlowEditor/index.jsx`（3 個 adapter 改用 Before/After 明確分流）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) InsertPicker 第一格 click 「新增類型 = 開始事件」→ start 落在 tasks[0] **前** + new.nextTaskIds=[tasks[0].id]（不違反 PR-A：start 只是有 outgoing，沒有 incoming）✓ (b) 第一格 click「外部互動」→ new 落 tasks[0] 前、`(原指向 tasks[0] 者) → new → tasks[0]`、shape 依 tasks[0] lane.type 決定 ✓ (c) 第一格 click「L3 活動」→ 同 cascade rewire、newL3 → tasks[0] ✓ (d) 第一格 click「閘道」→ gateway 落 tasks[0] 前、(原指向 tasks[0] 者) → gateway、conditions 由使用者填 ✓ (e) 中間 / 尾部 slot 行為不變（仍走 *After）✓',
+      '**Refactor 路徑進度**：PR-A（資料模型 bug）✓ → PR-B（catalog schema）✓ → **PR-C（addXBefore，本次）✓ now** → PR-D（mutation spec 化 — 把 5 種 *Before / *After / append / convert 統一成 `insertElement(slot, spec)`）。',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: 'PR-B：ELEMENT_TYPES schema 收斂 — 4 個 UI view 讀同一份元件型錄',
     items: [
       '**緣由**：code review P2-4「element-type catalog 三處重複」— 元件清單在 elementTypes.js 是「canonical」，但 DrawerContent InsertPicker hard-code 8 個 `<option>` + switch helperText、ContextMenu OtherSubForm hard-code 3 個（start/end/interaction）含 `hint` 文字、ConvertSubForm hard-code 8 個含 `match` predicate（重複 `detectElementKind` 邏輯）。新增 / 修改 / 刪除元件種類要改 4 個地方，正是使用者要避免的「修一個改很多」痛點。',
