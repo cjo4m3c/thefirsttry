@@ -39,7 +39,7 @@ export function TaskShape({ task, pos, l4Number, isHovered }) {
   const { cx, cy } = pos;
   const x = cx - NODE_W / 2;
   const y = cy - NODE_H / 2;
-  const baseFill = task.type === 'interaction' ? COLORS.INTERACTION_FILL : COLORS.TASK_FILL;
+  const baseFill = task.shapeType === 'interaction' ? COLORS.INTERACTION_FILL : COLORS.TASK_FILL;
   const fill = isHovered ? HOVER_TINT : baseFill;
   const stroke = isHovered ? HOVER_STROKE : COLORS.TASK_STROKE;
   const strokeW = isHovered ? 2.5 : 1.2;

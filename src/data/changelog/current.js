@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-04-30',
+    title: '修外部互動底色從未生效（renderer 判斷 task.type 而非 shapeType）',
+    items: [
+      '**緣由**：使用者：「發現外部互動的UI顯示還是跟任務一樣，我希望外部互動的元件，UI的底色是#a0a0a0（灰）」。PR #119 把 `INTERACTION_FILL` 改成 `#A0A0A0`，但畫面跟匯出仍然顯示白底 — 因為渲染端判斷條件寫錯。',
+      '**Root cause**：「外部互動」任務的資料 model 是 `type=\'task\'` + `shapeType=\'interaction\'`（PR #111 起的設計：interaction 是 task 的 shape 變體，不是獨立 type）。但 `shapes.jsx:42` 跟 `drawioExport.js:104` 兩個渲染點都檢查 `task.type === \'interaction\'`，永遠 false → 灰底常數從未實際套用過。這個 bug 早就存在於 model 重構時，PR #119 沒注意到，改 constants 不會修這個 path。',
+      '**修法**：兩處 `task.type === \'interaction\'` → `task.shapeType === \'interaction\'`。一行改、零風險（已是 PR #119 所有觸發點 / `detectElementKind` / validation rule 3e 過去用的判斷）。',
+      '**保留**：`taskDefs.js:154` 的 `task.type === \'interaction\'` 在 `normalizeTask` 內，是**舊資料 migration**（pre-PR #111 model 把 type=\'interaction\' 自動轉成新的 shapeType=\'interaction\'）— 不能動。',
+      '**動到的檔案（3 個）**：`src/components/DiagramRenderer/shapes.jsx`（畫面 fill）/ `src/utils/drawioExport.js`（匯出 fill）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證**：(a) 流程圖上外部角色泳道的任務應該顯示灰底 `#A0A0A0` ✓ (b) 匯出 .drawio 開到 diagrams.net 也是灰底 ✓ (c) 一般任務維持白底（`#FFFFFF`）✓',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: '外部關係人互動元件 — 角色驅動的自動切換 + 灰底配色 #A0A0A0',
     items: [
       '**緣由**：使用者：「我希望下一步來優化全站「外部關係人互動」的規則。規則是在外部角色泳道做的「任務」，都要使用「外部關係人互動」這個元件，不能使用原本的「L4任務」元件...被移到外部角色泳道的任務，要自動使用「外部關係人互動」這個元件，換到內部角色時會自動變回「L4任務」元件，其他閘道、開始結束、L3元件則適用於所有泳道」+「依照你的建議方案執行，excel匯入的角色默認為內部角色，使用者自行更改即可」。',

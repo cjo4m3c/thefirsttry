@@ -101,7 +101,7 @@ export function exportDrawio(flow) {
         `whiteSpace=wrap;html=0;fillColor=${COLORS.L3_ACTIVITY_FILL};strokeColor=${COLORS.L3_ACTIVITY_STROKE};strokeWidth=1.5;fontSize=10;align=center;verticalAlign=middle;double=1;`,
         label);
     } else {
-      const fill = task.type === 'interaction' ? COLORS.INTERACTION_FILL : COLORS.TASK_FILL;
+      const fill = task.shapeType === 'interaction' ? COLORS.INTERACTION_FILL : COLORS.TASK_FILL;
       cellId = rect(pos.cx - NODE_W / 2, pos.cy - NODE_H / 2, NODE_W, NODE_H,
         `rounded=1;whiteSpace=wrap;html=0;fillColor=${fill};strokeColor=${COLORS.TASK_STROKE};strokeWidth=1.2;fontSize=10;align=center;verticalAlign=middle;arcSize=4;`,
         label);
