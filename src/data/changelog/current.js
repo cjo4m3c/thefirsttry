@@ -6,6 +6,15 @@
 export default [
   {
     date: '2026-04-30',
+    title: '編輯器 TaskCard：「元件類型」label 字級放大對齊「下一步」/「任務重點說明」',
+    items: [
+      '**緣由**：使用者：「我希望在編輯器每個編輯區塊中，「元件類型」的字級變得跟「下一步」「任務重點說明」一樣大」。Row 2 的 label 用 `text-xs text-gray-500`，跟其他 row 的 label（`text-sm text-gray-600`）視覺上比例不一致 — 看起來像「附屬欄位」而不是同等重要的元件選擇。',
+      '**改動**：`TaskCard.jsx` Row 2「元件類型」label：`text-xs text-gray-500` → `text-sm text-gray-600`，跟 ConnectionSection（下一步 / L3 編號 / 條件 N → / 返回至 ↺）+ 展開區塊（任務重點說明 / 任務重要輸入 / 任務產出成品 / 參考資料來源文件名稱）字級完全一致。',
+      '**動到的檔案（2 個）**：`src/components/FlowEditor/TaskCard.jsx`（單行 className 改）+ `src/data/changelog/current.js`（本條）。`build` 通過。',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: '編輯器 TaskCard 佈局修正：col 2 收緊 + Row 3 單目標欄位左對齊',
     items: [
       '**緣由**：使用者：「下一步後面要選擇目標任務的地方，可以把要選的任務指向靠左對齊，這樣下一步跟後面的下拉選單中間才不會空空的」+「左側第一欄的資訊都跟中間欄的資訊有一大片空白，希望可以把空白縮小一點讓每個資訊都能有足夠的空間顯示」。',
