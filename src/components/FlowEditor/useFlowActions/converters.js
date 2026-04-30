@@ -1,4 +1,5 @@
-import { makeTask, applySequentialDefaults, applyGatewayPrefix } from '../../../utils/taskDefs.js';
+import { makeTask, applySequentialDefaults } from '../../../utils/taskDefs.js';
+import { makeTypeChange } from '../../../utils/elementTypes.js';
 import { generateId } from '../../../utils/storage.js';
 
 /**
@@ -67,56 +68,13 @@ export function makeConverterActions({ liveFlow, patch }) {
   // connections — gateway↔non-gateway conversions can't perfectly map
   // (conditions vs nextTaskIds), so we collapse to the first available
   // target and the user re-wires extras manually.
+  // Pure transform lives in `utils/elementTypes.js` so TaskCard Row 2 can
+  // reuse it inline (without going through this action wrapper).
   function convertTaskType(taskId, kind) {
     const task = liveFlow.tasks.find(t => t.id === taskId);
     if (!task) return;
-    const existingTarget =
-      task.type === 'gateway'
-        ? (task.conditions || []).map(c => c.nextTaskId).filter(Boolean)[0] || ''
-        : (task.nextTaskIds || []).filter(Boolean)[0] || '';
-    let overrides;
-    if (kind === 'task') {
-      overrides = { type: 'task', shapeType: 'task', connectionType: 'sequence',
-        nextTaskIds: existingTarget ? [existingTarget] : [''], conditions: [] };
-    } else if (kind === 'l3activity') {
-      overrides = { type: 'l3activity', shapeType: 'l3activity', connectionType: 'subprocess',
-        nextTaskIds: existingTarget ? [existingTarget] : [''], conditions: [] };
-    } else if (kind === 'interaction') {
-      overrides = { type: 'task', shapeType: 'interaction', connectionType: 'sequence',
-        nextTaskIds: existingTarget ? [existingTarget] : [''], conditions: [] };
-    } else if (kind === 'start') {
-      overrides = { type: 'start', shapeType: 'task', connectionType: 'start',
-        nextTaskIds: existingTarget ? [existingTarget] : [''], conditions: [] };
-    } else if (kind === 'end') {
-      overrides = { type: 'end', shapeType: 'task', connectionType: 'end',
-        nextTaskIds: [], conditions: [] };
-    } else if (kind === 'breakpoint') {
-      overrides = { type: 'end', shapeType: 'task', connectionType: 'breakpoint',
-        nextTaskIds: [], conditions: [] };
-    } else if (kind === 'gateway-xor' || kind === 'gateway-and' || kind === 'gateway-or') {
-      const gType = kind.slice(8);  // 'xor' | 'and' | 'or'
-      const ctMap = { xor: 'conditional-branch', and: 'parallel-branch', or: 'inclusive-branch' };
-      const existingConds = task.type === 'gateway' ? (task.conditions || []) : [];
-      const conditions = existingConds.length
-        ? existingConds
-        : [{ id: generateId(), label: '', nextTaskId: existingTarget || '' }];
-      overrides = {
-        type: 'gateway', shapeType: 'task', gatewayType: gType,
-        connectionType: ctMap[gType],
-        name: applyGatewayPrefix(task.name, gType),
-        nextTaskIds: [], conditions,
-      };
-    } else {
-      return;
-    }
-    const cleanedName = task.type === 'gateway' && !kind.startsWith('gateway-')
-      ? applyGatewayPrefix(task.name, null)
-      : (overrides.name ?? task.name);
-    const updated = {
-      ...task, ...overrides, name: cleanedName,
-      l4Number: undefined,
-      connectionOverrides: {},
-    };
+    const updated = makeTypeChange(task, kind);
+    if (updated === task) return;  // unknown kind, no-op
     patch({ tasks: liveFlow.tasks.map(t => t.id === taskId ? updated : t) });
   }
 

@@ -90,7 +90,7 @@ export function GatewaySubForm({
         <span className="text-xs text-gray-500">閘道類型</span>
         <div className="flex gap-3 text-xs">
           {[
-            { v: 'xor', label: '條件 ◇×' },
+            { v: 'xor', label: '排他 ◇×' },
             { v: 'and', label: '並行 ◇+' },
             { v: 'or',  label: '包容 ◇⊙' },
           ].map(opt => (

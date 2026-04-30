@@ -7,9 +7,9 @@ export function LegendSection() {
     { shape: 'end',         label: '活動終點' },
     { shape: 'task',        label: 'L4 任務' },
     { shape: 'interaction', label: '外部關係人互動' },
-    { shape: 'gateway-xor', label: '排他闘道 (XOR)' },
-    { shape: 'gateway-and', label: '並行闘道 (AND)' },
-    { shape: 'gateway-or',  label: '包容闘道 (OR)' },
+    { shape: 'gateway-xor', label: '排他閘道 (XOR)' },
+    { shape: 'gateway-and', label: '並行閘道 (AND)' },
+    { shape: 'gateway-or',  label: '包容閘道 (OR)' },
     { shape: 'l3activity',  label: 'L3 活動（關聯）' },
     { shape: 'arrow',       label: '順序流' },
   ];

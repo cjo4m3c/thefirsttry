@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import ConnectionSection from '../ConnectionSection.jsx';
 import { DragHandle } from '../dragReorder.jsx';
-import { CONNECTION_TYPES, SHAPE_TYPES, CONN_BADGE, CONN_ROW_BG, applyConnectionType } from '../../utils/taskDefs.js';
+import { CONN_BADGE, CONN_ROW_BG } from '../../utils/taskDefs.js';
+import { ELEMENT_TYPES, detectElementKind, makeTypeChange } from '../../utils/elementTypes.js';
 import { formatConnection } from '../../model/connectionFormat.js';
 
 // ── TaskCard ────────────────────────────────────────
@@ -11,7 +12,12 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
   const num = displayLabels[task.id];
   const rowBg = CONN_ROW_BG[ct] || '#FAFAFA';
   const nameOptional = ct === 'start' || ct === 'end' || ct === 'breakpoint';
-  const showShape = ct === 'sequence' || ct === 'subprocess';
+  const currentKind = detectElementKind(task);
+  // Show legacy 'breakpoint' option only when the task already is one (phased
+  // out 2026-04-29; new ones can't be created from any UI).
+  const elementOptions = currentKind === 'breakpoint'
+    ? [...ELEMENT_TYPES, { value: 'breakpoint', label: '流程斷點（停用，僅相容舊資料）' }]
+    : ELEMENT_TYPES;
   const [expanded, setExpanded] = useState(false);
   // Derived "任務關聯說明" — the BPMN sequence-flow text that appears in the
   // FlowTable / Excel / diagram tooltip. Showing it here lets the user see
@@ -85,28 +91,20 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           className="w-6 flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-base">✕</button>
       </div>
 
-      {/* Row 2: connection type (col 3, aligns with role) + shape type (col 4,
-          aligns with name) */}
+      {/* Row 2: unified 元件類型 select (mirrors InsertPicker / ConvertSubForm).
+          Replaces the previous connectionType + shapeType pair so the editor's
+          mental model matches "選元件，系統填預設關聯文字" — one knob, not two. */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
         <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: drag spacer */}
-        <div className="w-[120px] flex-shrink-0" aria-hidden="true" />    {/* col 2: badge spacer */}
+        <div className="w-[120px] flex-shrink-0 text-xs text-gray-500 pl-1">元件類型</div>
 
-        {/* col 3: Connection type (aligned with role) */}
-        <select value={ct} onChange={e => onUpdate(applyConnectionType(task, e.target.value))}
-          className="w-40 flex-shrink-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
-          {CONNECTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        {/* col 3 + col 4: element-type select stretches across both cols
+            so all 8 labels (some long: "L3 流程（子流程調用）") fit comfortably */}
+        <select value={currentKind}
+          onChange={e => onUpdate(makeTypeChange(task, e.target.value))}
+          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+          {elementOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
-
-        {/* col 4: Shape type (aligned with name; sequence/subprocess only) */}
-        {showShape ? (
-          <select value={task.shapeType || 'task'}
-            onChange={e => { const st = e.target.value; onUpdate({ ...task, shapeType: st, type: st }); }}
-            className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
-            {SHAPE_TYPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        ) : (
-          <div className="flex-1 min-w-0" aria-hidden="true" />
-        )}
       </div>
 
       {/* Row 3: Connection config — wrapper provides drag spacer; the inner
