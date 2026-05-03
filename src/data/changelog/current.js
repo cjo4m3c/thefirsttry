@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-03',
+    title: 'Undo / Redo（50 步 snapshot stack，儲存後清空，Ctrl+Z / Ctrl+Y）',
+    items: [
+      '**緣由**：使用者：「請評估能不能做 undo 功能？會有什麼影響？」+「允許 undo 一步和 undo 50 步會有差別嗎」+「已儲存的內容 undo 後再儲存 → 改成存過就要有再編輯才能 undo」。背景：刪線 / 刪任務 / 拖端點都是無聲破壞性操作，誤觸無法回復。對應 backlog 條目 AI。',
+      '**Step 1 — `src/utils/undoStack.js` 純函式**：50 LOC，提供 `createStack` / `push` / `undo` / `redo` / `canUndo` / `canRedo`。snapshot-based（不是 action-diff），每次 mutation 把當前 liveFlow `structuredClone` 後推入 stack。設計三個關鍵：(a) 50 步 ring buffer 上限 (b) 500ms debounce — 連續打字一陣子後 push 多次只算 1 步（mid-typing collapse；典型「打 Hello 5 個字 → 1 步」）(c) 新 push 自動清 redo stack（forward branch 失效）。',
+      '**Step 2 — `FlowEditor/index.jsx` 整合**：(a) 加 `useState(createUndoStack)` (b) wrap `patch()`：`setUndoStack(prev => pushUndo(prev, structuredClone(liveFlow)))` 在 `setLiveFlow` 之前 — 這樣 stack 存的是 BEFORE state、undo 把它復原 (c) 新 `handleUndo` / `handleRedo` 函式 (d) `doSave` 加 `setUndoStack(createUndoStack())` — 使用者規格「存過要再編輯才能 undo」(e) `useEffect` 加 keydown listener：Ctrl+Z / Cmd+Z = undo、Ctrl+Y or Ctrl+Shift+Z = redo；偵測 `INPUT/TEXTAREA/SELECT/contentEditable` focused 時略過（讓瀏覽器原生文字復原接管，不打斷打字）；偵測 `saveModal/resetAllModal` 開啟時略過。',
+      '**Step 3 — `FlowEditor/Header.jsx` 按鈕**：在「圖例」後面加「↶ 復原」「↷ 重做」兩個按鈕。`disabled = !canUndo / !canRedo`，灰色 + cursor-not-allowed 表示無可復原；title tooltip 提示快捷鍵；hover 跟其他 header 按鈕一樣 white border + bg-opacity-10。',
+      '**Step 4 — 文件 + backlog**：`helpPanelData.js EDITABLE_ACTIONS` 加新條目「↶ 復原 / ↷ 重做」5 子項列點說明（按鈕 + 鍵盤 / 50 步 / 打字 debounce / 儲存清空 / session-only）。`.claude/backlog.md` 把 AI 從「長期待辦」搬到已完成段，順便補上 PR #123-134 缺漏。',
+      '**動到的檔案（5 個）**：`src/utils/undoStack.js`（新，50 LOC）/ `src/components/FlowEditor/index.jsx`（+useState + patch wrap + handleUndo/Redo + keydown listener + doSave clear）/ `src/components/FlowEditor/Header.jsx`（+canUndo/Redo props + 兩個按鈕）/ `src/data/helpPanelData.js`（EDITABLE_ACTIONS 新條目）/ `.claude/backlog.md`（AI done + PR roll-up）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 編輯一個任務名稱 → Ctrl+Z 復原 ✓ (b) 連續打 5 個字後 Ctrl+Z → 一次退回打字前（debounce 合併）✓ (c) 刪掉一條線 → Ctrl+Z 線回來 ✓ (d) 刪掉一個任務 → Ctrl+Z 任務 + 連線都回來 ✓ (e) 按儲存 → 復原 / 重做按鈕 disable + Ctrl+Z 沒反應（stack 清空）✓ (f) 儲存後再編輯一次 → 復原按鈕 enable，可退回剛 save 完狀態 ✓ (g) 在 input / textarea 內按 Ctrl+Z → 走瀏覽器文字復原（不打斷打字）✓ (h) save modal 開啟時 Ctrl+Z 沒反應 ✓ (i) Header 按鈕跟鍵盤行為一致 ✓',
+    ],
+  },
+  {
+    date: '2026-05-03',
     title: 'HelpPanel 列點化 + 補齊驗證規則 + 日期補正 + PNG 匯出隱藏 override 橘點',
     items: [
       '**緣由**：使用者四個訴求合併到本 PR — (a)「規則說明那裡，內容比較多的段落用列點顯示」(b)「changelog 5/3 改的都發成 4/30」(c)「列點列出所有 excel 檢核條件、儲存檢核條件」(d)「下載的 png 會顯示有編輯過的橘色圓點點，可以不要有嗎」。',

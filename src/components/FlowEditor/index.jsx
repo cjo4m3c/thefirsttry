@@ -22,6 +22,11 @@ import { useFlowActions } from './useFlowActions.js';
 import { Header } from './Header.jsx';
 import { DrawerContent } from './DrawerContent.jsx';
 import { SaveModal, ResetAllModal } from './SaveModals.jsx';
+import {
+  createStack as createUndoStack, push as pushUndo,
+  undo as popUndo, redo as popRedo,
+  canUndo as canUndoStack, canRedo as canRedoStack,
+} from '../../utils/undoStack.js';
 
 export default function FlowEditor({ flow, onBack, onSave }) {
   const [liveFlow, setLiveFlow] = useState(() => ({
@@ -32,6 +37,9 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     }),
   }));
   const [hasChanges, setHasChanges] = useState(false);
+  // Undo/redo stack (50 steps, debounced 500ms, cleared on save).
+  // Snapshot-based — push current liveFlow before mutation, restore on undo.
+  const [undoStack, setUndoStack] = useState(createUndoStack);
   // Ref to DiagramRenderer's imperative export API (forwardRef +
   // useImperativeHandle exposes exportPng / exportDrawio / exportExcel).
   // Used by the Header download dropdown — each item calls
@@ -67,7 +75,27 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   );
 
   function patch(updates) {
+    // Snapshot current liveFlow into the undo stack BEFORE applying. The
+    // stack helper drops pushes within DEBOUNCE_MS so a typing burst
+    // collapses to a single undo step (the pre-burst state).
+    setUndoStack(prev => pushUndo(prev, structuredClone(liveFlow)));
     setLiveFlow(prev => ({ ...prev, ...updates }));
+    setHasChanges(true);
+  }
+
+  function handleUndo() {
+    const result = popUndo(undoStack, structuredClone(liveFlow));
+    if (!result) return;
+    setUndoStack(result.stack);
+    setLiveFlow(result.snapshot);
+    setHasChanges(true);
+  }
+
+  function handleRedo() {
+    const result = popRedo(undoStack, structuredClone(liveFlow));
+    if (!result) return;
+    setUndoStack(result.stack);
+    setLiveFlow(result.snapshot);
     setHasChanges(true);
   }
 
@@ -102,8 +130,34 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     setHasChanges(false);
     setLogoReaction('wave');
     setSaveModal(null);
+    // Per user spec 2026-05-03: clear undo + redo stacks on save. The saved
+    // state is the new baseline — undo can't cross a save checkpoint.
+    setUndoStack(createUndoStack());
     onSuccess?.();
   }
+
+  // Ctrl+Z / Cmd+Z = undo; Ctrl+Y or Ctrl+Shift+Z = redo. Skip when focused
+  // in input/textarea/select (browser native text-undo) or when a modal is
+  // open (modal blocks user actions).
+  useEffect(() => {
+    function onKey(e) {
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
+      if (saveModal || resetAllModal) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveModal, resetAllModal, undoStack, liveFlow]);
 
   // Shared validate-then-save flow used by both the header save button and
   // the three diagram export buttons (PNG / drawio / Excel). Callers pass
@@ -145,7 +199,9 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         onBack={onBack} onPatch={patch}
         onTogglePin={handleTogglePin} onOpenDrawer={() => setDrawerOpen(true)}
         onSave={handleSave} onResetAllConfirm={() => setResetAllModal(true)}
-        downloadHandlers={downloadHandlers} />
+        downloadHandlers={downloadHandlers}
+        onUndo={handleUndo} onRedo={handleRedo}
+        canUndo={canUndoStack(undoStack)} canRedo={canRedoStack(undoStack)} />
 
       <main className="px-4 py-6 w-full max-w-full">
         {/* Diagram — always visible. ref exposes exportPng/Drawio/Excel

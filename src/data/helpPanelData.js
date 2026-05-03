@@ -302,6 +302,16 @@ export const VALIDATION = [
 // 自動路由矩陣對使用者來說只是雜訊，所以從 HelpPanel 拿掉。
 export const EDITABLE_ACTIONS = [
   {
+    title: '↶ 復原 / ↷ 重做（Ctrl+Z / Ctrl+Y）',
+    desc: [
+      '頁首「↶ 復原」/「↷ 重做」按鈕、或鍵盤 Ctrl+Z（Mac: Cmd+Z）/ Ctrl+Y（或 Ctrl+Shift+Z）',
+      '記錄最近 50 步操作；連續打字 500ms 內合併成 1 步（不會每打 1 個字就算 1 步）',
+      '**儲存後 stack 清空**：每次按下儲存就重設「再編輯才能 undo」（避免 undo 退回未儲存版本後又儲存覆蓋）',
+      'session-only：重新整理頁面 / 切換 L3 流程後 stack 重來',
+      '在 input / textarea 內 Ctrl+Z 走瀏覽器原生文字復原（不會打斷打字）',
+    ],
+  },
+  {
     title: '▲ ▼ 排序任務',
     desc: '在右側「✏️ 編輯」面板的「設定流程」分頁，點任務左側的 ▲ ▼ 按鈕改變順序（最上 / 最下會自動 disabled）。順序改了之後 L4 編號自動重排（除非曾經 Excel 匯入帶入特定編號）。',
   },

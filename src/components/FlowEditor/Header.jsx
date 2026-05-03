@@ -15,7 +15,8 @@ import { LegendModal } from '../DiagramRenderer/legend.jsx';
  *   - pin toggle (rightmost)
  */
 export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
-  onTogglePin, onOpenDrawer, onSave, onResetAllConfirm, downloadHandlers }) {
+  onTogglePin, onOpenDrawer, onSave, onResetAllConfirm, downloadHandlers,
+  onUndo, onRedo, canUndo = false, canRedo = false }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const downloadRef = useRef(null);
@@ -71,6 +72,23 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           title="圖例說明（流程圖元件對照表）"
           className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
           圖例
+        </button>
+        {/* Undo / Redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z). Stack clears
+            after every save per spec — disabled while empty so users see
+            visually whether undo is available. */}
+        <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          title={canUndo ? '復原（Ctrl+Z / Cmd+Z）' : '沒有可復原的動作（每次儲存後會清空）'}
+          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          ↶ 復原
+        </button>
+        <button
+          onClick={onRedo}
+          disabled={!canRedo}
+          title={canRedo ? '取消復原（Ctrl+Y / Ctrl+Shift+Z）' : '沒有可重做的動作'}
+          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          ↷ 重做
         </button>
         {liveFlow.tasks.some(t => t.connectionOverrides && Object.keys(t.connectionOverrides).length > 0) && (
           <button
