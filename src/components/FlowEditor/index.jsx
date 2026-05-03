@@ -181,7 +181,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     if (!hasChanges || saveModal || resetAllModal) return;
     // Any new edit → drop continuous pulse (user is active again).
     setPulseMode(prev => (prev === 'continuous' ? 'none' : prev));
-    const t = setTimeout(() => setPulseMode('continuous'), 2 * 60 * 1000);
+    const t = setTimeout(() => setPulseMode('continuous'), 90 * 1000);
     return () => clearTimeout(t);
   }, [editStamp, hasChanges, saveModal, resetAllModal]);
 

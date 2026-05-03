@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-04',
+    title: '儲存提醒升級：整顆按鈕變黃 + 閒置 threshold 2min→1.5min',
+    items: [
+      '**緣由**：使用者：「我覺得提醒不夠明顯，請把整顆按鈕都改成醒目的顏色搭配脈衝。請規劃合適的顏色、並且先改為閒置 1.5 分鐘提醒」。PR #137 的 yellow glow ring 在深藍 header 上不夠跳。',
+      '**色彩規劃**：選 amber-400 `#FBBF24` 為按鈕底色 + amber-950 `#422006` 深棕色字。理由：(a) 跟既有 pulse glow ring（rgba(250, 204, 21)）同一色系，視覺一致 (b) 對深藍 header `#2A5598` 高對比，一眼跳出來 (c) 黃色是「警示 / 該注意」訊號（不像紅色含「錯誤」意涵） (d) 暗棕字確保 WCAG 對比夠（`#FBBF24` 上 `#422006` 對比約 9:1）。',
+      '**Header 按鈕 className 三層 priority**：(1) `savePulse !== \'none\'` → amber-400 bg + 暗棕字 + save-pulse 動畫（最高優先）(2) `hasChanges` → 既有白底深藍字 (3) 無變更 → 既有透明白邊。三狀態切換 transition-colors 平滑。',
+      '**閒置 threshold 2min → 1.5min**：`FlowEditor/index.jsx` idle effect 從 `2 * 60 * 1000` 改成 `90 * 1000`。Tooltip 文字「≥2 分鐘」→「≥1.5 分鐘」。',
+      '**helpPanelData EDITABLE_ACTIONS** 對應條目更新：「黃色脈衝動畫」→「黃色高亮 + 脈衝動畫」、threshold 2 → 1.5。',
+      '**動到的檔案（4 個）**：`src/components/FlowEditor/index.jsx`（threshold 90s）/ `src/components/FlowEditor/Header.jsx`（按鈕 className 三層 priority + tooltip 文字）/ `src/data/helpPanelData.js`（EDITABLE_ACTIONS 條目）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 編輯一次後等 1.5 分鐘 → 按鈕從白底變黃底 + 脈衝動畫 ✓ (b) 任何輸入 → 立刻變回白底（hasChanges 仍 true）+ 重置計時 ✓ (c) 持續編輯 3/5 分鐘 → 短暫變黃底 8 秒後變回白 ✓ (d) 按儲存 → 變回外框白邊（無變更狀態）✓ (e) 對比深藍 header 一眼可辨識 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '儲存提醒：「儲存」按鈕黃色脈衝動畫（雙觸發 — 持續編輯 3/5min + 閒置 2min）',
     items: [
       '**緣由**：使用者：「我希望做一個儲存的提醒...持續編輯超過 3 & 5 分鐘儲存動態要啟動但不持續、閒置 2 分鐘以上儲存動態要持續閃耀」。對應 backlog V「儲存事件閃亮提醒」變體升級。',
