@@ -82,3 +82,21 @@ svg text {
   }
 }
 .save-pulse { animation: save-pulse 1.4s ease-in-out infinite; }
+
+/* Save success celebration — fires on every save click that completes
+   (after validation passes, paired with logo-wave). 700ms green flash
+   on the button + a floating ✨ that drifts up + fades. Quick, playful,
+   matches the random encouragement phrase shown in tooltip. */
+@keyframes save-celebrate-flash {
+  0%   { background: #FBBF24; color: #422006; transform: scale(1.05); }
+  25%  { background: #10B981; color: #FFFFFF; transform: scale(1.15); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.4); }
+  100% { background: #FFFFFF; color: #1E4677; transform: scale(1);    box-shadow: none; }
+}
+.save-celebrate-flash { animation: save-celebrate-flash 0.7s ease-out forwards; }
+
+@keyframes save-celebrate-sparkle {
+  0%   { transform: translate(-50%, 0)    scale(0.5); opacity: 0; }
+  20%  { opacity: 1; }
+  100% { transform: translate(-50%, -32px) scale(1.4); opacity: 0; }
+}
+.save-celebrate-sparkle { animation: save-celebrate-sparkle 0.9s ease-out forwards; }

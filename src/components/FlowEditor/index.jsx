@@ -50,6 +50,9 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   // Anchor for the 3-min / 5-min brief reminders: timestamp of the FIRST
   // edit since last save. Cleared on save.
   const editingStartRef = useRef(null);
+  // Save success celebration — set true on every successful save for ~900ms
+  // so the Header can run the flash + sparkle animation. Auto-clears.
+  const [saveCelebrate, setSaveCelebrate] = useState(false);
   // Ref to DiagramRenderer's imperative export API (forwardRef +
   // useImperativeHandle exposes exportPng / exportDrawio / exportExcel).
   // Used by the Header download dropdown — each item calls
@@ -148,6 +151,9 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     // next edit (so 3min/5min timers re-trigger from a fresh starting point).
     setPulseMode('none');
     editingStartRef.current = null;
+    // Trigger celebration animation (Header reads saveCelebrate prop).
+    setSaveCelebrate(true);
+    setTimeout(() => setSaveCelebrate(false), 900);
     onSuccess?.();
   }
 
@@ -252,7 +258,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         downloadHandlers={downloadHandlers}
         onUndo={handleUndo} onRedo={handleRedo}
         canUndo={canUndoStack(undoStack)} canRedo={canRedoStack(undoStack)}
-        savePulse={pulseMode} />
+        savePulse={pulseMode} saveCelebrate={saveCelebrate} />
 
       <main className="px-4 py-6 w-full max-w-full">
         {/* Diagram — always visible. ref exposes exportPng/Drawio/Excel

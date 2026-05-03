@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-04',
+    title: '儲存提醒互動升級：tooltip 改隨機鼓勵句 + 點擊存檔的綠閃 + ✨ 慶祝動畫',
+    items: [
+      '**緣由**：使用者：「我希望這個儲存效果 hover tooltip 不要顯示時間，改為隨機顯示這些句子（5 句）」+「每次點選存檔按鈕都要有一個慶祝的回應」。把生硬的「閒置 N 分鐘」訊息換成有趣的鼓勵語、加上點存檔的成功反饋讓互動更有溫度。',
+      '**Step 1 — 隨機鼓勵句 tooltip（`Header.jsx`）**：定義 `SAVE_PHRASES` 5 句使用者提供的內容，新增 `pickRandomPhrase` 純函式。Header 拿 `savePhrase` state（初值隨機），useEffect 監聽 `hasChanges` false→true 時 re-pick — 確保**每次 edit session 鎖一句**，hover 同 session 多次看到同一句，下次儲存後重新編輯才換句。沒變更狀態仍顯「目前沒有未儲存的變更」（保留 affordance）。',
+      '**Step 2 — 慶祝動畫狀態（`FlowEditor/index.jsx`）**：加 `saveCelebrate` state，`doSave` 時 `setSaveCelebrate(true)` + 900ms `setTimeout` 自動關。同時保留既有 `setLogoReaction(\'wave\')`（logo 揮手不變），形成 logo 揮手 + 按鈕慶祝雙重反饋。',
+      '**Step 3 — CSS 兩個 keyframes（`index.css`）**：(a) `save-celebrate-flash` — 700ms 從黃 → 綠 + 短暫 box-shadow ring + scale 1.05→1.15→1 → 還原成白底深藍字（hasChanges=false 後既有狀態）(b) `save-celebrate-sparkle` — 900ms ✨ 字符從按鈕上方 0px 飄到 -32px + scale 0.5→1.4 + 透明度 fade in/out。',
+      '**Step 4 — 按鈕結構（`Header.jsx`）**：原本是單純 `<button>`，包進 `<div class="relative">` 加上 `<span>✨</span>` 子元素 absolute 定位 -top-2。慶祝期 className `save-celebrate-flash`（priority 最高 1）+ ✨ span 渲染條件 `saveCelebrate`。三層原 priority（pulse > hasChanges > calm）下移成 2/3/4。',
+      '**Step 5 — `helpPanelData` EDITABLE_ACTIONS** 條目更新：標題加「+ 慶祝回應」、加 hover tooltip 隨機鼓勵句說明、加按下後綠閃 + ✨ 動畫說明。',
+      '**動到的檔案（4 個）**：`src/index.css`（+2 keyframes）/ `src/components/FlowEditor/index.jsx`（+saveCelebrate state + doSave 觸發）/ `src/components/FlowEditor/Header.jsx`（+SAVE_PHRASES + savePhrase state + 結構改包 div + ✨ span）/ `src/data/helpPanelData.js`（EDITABLE_ACTIONS 條目）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 開新流程編輯 → hover 儲存按鈕看到隨機 1 句鼓勵語 ✓ (b) 同 session 多次 hover → 同一句不變 ✓ (c) 按儲存成功 → 按鈕短暫變綠閃光 + ✨ 從按鈕上方飄出再 fade out + logo 揮手 ✓ (d) 再編輯 → 按鈕回 hasChanges 白底狀態，hover 看到新一句 ✓ (e) 5 句機率均等抽選 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '儲存提醒升級：整顆按鈕變黃 + 閒置 threshold 2min→1.5min',
     items: [
       '**緣由**：使用者：「我覺得提醒不夠明顯，請把整顆按鈕都改成醒目的顏色搭配脈衝。請規劃合適的顏色、並且先改為閒置 1.5 分鐘提醒」。PR #137 的 yellow glow ring 在深藍 header 上不夠跳。',
