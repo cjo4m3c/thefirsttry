@@ -1,6 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { LegendModal } from '../DiagramRenderer/legend.jsx';
 
+// Encouragement phrases shown as the save-button tooltip when there are
+// unsaved changes. Picked once per edit session (locks until save) so the
+// hover text doesn't shuffle on every keystroke. Curated by user 2026-05-04
+// to make the save reminder less mechanical.
+const SAVE_PHRASES = [
+  '上次存檔的勇者，都活下來了',
+  '你距離「完美的一天」只差一個儲存',
+  '你的工作成果值得被記住',
+  '你今天存檔了嗎？每一步努力都值得留下印記',
+  '如果是欣梅爾的話，一定會按儲存的',
+];
+function pickRandomPhrase() {
+  return SAVE_PHRASES[Math.floor(Math.random() * SAVE_PHRASES.length)];
+}
+
 /**
  * Top header bar of FlowEditor:
  *   - back button + logo (with happy / wave reaction class)
@@ -17,7 +32,13 @@ import { LegendModal } from '../DiagramRenderer/legend.jsx';
 export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
   onTogglePin, onOpenDrawer, onSave, onResetAllConfirm, downloadHandlers,
   onUndo, onRedo, canUndo = false, canRedo = false,
-  savePulse = 'none' }) {
+  savePulse = 'none', saveCelebrate = false }) {
+  // Per-edit-session random encouragement phrase. Re-randomizes each time
+  // hasChanges flips false→true (i.e., a fresh edit session after save).
+  const [savePhrase, setSavePhrase] = useState(() => pickRandomPhrase());
+  useEffect(() => {
+    if (hasChanges) setSavePhrase(pickRandomPhrase());
+  }, [hasChanges]);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const downloadRef = useRef(null);
@@ -136,23 +157,28 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
             </div>
           )}
         </div>
-        <button
-          onClick={onSave}
-          title={
-            !hasChanges ? '目前沒有未儲存的變更' :
-            savePulse === 'continuous' ? '已閒置 ≥1.5 分鐘未儲存，建議儲存' :
-            savePulse === 'brief' ? '編輯時間較長，建議儲存' :
-            '儲存所有變更'
-          }
-          className={`px-3 py-1.5 text-base rounded border font-semibold transition-colors ${
-            savePulse !== 'none'
-              ? 'border-amber-300 bg-amber-400 text-amber-950 hover:bg-amber-300 save-pulse'
-              : hasChanges
-                ? 'border-white bg-white text-[#1E4677] hover:bg-opacity-90'
-                : 'border-white border-opacity-40 text-white font-normal hover:bg-white hover:bg-opacity-10'
-          }`}>
-          儲存
-        </button>
+        <div className="relative">
+          <button
+            onClick={onSave}
+            title={hasChanges ? savePhrase : '目前沒有未儲存的變更'}
+            className={`px-3 py-1.5 text-base rounded border font-semibold transition-colors ${
+              saveCelebrate
+                ? 'border-emerald-400 save-celebrate-flash'
+                : savePulse !== 'none'
+                  ? 'border-amber-300 bg-amber-400 text-amber-950 hover:bg-amber-300 save-pulse'
+                  : hasChanges
+                    ? 'border-white bg-white text-[#1E4677] hover:bg-opacity-90'
+                    : 'border-white border-opacity-40 text-white font-normal hover:bg-white hover:bg-opacity-10'
+            }`}>
+            儲存
+          </button>
+          {saveCelebrate && (
+            <span aria-hidden="true"
+              className="save-celebrate-sparkle pointer-events-none absolute left-1/2 -top-2 text-2xl select-none">
+              ✨
+            </span>
+          )}
+        </div>
         <button
           onClick={onTogglePin}
           title={liveFlow.pinned ? '取消置頂' : '置頂此工作流'}
