@@ -3,7 +3,7 @@ import { generateId } from './storage.js';
 import {
   L3_NUMBER_PATTERN, L4_NUMBER_PATTERN,
   L4_START_PATTERN, L4_END_PATTERN,
-  L4_GATEWAY_PATTERN, L4_SUBPROCESS_PATTERN,
+  L4_GATEWAY_PATTERN, L4_SUBPROCESS_PATTERN, L4_INTERACTION_PATTERN,
   computeDisplayLabels,
 } from './taskDefs.js';
 import {
@@ -79,6 +79,10 @@ function buildFlow(rows) {
     const isEndEvent   = /結束事件/.test(l4Name);
 
     const isSubprocess = Boolean(ann.subprocessL3);
+    // 2026-04-30: `_w` suffix → external interaction (shapeType only;
+    // type stays 'task'). Per user spec, internal-lane interaction is
+    // ALLOWED (validation 3e warns at save time, doesn't block import).
+    const isInteraction = /_w\d*$/.test(l4Num);
 
     let taskType;
     if (isStartEvent)       taskType = 'start';
@@ -92,6 +96,7 @@ function buildFlow(rows) {
       name: l4Name || l4Num,
       type: taskType,
       roleId,
+      ...(isInteraction && taskType === 'task' ? { shapeType: 'interaction' } : {}),
       ...(taskType === 'gateway'
         ? { gatewayType: gType, conditions: [] }
         : { nextTaskIds: [] }),
@@ -226,7 +231,7 @@ function validateNumbering(allRows) {
   const l4TaskSet = new Set();
   for (let i = 1; i < allRows.length; i++) {
     const l4 = String(allRows[i][COL_L4_NUMBER] ?? '').trim();
-    if (l4 && !/(_g\d*|_s\d*)$/.test(l4)) l4TaskSet.add(l4);
+    if (l4 && !/(_g\d*|_s\d*|_w\d*)$/.test(l4)) l4TaskSet.add(l4);
   }
 
   // Second pass: validate each row
@@ -243,7 +248,7 @@ function validateNumbering(allRows) {
       errors.push(`• 第 ${excelRow} 列 L3 編號「${l3}」格式錯誤（應為 1-1-1，僅接受「-」分隔）`);
     }
     if (!L4_NUMBER_PATTERN.test(l4)) {
-      errors.push(`• 第 ${excelRow} 列 L4 編號「${l4}」格式錯誤（僅接受「-」分隔；閘道為 1-1-1-1_g、子流程為 1-1-1-1_s）`);
+      errors.push(`• 第 ${excelRow} 列 L4 編號「${l4}」格式錯誤（僅接受「-」分隔；閘道為 1-1-1-1_g、子流程為 1-1-1-1_s、外部互動為 1-1-1-1_w）`);
       continue; // suffix checks meaningless if base is wrong
     }
 
@@ -253,6 +258,7 @@ function validateNumbering(allRows) {
     const isSubprocessRow = /調用子流程\s*\d+-\d+-\d+/.test(flowText);
     const hasGTag     = /_g\d*$/.test(l4);
     const hasSTag     = /_s\d*$/.test(l4);
+    const hasWTag     = /_w\d*$/.test(l4);
 
     if (isStart && !L4_START_PATTERN.test(l4)) {
       errors.push(`• 第 ${excelRow} 列為「開始事件」，L4 編號「${l4}」尾碼應為 0（範例:1-1-7-0）`);
@@ -269,12 +275,11 @@ function validateNumbering(allRows) {
     if (isSubprocessRow && !L4_SUBPROCESS_PATTERN.test(l4)) {
       errors.push(`• 第 ${excelRow} 列為「子流程調用」，L4 編號「${l4}」應加「_s」後綴（單一 _s；連續多個用 _s1/_s2/_s3… 範例:1-1-9-5_s 或 1-1-9-5_s1）`);
     }
-    // _g / _s prefix-must-match-task: 1-1-9-5_g / _s 的前綴 1-1-9-5 必為
-    // 既有 L4 任務（含 -0 開始事件，作為閘道 / 子流程為流程第一元素的 anchor）
-    if (hasGTag || hasSTag) {
-      const baseNum = l4.replace(/(_g\d*|_s\d*)$/, '');
+    // _g / _s / _w prefix-must-match-task: 前綴必為既有 L4 任務（含 -0 開始事件）
+    if (hasGTag || hasSTag || hasWTag) {
+      const baseNum = l4.replace(/(_g\d*|_s\d*|_w\d*)$/, '');
       if (!l4TaskSet.has(baseNum)) {
-        const kind = hasGTag ? '閘道' : '子流程';
+        const kind = hasGTag ? '閘道' : hasSTag ? '子流程' : '外部互動';
         errors.push(`• 第 ${excelRow} 列「${kind}」 ${l4}：找不到前置任務 ${baseNum}（${kind}編號前綴必為對應 L4 任務或 -0 開始事件）`);
       }
     }
@@ -292,7 +297,8 @@ function validateNumbering(allRows) {
     `  • 結束事件：尾碼為 99，例如 1-1-7-99\n` +
     `  • 閘道（XOR / AND / OR）：加「_g」後綴，例如 1-1-9-5_g；連續多個用 1-1-9-5_g1、1-1-9-5_g2…\n` +
     `  • 子流程調用：加「_s」後綴，例如 1-1-9-5_s；連續多個用 1-1-9-5_s1、1-1-9-5_s2…\n` +
-    `    _g / _s 前綴必為對應 L4 任務（含 -0 開始事件）`
+    `  • 外部關係人互動：加「_w」後綴，例如 1-1-9-5_w；連續多個用 1-1-9-5_w1、1-1-9-5_w2…\n` +
+    `    _g / _s / _w 前綴必為對應 L4 任務（含 -0 開始事件）`
   );
 }
 

@@ -36,14 +36,16 @@
 - **僅接受「-」分隔，不接受「.」分隔**（特殊類型才有 `_g` / `_s` 後綴）
 - **L3**：`1-1-1`（三層橫線，恰好 3 段）
 - **L4**：`1-1-1-1`（L3 + `-` + 序號，恰好 4 段）
-- **特殊 L4 後綴**：開始 `-0` / 結束 `-99` / 閘道 `_g` 或 `_g\d+` / 子流程調用 `_s` 或 `_s\d+`（前綴必為既有 L4 任務或 `-0` 開始事件）
-- **`_g` 與 `_s` 共用 anchor**：兩者都不佔順號，連續計數器互不重置（規格範例 `_s1 → _g → _s2`）
+- **特殊 L4 後綴**：開始 `-0` / 結束 `-99` / 閘道 `_g` 或 `_g\d+` / 子流程調用 `_s` 或 `_s\d+` / 外部關係人互動 `_w` 或 `_w\d+`（前綴必為既有 L4 任務或 `-0` 開始事件）
+- **`_g` / `_s` / `_w` 共用 anchor**：三者都不佔順號，連續計數器互不重置（規格範例 `_s1 → _g → _s2`、`_w1 → _g → _w2`）
 - **閘道 fork 關鍵字**（需 `_g`）：`條件分支至` / `並行分支至` / `包容分支至`
 - **子流程關鍵字**（需 `_s`）：`調用子流程 X-Y-Z`（X-Y-Z 為被調用的 L3 編號）
+- **外部互動 `_w`**：`shapeType=interaction` 自動產生（沒有觸發關鍵字，由 shape 推導）。Excel 含 `_w` row → 載入時 set `shapeType=interaction`
 - **不是獨立閘道**（一般任務，不用 `_g`）：merge target（`X 合併來自...`）/ `迴圈返回至 X`。詳見 `docs/business-spec.md` §4.1
-- 格式驗證 regex 的**單一來源**在 `src/utils/taskDefs.js`（`L3_NUMBER_PATTERN` / `L4_NUMBER_PATTERN` / `L4_START_PATTERN` / `L4_END_PATTERN` / `L4_GATEWAY_PATTERN` / `L4_SUBPROCESS_PATTERN`）。**編號規則變更只改這幾個常數**
-- Excel parser 寬鬆（容忍點分隔避免解析斷裂）；`validateNumbering` 強制 dash-only + `_g` / `_s` 前綴對應，列出所有錯誤列
-- 舊 localStorage 點分隔資料在 `storage.normalizeNumber` 載入時自動轉橫線；舊閘道缺 `_g` / 舊子流程缺 `_s` 自動補（`migrateGatewaySuffix` / `migrateSubprocessSuffix`）
+- 格式驗證 regex 的**單一來源**在 `src/utils/taskDefs.js`（`L3_NUMBER_PATTERN` / `L4_NUMBER_PATTERN` / `L4_START_PATTERN` / `L4_END_PATTERN` / `L4_GATEWAY_PATTERN` / `L4_SUBPROCESS_PATTERN` / `L4_INTERACTION_PATTERN`）。**編號規則變更只改這幾個常數**
+- Excel parser 寬鬆（容忍點分隔避免解析斷裂）；`validateNumbering` 強制 dash-only + `_g` / `_s` / `_w` 前綴對應，列出所有錯誤列
+- 舊 localStorage 點分隔資料在 `storage.normalizeNumber` 載入時自動轉橫線；舊閘道缺 `_g` / 舊子流程缺 `_s` / 舊外部互動缺 `_w` 自動補（`migrateGatewaySuffix` / `migrateSubprocessSuffix` / `migrateInteractionSuffix`）
+- **流程圖顯示分層（2026-04-30 後段）**：流程圖只顯示 L4 任務編號；`-0` / `-99` / `_g*` / `_s*` / `_w*` 全部隱藏。編輯器 + 表格顯示完整編號（含後綴）— SOT 是 `displayLabels`，hide 在 `TasksLayer.jsx`
 
 ## 4. Changelog 維護
 

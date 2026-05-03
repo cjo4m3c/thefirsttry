@@ -176,20 +176,40 @@ function isLaneSensitive(task) {
     && (task.shapeType === 'task' || task.shapeType === 'interaction');
 }
 
+/**
+ * Asymmetric sync rule (2026-04-30 update per user spec)：
+ *   external lane → 強制 interaction（外部角色「不能用任務」，必須是 interaction）
+ *   internal lane → preserve current shape（internal 允許 interaction，由
+ *                    validation 3e 跳 warning 讓使用者檢查）
+ * Pass through stored shape when role.type would otherwise no-op the sync.
+ * If role-id changes when l4Number is present (e.g. interaction with stored
+ * `_w` moved to internal lane and shape stays interaction), strip l4Number
+ * so computeDisplayLabels re-derives — keeps numbering aligned with shape.
+ */
+function targetShapeFor(currentShape, role) {
+  if (role?.type === 'external') return 'interaction';
+  return currentShape;  // internal / unspecified — preserve user's choice
+}
+
 /** Move a task to a new role; auto-sync shapeType based on the role's type. */
 export function applyRoleChange(task, newRoleId, roles) {
   if (!isLaneSensitive(task)) return { ...task, roleId: newRoleId };
   const newRole = (roles || []).find(r => r.id === newRoleId);
-  const targetShape = newRole?.type === 'external' ? 'interaction' : 'task';
+  const targetShape = targetShapeFor(task.shapeType, newRole);
   if (task.shapeType === targetShape && task.roleId === newRoleId) return task;
-  return { ...task, roleId: newRoleId, shapeType: targetShape };
+  // Shape changed — strip stored l4Number so display labels re-derive with
+  // the right suffix family (`_w` for interaction, plain L4 counter for task).
+  const stripL4 = task.shapeType !== targetShape && task.l4Number;
+  const next = { ...task, roleId: newRoleId, shapeType: targetShape };
+  if (stripL4) delete next.l4Number;
+  return next;
 }
 
 /**
  * Cascade-sync every task's shapeType against the current roles list. Used
- * when a role's type flips (one role change → all of its tasks need to swap
- * shape) and as a one-time fixup on load. Idempotent — returns the same
- * array reference when no changes needed.
+ * when a role's type flips and as a one-time fixup on load. Idempotent —
+ * returns the same array reference when no changes needed.
+ * Asymmetric: external forces interaction, internal preserves current shape.
  */
 export function syncTasksToRoles(tasks, roles) {
   if (!Array.isArray(tasks) || !Array.isArray(roles)) return tasks;
@@ -199,10 +219,13 @@ export function syncTasksToRoles(tasks, roles) {
     if (!isLaneSensitive(t) || !t.roleId) return t;
     const role = roleById.get(t.roleId);
     if (!role) return t;
-    const targetShape = role.type === 'external' ? 'interaction' : 'task';
+    const targetShape = targetShapeFor(t.shapeType, role);
     if (t.shapeType === targetShape) return t;
     changed = true;
-    return { ...t, shapeType: targetShape };
+    const stripped = { ...t, shapeType: targetShape };
+    // Shape change → drop stored l4Number for re-derive (`_w` ↔ regular L4).
+    if (stripped.l4Number) delete stripped.l4Number;
+    return stripped;
   });
   return changed ? next : tasks;
 }

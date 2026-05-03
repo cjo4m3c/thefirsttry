@@ -56,13 +56,13 @@ export function computeDisplayLabels(tasks, l3Number) {
   ]);
 
   // Pre-scan stored l4Numbers so auto-generated counters don't collide
-  // with imported tasks. _g and _s suffixes don't claim a counter — both
-  // share their anchor task's counter. Start / end (counters 0 / 99) are
-  // reserved and excluded.
+  // with imported tasks. _g / _s / _w suffixes don't claim a counter —
+  // they share their anchor task's counter. Start / end (counters 0 / 99)
+  // are reserved and excluded.
   const usedCounters = new Set();
   tasks.forEach(task => {
     if (!task.l4Number) return;
-    const base = String(task.l4Number).replace(/(_g\d*|_s\d*)$/, '');
+    const base = String(task.l4Number).replace(/(_g\d*|_s\d*|_w\d*)$/, '');
     if (base.startsWith(prefix + '-')) {
       const n = parseInt(base.slice(prefix.length + 1), 10);
       if (!Number.isNaN(n) && n !== 0 && n !== 99) usedCounters.add(n);
@@ -70,9 +70,10 @@ export function computeDisplayLabels(tasks, l3Number) {
   });
 
   let taskCounter = 1;
-  let lastTaskBase = null;  // anchor for `_g` / `_s` suffixes
+  let lastTaskBase = null;  // anchor for `_g` / `_s` / `_w` suffixes
   let gwConsec = 0;         // consecutive gateways after lastTaskBase
   let spConsec = 0;         // consecutive subprocess calls after lastTaskBase
+  let intConsec = 0;        // consecutive interactions (`_w`) after lastTaskBase
 
   tasks.forEach(task => {
     const ct = task.connectionType || 'sequence';
@@ -80,35 +81,48 @@ export function computeDisplayLabels(tasks, l3Number) {
     const isEnd   = task.type === 'end'   || ct === 'end' || ct === 'breakpoint';
     const isGateway = task.type === 'gateway' || GATEWAY_CTS.has(ct);
     const isSubprocess = task.type === 'l3activity' || ct === 'subprocess';
+    // 2026-04-30: external interactions get `_w` suffix (anchor + counter
+    // analogous to `_g` / `_s`). Detected by shapeType === 'interaction'
+    // (PR #119 lane-driven shape — internal lane allowed too with warning).
+    const isInteraction = task.shapeType === 'interaction'
+      && task.type !== 'gateway' && task.type !== 'start' && task.type !== 'end' && task.type !== 'l3activity';
 
-    // 1. Respect stored l4Number (imported flows). Legacy subprocess data
-    //    that lacks `_s` is intentionally dropped — its stored base is wrong
-    //    under the new spec; fall through to generated logic so the base
-    //    becomes the actual predecessor task.
+    // 1. Respect stored l4Number (imported flows). Stored data that lacks
+    //    the expected suffix for its type is intentionally dropped — the
+    //    base is wrong under the spec; fall through to generated logic.
     const stored = task.l4Number ? String(task.l4Number) : null;
-    const skipStored = isSubprocess && stored && !/_s\d*$/.test(stored);
+    const skipStored =
+      (isSubprocess && stored && !/_s\d*$/.test(stored)) ||
+      (isInteraction && stored && !/_w\d*$/.test(stored));
     if (stored && !skipStored) {
       let label = stored;
       if (isGateway && !/_g\d*$/.test(label)) label += '_g';
       labels[task.id] = label;
       const mGW = label.match(/^(\d+-\d+-\d+-\d+)_g(\d*)$/);
       const mSP = label.match(/^(\d+-\d+-\d+-\d+)_s(\d*)$/);
+      const mW  = label.match(/^(\d+-\d+-\d+-\d+)_w(\d*)$/);
       if (mGW) {
         lastTaskBase = mGW[1];
         gwConsec = mGW[2] === '' ? 1 : parseInt(mGW[2], 10);
-        // spConsec preserved — `_s1 → _g → _s2` stays consecutive.
+        // spConsec / intConsec preserved — `_s1 → _g → _s2` stays consecutive.
       } else if (mSP) {
         lastTaskBase = mSP[1];
         spConsec = mSP[2] === '' ? 1 : parseInt(mSP[2], 10);
-        // gwConsec preserved — `_g1 → _s → _g2` stays consecutive.
+        // gwConsec / intConsec preserved.
+      } else if (mW) {
+        lastTaskBase = mW[1];
+        intConsec = mW[2] === '' ? 1 : parseInt(mW[2], 10);
+        // gwConsec / spConsec preserved — `_w1 → _g → _w2` stays consecutive.
       } else if (isStart) {
-        lastTaskBase = label;  // `${l3}-0` anchors trailing _g / _s
+        lastTaskBase = label;  // `${l3}-0` anchors trailing _g / _s / _w
         gwConsec = 0;
         spConsec = 0;
+        intConsec = 0;
       } else if (!isEnd) {
         lastTaskBase = label;
         gwConsec = 0;
         spConsec = 0;
+        intConsec = 0;
       }
       return;
     }
@@ -117,25 +131,27 @@ export function computeDisplayLabels(tasks, l3Number) {
     if (isStart) {
       const label = `${prefix}-0`;
       labels[task.id] = label;
-      lastTaskBase = label;  // start anchors trailing _g / _s as `-0_g` / `-0_s`
+      lastTaskBase = label;  // start anchors trailing _g / _s / _w
       gwConsec = 0;
       spConsec = 0;
+      intConsec = 0;
     } else if (isEnd) {
       labels[task.id] = `${prefix}-99`;
     } else if (isSubprocess) {
       const base = lastTaskBase || `${prefix}-0`;
       spConsec += 1;
-      // Always emit `_s${n}` here; post-process below strips the index when
-      // the run length is exactly 1 (yielding plain `_s` for single calls).
       labels[task.id] = `${base}_s${spConsec}`;
-      // gwConsec preserved across _s.
+      // gwConsec / intConsec preserved across _s.
     } else if (isGateway) {
       const base = lastTaskBase || `${prefix}-0`;
       gwConsec += 1;
-      // Always emit `_g${n}` here; post-process below strips the index when
-      // the run length is exactly 1 (yielding plain `_g` for single gateways).
       labels[task.id] = `${base}_g${gwConsec}`;
-      // spConsec preserved across _g.
+      // spConsec / intConsec preserved across _g.
+    } else if (isInteraction) {
+      const base = lastTaskBase || `${prefix}-0`;
+      intConsec += 1;
+      labels[task.id] = `${base}_w${intConsec}`;
+      // gwConsec / spConsec preserved across _w.
     } else {
       while (usedCounters.has(taskCounter)) taskCounter++;
       const num = `${prefix}-${taskCounter++}`;
@@ -143,6 +159,7 @@ export function computeDisplayLabels(tasks, l3Number) {
       lastTaskBase = num;
       gwConsec = 0;
       spConsec = 0;
+      intConsec = 0;
     }
   });
 
@@ -153,11 +170,14 @@ export function computeDisplayLabels(tasks, l3Number) {
   // so they're left alone.
   const gwBaseMax = {};
   const spBaseMax = {};
+  const intBaseMax = {};
   Object.values(labels).forEach(label => {
     const mG = label.match(/^(\d+-\d+-\d+-\d+)_g(\d+)$/);
     if (mG) gwBaseMax[mG[1]] = Math.max(gwBaseMax[mG[1]] || 0, parseInt(mG[2], 10));
     const mS = label.match(/^(\d+-\d+-\d+-\d+)_s(\d+)$/);
     if (mS) spBaseMax[mS[1]] = Math.max(spBaseMax[mS[1]] || 0, parseInt(mS[2], 10));
+    const mW = label.match(/^(\d+-\d+-\d+-\d+)_w(\d+)$/);
+    if (mW) intBaseMax[mW[1]] = Math.max(intBaseMax[mW[1]] || 0, parseInt(mW[2], 10));
   });
   const result = {};
   Object.entries(labels).forEach(([id, label]) => {
@@ -169,6 +189,11 @@ export function computeDisplayLabels(tasks, l3Number) {
     const mS = label.match(/^(\d+-\d+-\d+-\d+)_s(\d+)$/);
     if (mS && spBaseMax[mS[1]] === 1) {
       result[id] = `${mS[1]}_s`;
+      return;
+    }
+    const mW = label.match(/^(\d+-\d+-\d+-\d+)_w(\d+)$/);
+    if (mW && intBaseMax[mW[1]] === 1) {
+      result[id] = `${mW[1]}_w`;
       return;
     }
     result[id] = label;

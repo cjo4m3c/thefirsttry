@@ -6,6 +6,24 @@
 export default [
   {
     date: '2026-04-30',
+    title: '外部關係人互動 `_w` 編號 + 不對稱 sync + 流程圖隱藏編號（一致業務規則重整）',
+    items: [
+      '**緣由**：使用者：「我希望調整『外部關係人互動』的編號方式與規則 — 跟現在閘道的編號邏輯一樣用『前一個L4編號＋後綴』的方式，後綴為 `_w`」+「Excel 匯入有 `_w` 但對應角色 internal → 改為跳提醒讓使用者檢查，仍然可以匯入」+「外部互動在流程圖上不顯示編號，但會顯示在表格中」。把 `_w` 加進跟 `_g`/`_s` 同一個後綴 family。',
+      '**Step 1 — Regex SOT（`utils/taskDefs.js`）**：(a) 新增 `L4_INTERACTION_PATTERN = /^\\d+-\\d+-\\d+-\\d+_w\\d*$/` (b) `L4_NUMBER_PATTERN` 加入 `_w\\d*` 接受 (c) Excel `validateNumbering` 加 `hasWTag` 偵測 + 前綴必對應既有 L4 任務或 `-0` 規則（與 `_g`/`_s` 一致）。',
+      '**Step 2 — `computeDisplayLabels`（`model/flowSelectors.js`）**：加 `intConsec` counter + interaction branch（`isInteraction = shapeType === \'interaction\' && type === \'task\'`）。anchor 取 `lastTaskBase`、編號形如 `${base}_w${intConsec}`、跟 `_g`/`_s` 共用 anchor、互不重置。`usedCounters` 預掃 strip 也加 `_w\\d*`。Post-process 加 `_w` run-length-1 → drop index（單一 `_w`、連續 `_w1`/`_w2`/`_w3`）。',
+      '**Step 3 — 流程圖隱藏編號（`DiagramRenderer/TasksLayer.jsx`）**：hide regex 從 `(_g\\d*|_s\\d*|-0|-99)` 加上 `_w\\d*`。流程圖只顯示 L4 任務編號；編輯器 + 表格仍顯示完整含後綴的編號（SOT 是同一個 displayLabels，只在 TasksLayer 隱藏）。',
+      '**Step 4 — 載入 migration（`utils/storage.js`）**：新增 `migrateInteractionSuffix` — 任務 `shapeType=interaction` 但 l4Number 沒 `_w` 後綴 → strip l4Number 讓 computeDisplayLabels 重推。Idempotent。',
+      '**Step 5 — 復原 validation rule 3e（`model/validation.js`）**：當初 PR #119 拿掉的「shapeType=interaction 在 internal lane → warning」規則，這次依使用者新規格復活（內部允許但要警示檢查）。warning 文字加「（仍可儲存）」明確化。',
+      '**Step 6 — 復原 PR-A 對 interaction 的降級邏輯（`useFlowActions/converters.js`）**：原本 `addOtherAfter/Before(\'interaction\')` 在 internal lane 上自動降成 `shapeType=task`，因為使用者新規格允許 interaction，現一律 honor `shapeType=interaction`。internal lane 由 validation 3e 跳 warning 接手。',
+      '**Step 7 — 不對稱 sync（`utils/elementTypes.js`）**：抽 `targetShapeFor(currentShape, role)` helper — `external` → 強制 `interaction`（外部角色「不能用任務」）；`internal` → 保留現狀（不強制 task；preserve user choice）。`applyRoleChange` / `syncTasksToRoles` 套用此規則 + shape 改變時順手 strip `l4Number`，讓編號跟新 shape 對齊（`_w` ↔ regular L4）。',
+      '**Step 8 — Excel 匯入偵測（`utils/excelImport.js`）**：parser 偵測 row 的 L4 編號 `_w\\d*$` → set `shapeType=interaction`（type 仍為 task）。**不強制翻角色 type**（不 cascade，per spec「跳提醒讓使用者檢查」）。已配合 validation 3e 在儲存時警示 internal lane + interaction 的不一致。',
+      '**Step 9 — 文件三件組同步**：(a) `docs/business-spec.md §2.1` 編號表加 `_w` 兩列（單一 / 連續）+ `§2.4` 連續性判定改為「`_g` / `_s` / `_w` 共用規則」+ `§2.5` 字母結尾例外加 `_w` + `§3` 元件表「外部關係人互動」row 重寫 + `§3.1` 全章重寫成「不對稱 sync + `_w` 編號」(b) `helpPanelData NUMBERING` 加「外部關係人互動」row + `ELEMENTS` 同步 + `VALIDATION` 加「外部互動建議放外部角色泳道」warning 條目 (c) `CLAUDE.md §3` 加 `_w` + 三後綴 family 共用 anchor 規則 + 流程圖顯示分層註解。',
+      '**動到的檔案（10 個）**：`src/utils/taskDefs.js` / `src/model/flowSelectors.js` / `src/components/DiagramRenderer/TasksLayer.jsx` / `src/utils/storage.js` / `src/model/validation.js` / `src/components/FlowEditor/useFlowActions/converters.js` / `src/utils/elementTypes.js` / `src/utils/excelImport.js` / `src/data/helpPanelData.js` / `docs/business-spec.md` + `CLAUDE.md` + `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**Edge case 處理**：(E1) T1→Int→T2 = `1-1-5-1` / `1-1-5-1_w` / `1-1-5-2`（`_w` 不佔順號）✓ (E2) 連續 N 個 Int = `_w1` / `_w2` / `_w3` ✓ (E3) `_w` / `_g` / `_s` 混合不重置計數器 ✓ (E4) Int 為流程第一元素 → anchor 退到 `-0`：`-0_w` ✓ (E5) 既有 localStorage interaction 編號為 `1-1-5-3` → migration strip → 重推為 `1-1-5-2_w`（**使用者會看到顯示變動**） ✓ (E6) internal→external 切換：cascade 強制 interaction + strip 重編 ✓ (E7) external→internal 切換：保留 shape，由 warning 提醒 ✓ (E8) Excel `_w` row + internal lane → import OK + warning 不擋 ✓',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: '修連線刪除 ✕ 按鈕對長連線飄太遠 — 改用 polyline 真實中點',
     items: [
       '**緣由**：使用者：「跨很多任務或是跨比較多泳道的線，顯示出的delete icon 會離線段很遠，很不直覺，使用者也很難找到。我希望可以在線段的正中間」。PR #130 用 srcPort 與 tgtPort 的幾何中點當 ✕ 位置，對短直線 OK，但跨欄 / 跨列 / 走 top-bottom corridor 的路徑會大幅繞路 — geometric 直線中點落在實際 polyline 之外，使用者要在線旁找一個飄走的 ✕。',

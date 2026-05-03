@@ -169,6 +169,31 @@ function migrateMergeConnectionType(tasks) {
   return changed ? next : tasks;
 }
 
+/**
+ * 2026-04-30: external-interaction tasks now use the `_w` suffix (analogous
+ * to `_g` / `_s`). Pre-PR data has them numbered as regular L4 tasks (e.g.
+ * `1-1-5-3`); strip those stored l4Numbers so computeDisplayLabels re-derives
+ * with the correct `_w` suffix on next render. Idempotent — only acts on
+ * shapeType='interaction' tasks whose l4Number lacks `_w`.
+ */
+function migrateInteractionSuffix(tasks) {
+  if (!Array.isArray(tasks)) return tasks;
+  const needsFix = tasks.some(t =>
+    t && t.shapeType === 'interaction'
+      && t.type === 'task'  // exclude gateway / l3activity / start / end
+      && t.l4Number && !/_w\d*$/.test(String(t.l4Number))
+  );
+  if (!needsFix) return tasks;
+  return tasks.map(t => {
+    if (t && t.shapeType === 'interaction' && t.type === 'task'
+        && t.l4Number && !/_w\d*$/.test(String(t.l4Number))) {
+      const { l4Number, ...rest } = t;
+      return rest;
+    }
+    return t;
+  });
+}
+
 function migrateFlow(flow) {
   if (!flow) return flow;
   let tasks = Array.isArray(flow.tasks)
@@ -176,6 +201,7 @@ function migrateFlow(flow) {
     : flow.tasks;
   tasks = migrateGatewaySuffix(tasks);
   tasks = migrateSubprocessSuffix(tasks);
+  tasks = migrateInteractionSuffix(tasks);
   tasks = migrateMergeConnectionType(tasks);
   tasks = cleanStaleOverrides(tasks);
   // 2026-04-30: one-time fixup so tasks living in external-role lanes use

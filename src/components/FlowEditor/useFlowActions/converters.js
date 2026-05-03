@@ -49,11 +49,13 @@ export function makeConverterActions({ liveFlow, patch }) {
         roleId: anchor.roleId || '', nextTaskIds: [],
       };
     } else if (kind === 'interaction') {
-      const anchorRole = (liveFlow.roles || []).find(r => r.id === anchor.roleId);
-      const isExternalLane = anchorRole?.type === 'external';
+      // 2026-04-30 後段：使用者明確選 interaction 一律給 interaction shape，
+      // 不再依 anchor lane 降級。internal 泳道允許但儲存時 validation 3e
+      // 跳 warning 讓使用者檢查（per spec 「內部角色也允許使用外部關係人
+      // 互動元件，只是要跳提醒」）。
       overrides = {
         type: 'task',
-        shapeType: isExternalLane ? 'interaction' : 'task',
+        shapeType: 'interaction',
         connectionType: 'sequence',
         roleId: anchor.roleId || '',
         nextTaskIds: downstream.length ? [downstream[0]] : [''],
@@ -175,11 +177,11 @@ export function makeConverterActions({ liveFlow, patch }) {
         roleId: anchor.roleId || '', nextTaskIds: [],
       };
     } else if (kind === 'interaction') {
-      const anchorRole = (liveFlow.roles || []).find(r => r.id === anchor.roleId);
-      const isExternalLane = anchorRole?.type === 'external';
+      // 同 addOtherAfter：使用者選 interaction 一律給 interaction shape；
+      // internal 泳道由 validation 3e 跳 warning。
       overrides = {
         type: 'task',
-        shapeType: isExternalLane ? 'interaction' : 'task',
+        shapeType: 'interaction',
         connectionType: 'sequence',
         roleId: anchor.roleId || '',
         nextTaskIds: [anchorId],

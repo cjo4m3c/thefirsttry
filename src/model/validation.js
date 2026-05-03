@@ -115,11 +115,18 @@ export function validateFlow(flow) {
       warnings.push(`${label}：闘道未指定泳道角色`);
     }
 
-    // 3e: previously warned when shapeType=interaction sat on an internal
-    // lane. Removed 2026-04-30: shapeType is now auto-synced to role.type
-    // via applyRoleChange / syncTasksToRoles, so this mismatch can no longer
-    // occur from the UI. Excel imports default to internal/task; the load
-    // migration in storage.js fixes any pre-existing mismatches.
+    // 3e (restored 2026-04-30 後段): warn when shapeType=interaction sits
+    // on an internal-role lane. Per updated user spec, internal lanes ALLOW
+    // interaction (not blocked) but should be reviewed — typical use is on
+    // external lanes; mixing reads as accidental. syncTasksToRoles only
+    // force-converts internal→external (not the reverse), so this case
+    // can legitimately occur via TaskCard "外部互動" pick / Excel `_w` row.
+    if (t.shapeType === 'interaction' && t.type === 'task' && t.roleId) {
+      const role = (flow.roles || []).find(r => r.id === t.roleId);
+      if (role && role.type === 'internal') {
+        warnings.push(`${label}：外部互動任務「${t.name || '（未命名）'}」放在內部角色泳道「${role.name || '（未命名）'}」，建議改放外部角色泳道（仍可儲存）`);
+      }
+    }
 
     // 4. Every node except start must have incoming (already blocking for end,
     //    this catches orphan middle nodes).

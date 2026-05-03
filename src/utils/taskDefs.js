@@ -26,11 +26,15 @@ import { generateId } from './storage.js';
 // Dot separators are NOT accepted in new data; legacy localStorage data gets
 // dot→dash migration via storage.normalizeNumber.
 export const L3_NUMBER_PATTERN     = /^\d+-\d+-\d+$/;
-export const L4_NUMBER_PATTERN     = /^\d+-\d+-\d+-\d+(_g\d*|_s\d*)?$/;
+export const L4_NUMBER_PATTERN     = /^\d+-\d+-\d+-\d+(_g\d*|_s\d*|_w\d*)?$/;
 export const L4_START_PATTERN      = /^\d+-\d+-\d+-0$/;
 export const L4_END_PATTERN        = /^\d+-\d+-\d+-99$/;
 export const L4_GATEWAY_PATTERN    = /^\d+-\d+-\d+-\d+_g\d*$/;
 export const L4_SUBPROCESS_PATTERN = /^\d+-\d+-\d+-\d+_s\d*$/;
+// `_w` suffix marks "外部關係人互動" tasks — like `_g` / `_s`, doesn't
+// claim a flow counter and shares the previous L4 task's anchor. Added
+// 2026-04-30 per user spec ("跟現在閘道的編號邏輯一樣用『前一個L4編號＋後綴』").
+export const L4_INTERACTION_PATTERN = /^\d+-\d+-\d+-\d+_w\d*$/;
 
 // ── Constants ─────────────────────────────────────────────────────
 // User-pickable connectionTypes in the dropdown. Type variants that exist in
