@@ -140,15 +140,17 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           onClick={onSave}
           title={
             !hasChanges ? '目前沒有未儲存的變更' :
-            savePulse === 'continuous' ? '已閒置 ≥2 分鐘未儲存，建議儲存' :
+            savePulse === 'continuous' ? '已閒置 ≥1.5 分鐘未儲存，建議儲存' :
             savePulse === 'brief' ? '編輯時間較長，建議儲存' :
             '儲存所有變更'
           }
-          className={`px-3 py-1.5 text-base rounded border transition-colors ${
-            hasChanges
-              ? 'border-white bg-white text-[#1E4677] font-semibold hover:bg-opacity-90'
-              : 'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10'
-          } ${savePulse !== 'none' ? 'save-pulse' : ''}`}>
+          className={`px-3 py-1.5 text-base rounded border font-semibold transition-colors ${
+            savePulse !== 'none'
+              ? 'border-amber-300 bg-amber-400 text-amber-950 hover:bg-amber-300 save-pulse'
+              : hasChanges
+                ? 'border-white bg-white text-[#1E4677] hover:bg-opacity-90'
+                : 'border-white border-opacity-40 text-white font-normal hover:bg-white hover:bg-opacity-10'
+          }`}>
           儲存
         </button>
         <button
