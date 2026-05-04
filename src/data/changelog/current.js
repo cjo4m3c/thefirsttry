@@ -6,6 +6,21 @@
 export default [
   {
     date: '2026-05-04',
+    title: '儲存慶祝動畫升級：5 顆無 emoji 紙片 360° 環繞按鈕 + 亮藍閃光',
+    items: [
+      '**緣由**：使用者：「儲存後的慶祝動畫可以再雀躍一點」+「撒花範圍 +30%」+「不要 emoji」+「綠色改成比較亮的藍色系」+「撒花要在整顆按鈕周圍，不要被 header 卡到」。透過 preview branch（`claude/preview-confetti-30`）部署到 `/FlowSprite/preview-confetti-30/` 子路徑反覆預覽 4 個版本後定案，不影響 main 期間。',
+      '**5 顆粒子 360° 環繞**：等距 72° 分布（正上 / 右上 / 右下 / 左下 / 左上），最遠 ~42px（vs 原本單一 ✨ 32px = +31%）。**2 顆往下飛**確保下半邊也有撒花，不全集中在 header 上方被切掉。',
+      '**形狀組合**：3 個圓形（粒子 1/3）+ 2 個旋轉方塊（粒子 2/4/5），粒徑 8-9px。**無 emoji**，純 CSS shape — 真實紙片感。',
+      '**色彩**：金 `#FBBF24` / 粉 `#F472B6` / 天藍 `#38BDF8` / 薄荷 `#34D399` / 珊瑚 `#FB923C`，festive 但不刺眼，跟深藍 header 對比好。',
+      '**節奏**：3 段 stagger（0 / 40 / 80ms），pop-pop-pop 視覺節奏，不是同時齊發。每粒子 0.85-1.0s 完成（中央粒子最久 = 重心感）。',
+      '**閃光顏色**：`#10B981` emerald-500 → `#38BDF8` sky-400，**對深藍 header `#2A5598` 對比更強**。Shadow ring alpha 0.4 → 0.5。',
+      '**動到的檔案（3 個）**：`src/index.css`（重寫 5 個 keyframes / 5 個 .confetti-N classes / save-celebrate-flash 顏色）/ `src/components/FlowEditor/Header.jsx`（單一 ✨ span 改 5 個 empty span）/ `src/data/helpPanelData.js`（EDITABLE_ACTIONS 條目同步）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**Preview workflow 收尾**：`.github/workflows/deploy-preview.yml` 在本 PR 同步刪除（per `/preview-branch` skill 慣例 — 一次性 preview 完合進 main 就清掉，避免 dead workflow 累積）。Future preview 重用 `vite.config.js` 的 `VITE_BASE_PATH` 機制即可。',
+      '**驗證情境**：(a) 按儲存 → 按鈕從黃 → 亮藍 → 白，5 顆紙片從中心爆開到 360° → fade out ✓ (b) 上下左右都有粒子，不全在 header 上方 ✓ (c) 連按多次儲存 → 每次完整動畫 ✓ (d) 對 deep navy header 一眼可見 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: 'Excel 匯入警告 banner 加「展開全部 N 筆」+「複製全部」按鈕',
     items: [
       '**緣由**：使用者：「匯入時如果有多筆提示訊息，只會顯示還有多少筆，但沒辦法看到全文，希望下方可以點擊展開資訊」。74 筆警告中只顯示前 20 + 「另有 54 筆未顯示」死字 — 使用者沒辦法看完整修正清單。',

@@ -173,10 +173,16 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
             儲存
           </button>
           {saveCelebrate && (
-            <span aria-hidden="true"
-              className="save-celebrate-sparkle pointer-events-none absolute left-1/2 -top-2 text-2xl select-none">
-              ✨
-            </span>
+            // 5-particle confetti burst — colored circles + rotated squares
+            // fan out from the button (no emoji). Range ~42px per user
+            // 2026-05-04 (+30% vs. previous single-sparkle implementation).
+            <>
+              <span aria-hidden="true" className="confetti confetti-1" />
+              <span aria-hidden="true" className="confetti confetti-2" />
+              <span aria-hidden="true" className="confetti confetti-3" />
+              <span aria-hidden="true" className="confetti confetti-4" />
+              <span aria-hidden="true" className="confetti confetti-5" />
+            </>
           )}
         </div>
         <button
