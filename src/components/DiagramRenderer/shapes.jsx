@@ -138,7 +138,10 @@ export function GatewayShape({ task, pos, l4Number, isHovered }) {
       <L4Number number={l4Number} cx={cx} y={cy - d} />
       <polygon points={pts} fill={fill} stroke={stroke} strokeWidth={strokeW} />
       {symbol}
-      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={8} lineH={22} fontSize={14} />
+      {/* 2026-05-04: bg=true gives the label a white pill backing per line
+          so it stays readable when arrows enter / exit the gateway's
+          bottom port (or any port whose route passes underneath). */}
+      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={8} lineH={22} fontSize={14} bg />
     </>
   );
 }
