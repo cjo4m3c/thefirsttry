@@ -51,7 +51,8 @@ function polylineMidpoint(pts) {
 const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPng = false,
   onExportDone = null, onUpdateOverride = null, onChangeTarget = null,
   onWireThroughGateway = null, onRemoveConnection = null,
-  onResetOverride = null, onTaskClick = null, highlightedTaskId = null }, ref) {
+  onResetOverride = null, onTaskClick = null, highlightedTaskId = null,
+  densityMode = 'default' }, ref) {
   const exportRef = useRef(null);
   // Override-indicator wrapper — hidden during PNG export so the captured
   // image shows only the final routing, not editing artefacts (the amber
@@ -191,6 +192,11 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
     // PNG path doesn't render OverrideIndicators in the first place.
     const ovEl = overrideIndicatorsRef.current;
     if (ovEl) ovEl.style.display = 'none';
+    // Density toggle uses CSS zoom; reset to 1 during capture so the
+    // exported file is always full-resolution regardless of the on-screen
+    // density. Restored in finally.
+    const prevZoom = exportRef.current.style.zoom;
+    exportRef.current.style.zoom = 1;
     try {
       const dataUrl = await toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
       const a = document.createElement('a');
@@ -201,6 +207,7 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
       alert(`PNG 匯出失敗：${e?.message || e}`);
     } finally {
       if (ovEl) ovEl.style.display = '';
+      if (exportRef.current) exportRef.current.style.zoom = prevZoom;
     }
   }
 
@@ -229,7 +236,14 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
     <div className="flex flex-col gap-3 w-full">
       <div ref={scrollContainerRef} onScroll={handleScrollLeft}
         className="overflow-auto border border-gray-300 rounded-lg bg-white w-full">
-        <div ref={exportRef} style={{ display: 'inline-block', background: '#fff' }}>
+        <div ref={exportRef} style={{
+          display: 'inline-block',
+          background: '#fff',
+          // Per user spec 2026-05-04 後段：density toggle uses CSS zoom
+          // for visual scaling. PNG export temporarily resets to 1
+          // (see doPngExport) to capture full-resolution output.
+          zoom: densityMode === 'compact' ? 0.85 : densityMode === 'spacious' ? 1.15 : 1,
+        }}>
         <svg ref={svgRef} width={svgWidth} height={svgHeight} xmlns="http://www.w3.org/2000/svg"
           onPointerMove={editable && dragInfo ? moveDrag : undefined}
           onPointerUp={editable && dragInfo ? endDrag : undefined}

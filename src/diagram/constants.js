@@ -5,7 +5,7 @@ export const LAYOUT = {
   // tiers 16/14/13) intact. NODE_H unchanged to preserve 3-line task names.
   TITLE_H: 66,
   LANE_HEADER_W: 96,
-  COL_W: 164,
+  COL_W: 184,
   LANE_H: 136,
   NODE_W: 140,
   NODE_H: 84,

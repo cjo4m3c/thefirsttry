@@ -53,6 +53,22 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   // Save success celebration — set true on every successful save for ~900ms
   // so the Header can run the flash + sparkle animation. Auto-clears.
   const [saveCelebrate, setSaveCelebrate] = useState(false);
+  // Density mode (compact / default / spacious) — applied via CSS zoom on
+  // the diagram wrapper. Persisted in localStorage so the user's preference
+  // survives reloads. Per user spec 2026-05-04 後段：3 段、預設 1.0、PNG
+  // 匯出時強制還原 1x（doPngExport 處理）。
+  const [densityMode, setDensityMode] = useState(() => {
+    try {
+      const v = localStorage.getItem('flow-density-mode');
+      return v === 'compact' || v === 'spacious' ? v : 'default';
+    } catch { return 'default'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('flow-density-mode', densityMode); } catch {}
+  }, [densityMode]);
+  function cycleDensity() {
+    setDensityMode(m => m === 'default' ? 'compact' : m === 'compact' ? 'spacious' : 'default');
+  }
   // Ref to DiagramRenderer's imperative export API (forwardRef +
   // useImperativeHandle exposes exportPng / exportDrawio / exportExcel).
   // Used by the Header download dropdown — each item calls
@@ -258,12 +274,14 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         downloadHandlers={downloadHandlers}
         onUndo={handleUndo} onRedo={handleRedo}
         canUndo={canUndoStack(undoStack)} canRedo={canRedoStack(undoStack)}
-        savePulse={pulseMode} saveCelebrate={saveCelebrate} />
+        savePulse={pulseMode} saveCelebrate={saveCelebrate}
+        densityMode={densityMode} onCycleDensity={cycleDensity} />
 
       <main className="px-4 py-6 w-full max-w-full">
         {/* Diagram — always visible. ref exposes exportPng/Drawio/Excel
             imperatively so the Header download dropdown can trigger them. */}
         <DiagramRenderer ref={diagramRef} flow={liveFlow}
+          densityMode={densityMode}
           onUpdateOverride={actions.updateConnectionOverride}
           onChangeTarget={actions.changeConnectionTarget}
           onWireThroughGateway={actions.wireConnectionThroughGateway}
