@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-04',
+    title: '線段 label 自動換行：閘道條件字太長不再 overflow 進相鄰任務矩形',
+    items: [
+      '**緣由**：使用者：「我發現閘道條件字很多的時候，並沒有調整元件間的寬度或是自動換行，請找出問題和解決方案」+ 截圖顯示 `XOR 閘道 → 任務` 條件字「嗎可以嗎可...」直接穿過旁邊任務矩形 `1-0-1-6 發起需求討論` 的左邊緣。',
+      '**Root cause（`DiagramRenderer/arrows.jsx`）**：edge label 原本是單行 `<text>` + `estimateTextWidth + 8` 的 hug-bg，never wraps。相鄰列水平 mid-segment 只有 `COL_W 184 - NODE_W 140 = 44px`，CJK 字 ~14px / 字 → 3 字以上必 overflow。',
+      '**修法**：edge label 改成多行 wrap。`maxChars` 由 mid-segment 實際長度動態算（`floor((segLen - 8) / fontSize)`），clamp 到 [3, 12] CJK-equivalent，`maxTotal=24`（最多 4 行 6 字）。每行各自 hug-bg pill，垂直堆疊置中於 labelPt。長路由（forward 跨多列）label 寬鬆，相鄰列短路由則自動分行。',
+      '**為何不擴 column**：(a) 一條 label 太長就拉寬整個 column 會破壞「等寬泳道」設計 (b) 密度 toggle 已給使用者全圖縮放選項 (c) wrap 是更標準的 BPMN 處理方式 — drawio / Visio 都這樣做。',
+      '**為何用 wrapText 不直接重切**：reuse `text.jsx` 既有 token-aware wrap（CJK 1 字 1 token、Latin 整字保留、… 截斷），跟 SvgLabel / GatewayShape 行為一致。',
+      '**動到的檔案（3 個）**：`src/components/DiagramRenderer/arrows.jsx`（label render 改 wrap）/ `src/data/helpPanelData.js`（VISUAL 條目補說明）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 短條件「已核准」3 字 → 仍單行 ✓ (b) 長條件「確認可往下進行嗎可以嗎可」12 字 → 自動分 2-3 行不溢出 ✓ (c) 跨欄 forward 連線 segLen 大 → maxChars 拉到 12，少分行 ✓ (d) 多分支閘道每條 label 都各自 wrap ✓ (e) 超長 (>24 CJK) 截斷加 `…` ✓ (f) drawio / PNG 匯出 → wrap 一致 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '修密度 toggle × sticky 角色欄相容：補 zoom 補償，緊密 / 寬鬆模式都能凍結',
     items: [
       '**緣由**：使用者：「緊密模式時泳道上沒辦法凍結角色欄；寬鬆模式時角色欄會獨立左右捲動向畫面中間移動」。PR #148 加密度 toggle 後沒處理跟 sticky 角色欄的相容性，只在 default (zoom=1) 模式正常。',
