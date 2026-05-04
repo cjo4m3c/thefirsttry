@@ -201,9 +201,6 @@ export function computeDisplayLabels(tasks, l3Number) {
   return result;
 }
 
-/** Idiomatic alias for new code; same behavior as `computeDisplayLabels`. */
-export const getDisplayLabels = computeDisplayLabels;
-
 // ────────────────────────────────────────────────────────────────────────────
 // Incoming-edge map (formerly duplicated inline in validateFlow.js and
 // connectionFormat.js — byte-identical implementations)
