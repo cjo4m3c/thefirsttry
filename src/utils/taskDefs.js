@@ -147,6 +147,19 @@ export function applyGatewayPrefix(name, gatewayType) {
   return `${gatewayPrefix(gatewayType)}${stripped}`;
 }
 
+// Mirror applyGatewayPrefix for start / end events. When the user creates
+// a "開始事件" or "結束事件" via diagram tooltip / InsertPicker, prefix the
+// name with "[開始事件] " / "[結束事件] " so the Excel row / FlowTable line
+// stays self-describing without leaning on the diagram. `kind` is 'start'
+// or 'end'; null strips any existing prefix (used on type conversion).
+const EVENT_PREFIX_RE = /^\[(?:開始事件|結束事件)\]\s*/;
+export const EVENT_LABELS = { start: '開始事件', end: '結束事件' };
+export function applyEventPrefix(name, kind) {
+  const stripped = (name || '').replace(EVENT_PREFIX_RE, '');
+  if (!kind || !EVENT_LABELS[kind]) return stripped;
+  return `[${EVENT_LABELS[kind]}] ${stripped}`;
+}
+
 // ── Task normalization ────────────────────────────────────────────
 /** Infer connectionType from legacy task data (for existing saved flows) */
 export function normalizeTask(task) {

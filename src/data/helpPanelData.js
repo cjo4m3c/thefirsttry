@@ -216,6 +216,11 @@ export const VALIDATION = [
   },
   {
     tier: 'warning',
+    rule: 'L4 任務名稱未填寫',
+    detail: 'L4 任務（type=task）的 name 為空時跳 warning（純提醒、不擋儲存）。可選「仍然儲存」。其他元件類型有自己的命名慣例（閘道有 `[XX閘道]` 前綴、開始 / 結束事件創建時補 `[開始事件]` / `[結束事件]` 前綴），所以這條 rule 不檢查它們。',
+  },
+  {
+    tier: 'warning',
     rule: '空泳道（沒有任何元件）',
     detail: [
       '`flow.roles` 內定義了但沒有任何 task / 元件指派的角色泳道，儲存時跳 warning',

@@ -6,13 +6,17 @@
 export default [
   {
     date: '2026-05-04',
-    title: '儲存檢核加新 warning：空泳道（沒有任何元件的角色）',
+    title: '儲存檢核 + UX 三件：空泳道 warning / L4 任務名稱 warning / start-end 自動補前綴',
     items: [
-      '**緣由**：使用者：「希望加一個儲存時的檢核條件（僅跳提醒，可以儲存）：如果這個角色泳道上沒有任何元件（包含開始、結束、L3 子流程、任務、閘道、外部元件等全部可用元件），要跳提醒」。常見情境：使用者新增了角色但忘了指派任務、或者刪光了該泳道內容但忘了刪角色。',
-      '**修法（`model/validation.js` rule 6）**：在現有 task-level rules 之後加一段 `flow.roles.forEach`，對每個角色檢查 `tasks.some(t => t.roleId === role.id)`。`tasks[]` 涵蓋所有元件類型（type=start/end/task/gateway/l3activity 一律有 roleId 欄），所以單一檢查即覆蓋全部需求。空泳道跳 warning「角色泳道「X」上沒有任何元件 — 建議刪除此泳道、或新增任務 / 元件指派給它」。warning 不擋儲存（per spec「僅跳提醒，可以儲存」）。',
-      '**helpPanelData VALIDATION** 同步加新條目，含 4 子項列點：規則描述 / 檢查範圍 / 可選「仍然儲存」/ 兩種解法。',
-      '**動到的檔案（3 個）**：`src/model/validation.js`（+rule 6）/ `src/data/helpPanelData.js`（VALIDATION 新條目）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
-      '**驗證情境**：(a) 新增角色但無任何任務指派 → 儲存跳 warning ✓ (b) 刪除某泳道所有任務 → 儲存跳 warning ✓ (c) 每個泳道至少 1 個元件（含開始 / 結束 / 閘道 / L3 / 互動）→ 不跳 ✓ (d) warning modal 點「仍然儲存」可成功 ✓',
+      '**緣由 1**：使用者：「希望加一個儲存時的檢核條件（僅跳提醒，可以儲存）：如果這個角色泳道上沒有任何元件（包含開始、結束、L3 子流程、任務、閘道、外部元件等全部可用元件），要跳提醒」。',
+      '**緣由 2**：使用者：「新增儲存檢核條件，如果 L4 任務名稱沒有填寫任何資訊，也要跳提醒（純提醒，仍可以存）」。',
+      '**緣由 3**：使用者：「如果在畫面上自己新增開始或結束事件，在 L4 任務名稱也要補上 `[開始事件]` `[結束事件]` 文字（跟閘道補文字的邏輯相同）」。',
+      '**修法 1（`model/validation.js` rule 6）**：在 task-level rules 後加 `flow.roles.forEach`，對每個 role 檢查 `tasks.some(t => t.roleId === role.id)`。任何 type 的元件都帶 roleId，單一 `.some()` cover 全部。空泳道 warning「角色泳道「X」上沒有任何元件 — 建議刪除此泳道、或新增任務 / 元件指派給它」。',
+      '**修法 2（`model/validation.js` rule 7）**：在 forEach 內加新 rule — `t.type === \'task\' && !t.name?.trim()` 跳 warning「L4 任務名稱未填寫（建議補上以利辨識）」。只檢查純 L4 任務（閘道有 `[XX閘道]` 前綴、start/end 創建時補 `[開始事件]/[結束事件]` 前綴 — 一律不空）。',
+      '**修法 3（`utils/taskDefs.js` + `useFlowActions/converters.js`）**：mirror 既有 `applyGatewayPrefix` 模式，新增 `applyEventPrefix(name, kind)` + `EVENT_LABELS = { start: \'開始事件\', end: \'結束事件\' }` + `EVENT_PREFIX_RE` strip regex（idempotent，重複 apply 不會疊加）。`addOtherAfter` / `addOtherBefore` 在 makeTask 之前對 kind=start/end 跑 `applyEventPrefix(name, kind)`，使用者填空也會被前綴佔位。breakpoint 跳過（已有自己的 `【斷點：…】` suffix display）。',
+      '**helpPanelData VALIDATION** 加 2 條：「L4 任務名稱未填寫」+「空泳道」。',
+      '**動到的檔案（4 個）**：`src/model/validation.js`（+rule 6 + rule 7）/ `src/utils/taskDefs.js`（+`applyEventPrefix` + `EVENT_LABELS` + `EVENT_PREFIX_RE`）/ `src/components/FlowEditor/useFlowActions/converters.js`（addOther*After/Before 對 start/end 跑 prefix）/ `src/data/helpPanelData.js`（VALIDATION +2 條）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 角色泳道無任何元件 → 儲存跳 warning ✓ (b) L4 任務名稱欄位空 → 儲存跳 warning「未填寫（建議補上以利辨識）」✓ (c) tooltip 點「新增其他 → 開始事件」→ 任務名稱自動填 `[開始事件] ` ✓ (d) 同上「結束事件」→ 自動填 `[結束事件] ` ✓ (e) 新建 start/end 後 hover 編輯名稱仍可改，前綴保留 ✓ (f) breakpoint 不受 prefix 影響（保留現有 display）✓ (g) warning modal 點「仍然儲存」可成功 ✓',
     ],
   },
   {

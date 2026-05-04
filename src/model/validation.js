@@ -155,6 +155,15 @@ export function validateFlow(flow) {
       const target = (t.nextTaskIds || [])[0];
       if (!target) warnings.push(`${label}：迴圈返回必須指定目標任務`);
     }
+
+    // 7 (2026-05-04). Task with empty name — warning, not blocking.
+    // Applies to L4 tasks only (start / end / gateway / l3activity have
+    // their own naming conventions: gateway gets '[XX閘道] ' prefix,
+    // start/end get '[開始事件] / [結束事件] ' prefix on creation, so a
+    // truly empty name on those is rare and fine to skip).
+    if (t.type === 'task' && !t.name?.trim()) {
+      warnings.push(`${label}：L4 任務名稱未填寫（建議補上以利辨識）`);
+    }
   });
 
   // 6. Empty role lane — warning. A role defined in flow.roles but with

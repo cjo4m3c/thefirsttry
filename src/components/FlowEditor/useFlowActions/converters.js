@@ -1,4 +1,4 @@
-import { makeTask, applySequentialDefaults } from '../../../utils/taskDefs.js';
+import { makeTask, applySequentialDefaults, applyEventPrefix } from '../../../utils/taskDefs.js';
 import { makeTypeChange } from '../../../utils/elementTypes.js';
 import { generateId } from '../../../utils/storage.js';
 
@@ -63,7 +63,14 @@ export function makeConverterActions({ liveFlow, patch }) {
     } else {
       return;
     }
-    const newTask = makeTask({ ...overrides, name: name || '' });
+    // Mirror applyGatewayPrefix behavior for start / end (per user spec
+    // 2026-05-04): prefix the name with '[開始事件] ' / '[結束事件] ' so
+    // FlowTable / Excel rows are self-describing. breakpoint stays raw —
+    // it has its own '【斷點：...】' suffix and the legacy display path.
+    const prefixedName = (kind === 'start' || kind === 'end')
+      ? applyEventPrefix(name || '', kind)
+      : (name || '');
+    const newTask = makeTask({ ...overrides, name: prefixedName });
     // Skip rewire for start (it must have no incoming). All other kinds
     // continue to wire anchor → newTask.
     const rewireAnchor = kind !== 'start';
@@ -190,7 +197,14 @@ export function makeConverterActions({ liveFlow, patch }) {
     } else {
       return;
     }
-    const newTask = makeTask({ ...overrides, name: name || '' });
+    // Mirror applyGatewayPrefix behavior for start / end (per user spec
+    // 2026-05-04): prefix the name with '[開始事件] ' / '[結束事件] ' so
+    // FlowTable / Excel rows are self-describing. breakpoint stays raw —
+    // it has its own '【斷點：...】' suffix and the legacy display path.
+    const prefixedName = (kind === 'start' || kind === 'end')
+      ? applyEventPrefix(name || '', kind)
+      : (name || '');
+    const newTask = makeTask({ ...overrides, name: prefixedName });
     let tasks = liveFlow.tasks;
     if (rewire) {
       // Redirect every task that pointed at anchor to point at newTask
