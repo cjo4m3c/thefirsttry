@@ -70,14 +70,17 @@ export default function ContextMenu({
   const [l3Name, setL3Name] = useState('');
 
   // Reset sub-form state when the menu opens for a different task.
+  // Per user spec 2026-05-04 後段：clicking a gateway auto-expands the
+  // 編輯閘道 ('gw-edit') sub-form, since branch editing is the primary
+  // action on a gateway. Other task types keep the collapsed default.
   useEffect(() => {
-    setSubForm(null);
+    setSubForm(task?.type === 'gateway' ? 'gw-edit' : null);
     setConnTarget('');
     setGwType('xor');
     setGwBranches([{ label: '', target: '' }, { label: '', target: '' }]);
     setL3Number('');
     setL3Name('');
-  }, [task?.id]);
+  }, [task?.id, task?.type]);
 
   // Initialize position from the click point whenever the menu opens for
   // a different task. Subsequent drags / sub-form expansions only adjust
@@ -194,11 +197,11 @@ export default function ContextMenu({
     onClose?.();
   }
   function submitGateway() {
-    const valid = gwBranches.filter(b => b.target);
-    if (valid.length < 2) return;
-    // Pass all branches (including empty-target rows are dropped) so the
-    // gateway is created with conditions matching what the user picked.
-    onAddGateway?.(task.id, gwType, valid.map(b => ({ label: b.label, targetId: b.target })));
+    // Pass ALL branch rows (including empty-target ones) so the gateway is
+    // created exactly as the user sees it in the form. Empty targets become
+    // save-time warnings (rule 1 / 3c-bis) — per user spec 2026-05-04 後段:
+    // "不強制要先連到任務才能按確定，允許使用者先新增後回來補分支".
+    onAddGateway?.(task.id, gwType, gwBranches.map(b => ({ label: b.label, targetId: b.target })));
     onClose?.();
   }
   function submitL3Activity() {
@@ -300,8 +303,21 @@ export default function ContextMenu({
         )}
       </div>
 
-      {/* Action buttons — order by usage frequency (per element type) */}
+      {/* Action buttons — order by usage frequency (per element type).
+          Gateway-specific: 編輯閘道 first (auto-expanded on open) so
+          branch editing is the most prominent action. Per user spec
+          2026-05-04 後段：「希望也預設展開編輯閘道分支的欄位」 +
+          field-order evaluation. */}
       <div className="border-t border-gray-100 py-1">
+        {/* 0 (gateway-only, top). 編輯閘道 — type switch + conditions list.
+            Auto-expanded by default on gateway click. */}
+        {isGateway && <ActionToggle formKey="gw-edit" label="編輯閘道（種類 / 條件）" />}
+        {isGateway && subForm === 'gw-edit' && (
+          <GatewayEditorSubForm
+            task={task} allTasks={allTasks} displayLabels={displayLabels}
+            onUpdate={onUpdate} />
+        )}
+
         {/* 1. 新增任務 */}
         {canAddOutgoing && (
           <button onClick={() => { onAddAfter?.(task.id); onClose?.(); }}
@@ -336,14 +352,6 @@ export default function ContextMenu({
             l3Number={l3Number} setL3Number={setL3Number}
             l3Name={l3Name} setL3Name={setL3Name}
             onCancel={() => setSubForm(null)} onSubmit={submitL3Activity} />
-        )}
-
-        {/* 6 (gateway-only). 編輯閘道 — type switch + conditions list */}
-        {isGateway && <ActionToggle formKey="gw-edit" label="編輯閘道（種類 / 條件）" />}
-        {subForm === 'gw-edit' && (
-          <GatewayEditorSubForm
-            task={task} allTasks={allTasks} displayLabels={displayLabels}
-            onUpdate={onUpdate} />
         )}
 
         {/* 5. 新增其他 */}
