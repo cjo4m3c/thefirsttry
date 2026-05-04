@@ -51,6 +51,13 @@ export default function ContextMenu({
 }) {
   const ref = useRef(null);
   const [adjusted, setAdjusted] = useState({ left: x, top: y });
+  // Drag state: tracks whether the menu has been manually relocated by the
+  // user. Once moved (`userMoved=true`) the auto-reclamp effects stop trying
+  // to reposition — respect the user's choice. Drag offset captures the
+  // pointer's offset within the menu at drag-start so movement feels natural.
+  const [userMoved, setUserMoved] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const dragOffsetRef = useRef({ dx: 0, dy: 0 });
   // 'connection' | 'gateway' | 'l3activity' | 'gw-edit' | 'other' | 'convert' | null
   const [subForm, setSubForm] = useState(null);
   const [connTarget, setConnTarget] = useState('');
