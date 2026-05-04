@@ -23,10 +23,26 @@
  * from this module so the existing save-flow importer keeps working.
  */
 import { detectOverrideViolations } from '../diagram/violations.js';
-import { getTaskIncoming } from './flowSelectors.js';
+import { getTaskIncoming, computeDisplayLabels } from './flowSelectors.js';
 
 function isStart(t) { return t.connectionType === 'start' || t.type === 'start'; }
 function isEnd(t)   { return t.connectionType === 'end' || t.connectionType === 'breakpoint' || t.type === 'end'; }
+
+// User-facing element-type label — used by warning messages so the user
+// can identify which element on the diagram a warning refers to.
+// Format example per user spec 2026-05-04: "排他閘道 1-1-1-1_g1".
+function describeElement(t) {
+  if (t.type === 'start') return '開始事件';
+  if (t.type === 'end')   return t.connectionType === 'breakpoint' ? '流程斷點' : '結束事件';
+  if (t.type === 'l3activity') return 'L3 流程';
+  if (t.shapeType === 'interaction') return '外部關係人互動';
+  if (t.type === 'gateway') {
+    return t.gatewayType === 'and' ? '並行閘道'
+         : t.gatewayType === 'or'  ? '包容閘道'
+         : '排他閘道';
+  }
+  return 'L4 任務';
+}
 
 export function validateFlow(flow) {
   const tasks = flow.tasks || [];
@@ -39,6 +55,10 @@ export function validateFlow(flow) {
   // Count incoming connections per task so we can detect unconnected nodes
   // and validate merge-gateway arity.
   const incoming = getTaskIncoming(tasks);
+  // Display labels — used to surface the L4 number (e.g. 1-1-5-3 / 1-1-5-2_g1
+  // / 1-1-5-2_w) inside warning messages so the user can locate the offending
+  // element on the diagram.
+  const displayLabels = computeDisplayLabels(tasks, flow.l3Number);
 
   // ── Blocking checks ───────────────────────────────────
   if (startTasks.length === 0) blocking.push('必須要有「流程開始」節點');
@@ -161,8 +181,13 @@ export function validateFlow(flow) {
     // their own naming conventions: gateway gets '[XX閘道] ' prefix,
     // start/end get '[開始事件] / [結束事件] ' prefix on creation, so a
     // truly empty name on those is rare and fine to skip).
+    // Message uses describeElement + displayLabel format per user spec
+    // 2026-05-04 後段 ("把該任務的編號和元件類型也提出來，例如排他閘道
+    // 1-1-1-1_g1") so the user can locate the unnamed task fast.
     if (t.type === 'task' && !t.name?.trim()) {
-      warnings.push(`${label}：L4 任務名稱未填寫（建議補上以利辨識）`);
+      const dl = displayLabels[t.id];
+      const tag = dl ? `${describeElement(t)} ${dl}` : describeElement(t);
+      warnings.push(`${tag}：名稱未填寫（建議補上以利辨識）`);
     }
   });
 
