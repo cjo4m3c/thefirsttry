@@ -68,6 +68,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
   const [importWarnings, setImportWarnings] = useState([]);
+  const [warningsExpanded, setWarningsExpanded] = useState(false);
   const [pendingPngFlow, setPendingPngFlow] = useState(null);
   const [logoReaction, setLogoReaction] = useState(null); // 'flash' | 'dim' | null
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -286,7 +287,10 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
           </div>
         )}
 
-        {/* Import warnings banner (gateway-chain soft checks) */}
+        {/* Import warnings banner — collapsed by default (first 20 lines).
+            "展開全部 N 筆" toggle reveals the full list inside a scrollable
+            wrapper (max-h-96) so even a 100+ warning import stays browsable
+            without pushing the rest of the page off-screen. Per user 2026-05-04. */}
         {importWarnings.length > 0 && (
           <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-300 text-sm text-amber-800">
             <div className="flex items-start gap-2 mb-1.5">
@@ -294,17 +298,32 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
               <span className="font-medium flex-1">
                 Excel 已匯入，但有 {importWarnings.length} 筆閘道鏈警告（不影響使用，建議修正以獲得正確流程圖）
               </span>
-              <button onClick={() => setImportWarnings([])}
+              <button onClick={() => { setImportWarnings([]); setWarningsExpanded(false); }}
                 className="text-amber-400 hover:text-amber-600 font-bold">×</button>
             </div>
-            <ul className="ml-5 space-y-0.5 text-xs">
-              {importWarnings.slice(0, 20).map((w, i) => (
-                <li key={i}>{w}</li>
-              ))}
-              {importWarnings.length > 20 && (
-                <li className="text-amber-600">… 另有 {importWarnings.length - 20} 筆未顯示</li>
-              )}
-            </ul>
+            <div className={warningsExpanded ? 'max-h-96 overflow-y-auto pr-1' : ''}>
+              <ul className="ml-5 space-y-0.5 text-xs">
+                {(warningsExpanded ? importWarnings : importWarnings.slice(0, 20)).map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+            {importWarnings.length > 20 && (
+              <div className="ml-5 mt-1.5 flex items-center gap-3">
+                <button onClick={() => setWarningsExpanded(v => !v)}
+                  className="text-xs text-amber-700 hover:text-amber-900 underline">
+                  {warningsExpanded ? '收合（只顯示前 20 筆）' : `展開全部 ${importWarnings.length} 筆`}
+                </button>
+                <button onClick={async () => {
+                    try { await navigator.clipboard.writeText(importWarnings.join('\n')); }
+                    catch { /* ignore — clipboard blocked in some browsers */ }
+                  }}
+                  title="複製全部警告文字到剪貼簿"
+                  className="text-xs text-amber-700 hover:text-amber-900 underline">
+                  複製全部
+                </button>
+              </div>
+            )}
           </div>
         )}
 
