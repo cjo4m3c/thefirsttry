@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-04',
+    title: '修密度 toggle × sticky 角色欄相容：補 zoom 補償，緊密 / 寬鬆模式都能凍結',
+    items: [
+      '**緣由**：使用者：「緊密模式時泳道上沒辦法凍結角色欄；寬鬆模式時角色欄會獨立左右捲動向畫面中間移動」。PR #148 加密度 toggle 後沒處理跟 sticky 角色欄的相容性，只在 default (zoom=1) 模式正常。',
+      '**Root cause（`DiagramRenderer/index.jsx` handleScrollLeft）**：`scrollContainerRef.current.scrollLeft` 回傳的是 scroll 容器的 CSS px (= 視覺 px after zoom)；但 `stickyHeadersRef.current.setAttribute(transform, translate(sl, 0))` 是 SVG user units。父層 zoom=0.85 時，SVG 1 user unit = 0.85 視覺 px，translate(sl) 平移得不夠（lag）；zoom=1.15 時平移過多（overshoot 向中間漂）。',
+      '**修法**：`handleScrollLeft` 把 `sl` 除以 `zoomFactor` 再 translate（`sl / zoomFactor`）。`zoomFactor` 從 `densityMode` 推（compact 0.85 / spacious 1.15 / default 1）。同時加 `useEffect([densityMode], handleScrollLeft)` — 切換密度時重新套 transform，避免舊 zoom 算的 stale transform 殘留到下次 scroll 才更新。',
+      '**為何不改用 CSS transform: scale 取代 zoom**：(a) `zoom` 在 Chrome / Edge / Safari 是 well-supported（Firefox 126+ 也支援）(b) `transform: scale` 會破壞 `scrollLeft` 的語意（scroll 容器看到的是縮放前的內容）— 反而更難 sync (c) `zoom` 已是 PR #148 driver-of-record。',
+      '**動到的檔案（2 個）**：`src/components/DiagramRenderer/index.jsx`（handleScrollLeft `/zoomFactor` + useEffect 重套 transform）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) default 模式 → 角色欄凍結正常（regression check）✓ (b) compact 模式 scroll → 角色欄精準停在左邊 ✓ (c) spacious 模式 scroll → 角色欄精準停在左邊（不再向中間漂）✓ (d) 切換 default → compact / spacious → 角色欄即時 reposition（不需要 scroll trigger）✓ (e) PNG 匯出時 `resetStickyForExport` 仍正常（不受改動影響）✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '閘道 UX 兩件：允許空 target 建立 + 點選閘道自動展開「編輯閘道」',
     items: [
       '**緣由 1**：使用者：「加閘道的時候不強制要先連到任務才能按「確定」，允許使用者先新增後回來補分支」。原本 tooltip / 編輯器「新增閘道」表單 disable 「確定」按鈕直到至少 2 條分支都填了 target，使用者反映新增前要先想好所有目標太累，希望可以先 placeholder 建出來再回頭補。',

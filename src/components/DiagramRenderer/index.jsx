@@ -92,12 +92,29 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   // Sticky role header: keep the left column anchored to the viewport as the
   // user scrolls horizontally. Direct DOM mutation (not React state) — runs
   // every scroll tick so we avoid forcing a re-render of the whole SVG.
+  //
+  // Density toggle uses CSS `zoom` on the export wrapper which scales SVG
+  // user units relative to scroll px: scrollLeft is reported in CSS px of
+  // the scroll container (= visual px after zoom), but the SVG translate
+  // is in user units. Divide by zoom so the counter-translate matches the
+  // visual scroll distance — otherwise compact (0.85) lags and spacious
+  // (1.15) overshoots, both leaving the header un-anchored.
+  // Per user bug report 2026-05-04 後段：「緊密模式無法凍結角色欄、寬鬆
+  // 模式角色欄向畫面中間移動」.
+  const zoomFactor = densityMode === 'compact' ? 0.85 : densityMode === 'spacious' ? 1.15 : 1;
   function handleScrollLeft() {
     const sl = scrollContainerRef.current?.scrollLeft || 0;
     if (stickyHeadersRef.current) {
-      stickyHeadersRef.current.setAttribute('transform', `translate(${sl}, 0)`);
+      stickyHeadersRef.current.setAttribute('transform', `translate(${sl / zoomFactor}, 0)`);
     }
   }
+
+  // Re-apply the sticky transform whenever density changes — otherwise the
+  // existing transform (computed under the previous zoom factor) stays
+  // stale until the user scrolls again, leaving the header visibly offset.
+  useEffect(() => {
+    handleScrollLeft();
+  }, [densityMode]);
 
   // Before PNG export, reset sticky transform so the captured image has the
   // role header at its natural x=0 position (otherwise the export would show
