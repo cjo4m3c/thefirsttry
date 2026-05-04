@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-04',
+    title: '流程圖 hover tooltip 防壓 sticky header — 上方空間不夠時自動翻到下方',
+    items: [
+      '**緣由**：使用者：「流程圖上元件的 hover 現在統一出現在上方，有時候元件在頁面上方、且文字較長時會被擋住，可以依照對應位置自動調整顯示位置嗎」。Sticky header 高度 ~50px、最頂的任務 bounding box 距 viewport top 可能 50-100px、tooltip 含長 description 高度可能 100-200px → 上方放不下會被 header 擋。',
+      '**修法**：(a) `TasksLayer setTooltip` 改傳 `{taskId, x, top, bottom}`（原本只傳 `y=top`，現多帶 `bottom` 給 below 模式用）(b) `HoverTooltip` 加 `useRef` + `useLayoutEffect`：mount / 切 task 時量自身 rendered height，判斷 `top - height - 12 < 60(header buffer)` → 翻到 `below` placement，否則維持 `above`。`useLayoutEffect` 在 paint 前執行，使用者不會看到「先在上方閃一下再跳到下方」。',
+      '**Placement style**：`above`（既有）→ `top: top - 12, translate(-50%, -100%)`；`below`（新）→ `top: bottom + 12, translate(-50%, 0)`。',
+      '**向後相容**：HoverTooltip 仍接舊的 `tooltip.y`（fallback 給 top + bottom 都用同值），未來其他地方呼叫 setTooltip 不會 break。',
+      '**動到的檔案（3 個）**：`src/components/DiagramRenderer/TasksLayer.jsx`（setTooltip 多帶 bottom）/ `src/components/DiagramRenderer/overlays.jsx`（HoverTooltip 加 ref + useLayoutEffect + placement state + 兩種 style 切換）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) hover 流程圖中段的任務 → tooltip 出現在上方（不變）✓ (b) hover 第一列 / 視窗頂部附近的任務 → tooltip 自動翻到下方 ✓ (c) tooltip 內容長 / 短時都自動算對 ✓ (d) sticky header 永不蓋到 tooltip ✓ (e) 切換 hover 不同任務時 placement 重新計算，不會殘留錯誤位置 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: 'FlowTable 加「⇕ 適應內容高度」toggle — 一鍵展開所有列到 textarea 內容高度',
     items: [
       '**緣由**：使用者：「表格可以設定讓使用者一鍵調整列的高度嗎？預設為預設高度、點選後讓表格自動變成每列都是文字高度（超過兩列的資料列自動展開到對應高度，使用者不用捲動就可以看到全部內容）、再點一次回到預設高度」。',
