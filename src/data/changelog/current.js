@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-04',
+    title: 'FlowTable 加「⇕ 適應內容高度」toggle — 一鍵展開所有列到 textarea 內容高度',
+    items: [
+      '**緣由**：使用者：「表格可以設定讓使用者一鍵調整列的高度嗎？預設為預設高度、點選後讓表格自動變成每列都是文字高度（超過兩列的資料列自動展開到對應高度，使用者不用捲動就可以看到全部內容）、再點一次回到預設高度」。',
+      '**設計**：FlowTable 右上角加 toggle button「⇕ 適應內容高度 / ⇕ 回預設高度」，跟既有「顯示 L3 欄位」並排。session-only state（不寫 localStorage，重整恢復預設）。',
+      '**EditCell 升級**：新增 `autoFit` prop 接收 toggle 狀態，加 `useRef` 拿 textarea DOM。`useEffect` 監聽 `autoFit + local` 變化：autoFit=true → `el.style.height=\'auto\'` → `el.style.height = el.scrollHeight + \'px\'` 撐到實際內容；autoFit=false → 清掉 inline `height` 回 `rows={2}` 預設。打字時 onChange → local state 更新 → useEffect 重算 → textarea 即時撐高，無閃爍。',
+      '**使用者手動拉的高度**：切換模式都會被 useEffect 覆蓋 / 清空（per spec：模式切換 = 重設個人化）。簡單一致，避免「我手動拉了又自動撐到比較矮」的反直覺情境。',
+      '**所有 5 個 EditCell 同步傳 prop**：任務名稱 / 重點說明 / 重要輸入 / 產出成品 / 參考文件。RoleCell 是 select 不需要、ReadCell 已是 `whitespace-pre-wrap` 自動撐高、不動。',
+      '**helpPanelData EDITABLE_ACTIONS** 加新條目，含預設行為 + 適應行為 + 同列高度規則 + session-only 註解。',
+      '**動到的檔案（3 個）**：`src/components/FlowTable.jsx`（+useRef import / EditCell autoFit prop + useEffect / autoFitRows state / toggle button / 5 處 EditCell 傳 prop）/ `src/data/helpPanelData.js`（EDITABLE_ACTIONS 新條目）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 預設模式 → textarea 全部 2 行高、超過內容在 cell 內捲動 ✓ (b) 點「⇕ 適應內容高度」→ 每個 textarea 立刻撐到內容高、長備註展開可見 ✓ (c) 同列任務名稱 1 行 + 重點說明 5 行 → 整列高度 = 5 行，短 cell `align-top` 對齊頂部 ✓ (d) 適應模式打字 → 文字超過 2 行瞬間 textarea 自然撐高 ✓ (e) 點「⇕ 回預設高度」→ 全部回 2 行（手動拉的高度也清掉）✓ (f) 重整網頁 → 回到預設模式 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '儲存慶祝動畫升級：5 顆無 emoji 紙片 360° 環繞按鈕 + 亮藍閃光',
     items: [
       '**緣由**：使用者：「儲存後的慶祝動畫可以再雀躍一點」+「撒花範圍 +30%」+「不要 emoji」+「綠色改成比較亮的藍色系」+「撒花要在整顆按鈕周圍，不要被 header 卡到」。透過 preview branch（`claude/preview-confetti-30`）部署到 `/FlowSprite/preview-confetti-30/` 子路徑反覆預覽 4 個版本後定案，不影響 main 期間。',
