@@ -51,11 +51,25 @@ export function wrapText(text, maxChars, maxTotal) {
   return lines;
 }
 
-export function SvgLabel({ text, cx, cy, maxChars = 8, lineH = 32, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 22 }) {
+export function SvgLabel({ text, cx, cy, maxChars = 8, lineH = 32, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 22, bg = false, bgOpacity = 0.6 }) {
   const lines = wrapText(text, maxChars, maxTotal);
   const total = (lines.length - 1) * lineH;
+  // When `bg` is true, render a hugging white pill behind each line first
+  // so the text reads cleanly even when arrows pass underneath. Used by
+  // GatewayShape so the gateway name doesn't get sliced by lines entering
+  // / exiting the bottom port.
   return (
     <>
+      {bg && lines.map((line, i) => {
+        const w = estimateTextWidth(line, fontSize) + 8;
+        const h = fontSize + 4;
+        const y = cy - total / 2 + i * lineH;
+        return (
+          <rect key={`bg${i}`} x={cx - w / 2} y={y - h / 2}
+            width={w} height={h} rx={2}
+            fill={COLORS.ARROW_LABEL_BG} opacity={bgOpacity} />
+        );
+      })}
       {lines.map((line, i) => (
         <text key={i} x={cx} y={cy - total / 2 + i * lineH}
           textAnchor="middle" dominantBaseline="middle"

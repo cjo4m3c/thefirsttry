@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-04',
+    title: '閘道下方名稱加白底 pill — 跟 L4 編號一致，避免被連線切過去看不清',
+    items: [
+      '**緣由**：使用者：「閘道下方端點如果有說明文字，且同時有進或出的線段，文字也要跟編號一樣要加同款的白底，且文字在上方，讓使用者能把資訊看得更清楚」。閘道（XOR / AND / OR）下方顯示的 task.name 沒有底色，當連線從閘道的 bottom port 進 / 出時，arrow 線剛好穿過文字底下，名稱被切割不易讀。',
+      '**修法**：擴充 `SvgLabel` 加 `bg` + `bgOpacity` props（預設 false / 0.6）。`bg=true` 時逐行用 `estimateTextWidth` 算寬度 → 渲染白色 pill `<rect>` 在 text 之前（每行一個 pill，剛好包字）。沿用 L4Number 一樣的設計：`fill=ARROW_LABEL_BG` `opacity=0.6` `rx=2` — 視覺一致。',
+      '**`GatewayShape` 啟用 bg**：`<SvgLabel ... bg />`。其他用到 SvgLabel 的地方（TaskShape / L3ActivityShape / EventLabel）保持 `bg=false`（預設），不影響既有外觀 — 任務元件本身的圓角矩形已經有底色、不需要 pill。',
+      '**z-order**：閘道 shape 在 `TasksLayer` 內渲染，整個 layer 在 `ConnectionArrow` 之後（既有 paint order）→ 文字 + 白底都在 arrow 上方，使用者不會看到 arrow 線壓過文字。',
+      '**動到的檔案（3 個）**：`src/components/DiagramRenderer/text.jsx`（SvgLabel +bg / +bgOpacity props + 渲染 rect）/ `src/components/DiagramRenderer/shapes.jsx`（GatewayShape 的 SvgLabel 加 bg）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 閘道下方有文字 + bottom port 進 / 出線 → 文字底下白色 pill 擋住 arrow 線，名稱清楚 ✓ (b) 閘道沒進 / 出底部線時，白底也存在但不影響觀感 ✓ (c) 任務 / L3 活動 / 開始 / 結束 等其他元件外觀不變 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: 'ContextMenu 可拖曳 + 自動防溢出 + 內捲動：解「展開項目被視窗邊界卡到」',
     items: [
       '**緣由**：使用者：「流程圖上的 tooltip 有時候會因為瀏覽器比例的關係，在展開的時候沒辦法看到所有資訊...例如下方的轉換為、新增其他，在部分瀏覽器中就很容易被卡到」+「已拖曳的 menu 後續展開還是要 auto-reclamp，其他依照建議執行」。三個方案 ABC 全做。',
