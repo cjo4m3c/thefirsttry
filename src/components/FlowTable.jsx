@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   buildTableL4Map,
   generateFlowAnnotation,
@@ -51,9 +51,26 @@ function cellStickyStyle(sticky) {
 // EditCell — buffered textarea. Local state holds the typing in-flight; we
 // only patch back to liveFlow on blur to avoid a re-layout per keystroke.
 // `value` change from outside re-syncs the buffer.
-function EditCell({ value, onChange, placeholder = '', wide = false, sticky = null }) {
+// `autoFit` (per-table user toggle) → textarea auto-grows to scrollHeight
+// so long content shows in full without internal scroll. When false, falls
+// back to fixed `rows={2}` and any user-applied `resize-y` size.
+function EditCell({ value, onChange, placeholder = '', wide = false, sticky = null, autoFit = false }) {
   const [local, setLocal] = useState(value || '');
   useEffect(() => { setLocal(value || ''); }, [value]);
+  const taRef = useRef(null);
+  // Auto-fit: re-measure scrollHeight on every value change AND on mode
+  // toggle. When mode flips off, clear the inline height so rows={2} +
+  // any manual resize-y wins again.
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    if (autoFit) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    } else {
+      el.style.height = '';
+    }
+  }, [autoFit, local]);
   const widthCls = sticky ? '' : (wide ? 'min-w-[260px]' : 'min-w-[140px]');
   return (
     <td
@@ -61,6 +78,7 @@ function EditCell({ value, onChange, placeholder = '', wide = false, sticky = nu
       style={cellStickyStyle(sticky)}
     >
       <textarea
+        ref={taRef}
         value={local}
         onChange={e => setLocal(e.target.value)}
         onBlur={() => { if (local !== (value || '')) onChange(local); }}
@@ -124,6 +142,9 @@ export default function FlowTable({ flow, onUpdateTask }) {
     try { localStorage.setItem(L3_VISIBLE_KEY, String(showL3)); }
     catch {}
   }, [showL3]);
+  // Per-table toggle: row heights = textarea content (auto-grow) vs the
+  // default fixed rows={2}. Session-only — refresh resets to default.
+  const [autoFitRows, setAutoFitRows] = useState(false);
 
   const stickyMap = useMemo(() => getStickyMap(showL3), [showL3]);
 
@@ -136,8 +157,20 @@ export default function FlowTable({ flow, onUpdateTask }) {
   return (
     <div className="mt-6">
       {/* Toggle bar — small, no title/description (info redundant with the
-          page Header). The L3-columns toggle is kept because it's actionable. */}
-      <div className="mb-2 flex justify-end">
+          page Header). The L3-columns toggle is kept because it's actionable.
+          Auto-fit row heights toggle 2026-05-04: switches between fixed
+          rows={2} (default) and textarea-grows-to-content. */}
+      <div className="mb-2 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setAutoFitRows(v => !v)}
+          className="shrink-0 px-3 py-1.5 text-sm rounded border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap"
+          title={autoFitRows
+            ? '回到預設兩行高度（內容超過會在 cell 內捲動）'
+            : '自動展開每列到對應內容高度，不用捲動就看到全部內容'}
+        >
+          {autoFitRows ? '⇕ 回預設高度' : '⇕ 適應內容高度'}
+        </button>
         <button
           type="button"
           onClick={() => setShowL3(v => !v)}
@@ -195,16 +228,19 @@ export default function FlowTable({ flow, onUpdateTask }) {
                     onChange={v => updateField(task.id, 'name', v)}
                     placeholder="任務名稱"
                     sticky={stickyMap[3]}
+                    autoFit={autoFitRows}
                   />
                   <EditCell wide
                     value={task.description || ''}
                     onChange={v => updateField(task.id, 'description', v)}
                     placeholder="重點說明"
+                    autoFit={autoFitRows}
                   />
                   <EditCell wide
                     value={task.inputItems || ''}
                     onChange={v => updateField(task.id, 'inputItems', v)}
                     placeholder="重要輸入"
+                    autoFit={autoFitRows}
                   />
                   <RoleCell
                     roleId={task.roleId}
@@ -215,12 +251,14 @@ export default function FlowTable({ flow, onUpdateTask }) {
                     value={task.outputItems || ''}
                     onChange={v => updateField(task.id, 'outputItems', v)}
                     placeholder="產出成品"
+                    autoFit={autoFitRows}
                   />
                   <ReadCell value={annotation} wide />
                   <EditCell
                     value={task.reference || ''}
                     onChange={v => updateField(task.id, 'reference', v)}
                     placeholder="參考文件"
+                    autoFit={autoFitRows}
                   />
                 </tr>
               );

@@ -329,6 +329,16 @@ export const EDITABLE_ACTIONS = [
     ],
   },
   {
+    title: '⇕ 表格列高切換：適應內容 / 預設兩行',
+    desc: [
+      'FlowTable（流程圖下方表格）右上角加按鈕「⇕ 適應內容高度」/「⇕ 回預設高度」toggle',
+      '預設模式：每個 textarea 固定 2 行，超過會在 cell 內捲動',
+      '適應模式：每個 textarea 自動撐到實際內容高度（用 scrollHeight），長文章一眼看完不用內捲',
+      '同列各 cell 高度不一時，整列以最高 cell 為準（其他短的 cell `align-top` 對齊頂端）',
+      '切回預設會清掉手動拉的高度（一致重設）；session-only 不寫 localStorage（重整恢復預設）',
+    ],
+  },
+  {
     title: '↶ 復原 / ↷ 重做（Ctrl+Z / Ctrl+Y）',
     desc: [
       '頁首「↶ 復原」/「↷ 重做」按鈕、或鍵盤 Ctrl+Z（Mac: Cmd+Z）/ Ctrl+Y（或 Ctrl+Shift+Z）',
