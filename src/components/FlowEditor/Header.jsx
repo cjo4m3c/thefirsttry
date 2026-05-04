@@ -32,7 +32,16 @@ function pickRandomPhrase() {
 export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
   onTogglePin, onOpenDrawer, onSave, onResetAllConfirm, downloadHandlers,
   onUndo, onRedo, canUndo = false, canRedo = false,
-  savePulse = 'none', saveCelebrate = false }) {
+  savePulse = 'none', saveCelebrate = false,
+  densityMode = 'default', onCycleDensity }) {
+  const densityLabel =
+    densityMode === 'compact'  ? '⊟ 緊密' :
+    densityMode === 'spacious' ? '⊞ 寬鬆' :
+                                 '▦ 預設';
+  const densityNext =
+    densityMode === 'default'  ? '緊密' :
+    densityMode === 'compact'  ? '寬鬆' :
+                                 '預設';
   // Per-edit-session random encouragement phrase. Re-randomizes each time
   // hasChanges flips false→true (i.e., a fresh edit session after save).
   const [savePhrase, setSavePhrase] = useState(() => pickRandomPhrase());
@@ -94,6 +103,15 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           title="圖例說明（流程圖元件對照表）"
           className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
           圖例
+        </button>
+        {/* Density toggle (compact / default / spacious) — cycles on click.
+            Applied via CSS zoom on the diagram wrapper; PNG export
+            temporarily resets to 1x for full-resolution capture. */}
+        <button
+          onClick={onCycleDensity}
+          title={`目前：${densityLabel} — 點一下切換到「${densityNext}」`}
+          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+          {densityLabel}
         </button>
         {/* Undo / Redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z). Stack clears
             after every save per spec — disabled while empty so users see

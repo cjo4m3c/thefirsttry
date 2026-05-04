@@ -6,6 +6,21 @@
 export default [
   {
     date: '2026-05-04',
+    title: '密度 toggle Phase 1：3 段 zoom + COL_W 加寬 + 閘道 label 多行 wrap',
+    items: [
+      '**緣由**：使用者：「有些場景元件間距需要寬一點，有些希望單頁看到最多資訊，可以做成使用者點選後調整間距嗎？」+ 三個 routing/spacing 議題（相鄰 right-left 連線不夠明顯 / 閘道 label 寬度超出 column / bottom→left 路徑跟左邊框重疊）。Phase 1 解前 2 個 + 密度 toggle，Phase 2 走 preview branch 處理 routing 改動（Issue 3）。',
+      '**Step 1.1-1.3 密度 toggle（CSS zoom 3 段）**：FlowEditor 加 `densityMode` state（`compact` 0.85 / `default` 1.0 / `spacious` 1.15）+ localStorage `flow-density-mode` 持久化 + `cycleDensity` 函式三段循環。Header 加「▦ / ⊟ / ⊞」toggle 按鈕，title tooltip 顯示下一段名稱。DiagramRenderer 接 `densityMode` prop，套到 `exportRef` 的 `style.zoom` — 全圖含字、元件、連線、tooltip 一致縮放。零 LAYOUT 重構。',
+      '**Step 1.2 PNG 匯出 zoom 還原**：`doPngExport` 在 toPng 之前 set `exportRef.current.style.zoom = 1`，finally 還原原值。downloads 永遠完整解析度，不受 on-screen 密度影響。drawio / Excel 純資料層本來就不受影響。',
+      '**Step 1.4 Issue 1A — `COL_W` 164→184**：相鄰列任務 `right→left` 連線水平 gap 從 24px 加到 44px，使用者一眼看清「兩個元件 + 一條線」（之前像黏著）。整體流程圖寬 ~12%，可接受。',
+      '**Step 1.5 Issue 2A — GatewayShape SvgLabel `maxChars 8→6`**：閘道下方 label 例如「[包容閘道] 判斷xx」會自動 wrap 成 2 行，不再溢出 column 邊界跟旁邊任務文字重疊。配合 PR #142 加的白底 pill，多行也都有 backing。`maxTotal=22` 預設容許上限 ~3 行。',
+      '**helpPanelData EDITABLE_ACTIONS** 加新條目「▦ 流程圖密度切換」7 子項列點，含三段定義 / use case / 持久化 / PNG export 行為。',
+      '**動到的檔案（5 個）**：`src/diagram/constants.js`（COL_W 184）/ `src/components/DiagramRenderer/shapes.jsx`（GatewayShape maxChars 6）/ `src/components/DiagramRenderer/index.jsx`（+densityMode prop / zoom style / doPngExport reset）/ `src/components/FlowEditor/index.jsx`（+densityMode state / +cycleDensity / Header prop / DiagramRenderer prop）/ `src/components/FlowEditor/Header.jsx`（+toggle button + densityLabel/densityNext） + `src/data/helpPanelData.js`（新條目）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 點 ▦ → 切到 ⊟ → 整圖縮 85%，字 + 元件一致 ✓ (b) 再點 → ⊞ 放大 115% ✓ (c) 重整網頁 → 記住偏好 ✓ (d) 緊密模式下載 PNG → 檔案是 1x 完整解析度（不縮）✓ (e) 相鄰任務水平連線 → gap 44px，視覺斷點清楚 ✓ (f) 長閘道 label「[包容閘道] 判斷xx」→ 自動 wrap 成 2 行 ✓ (g) drawio / Excel 匯出 → 不受密度影響 ✓',
+      '**後續 Phase**：Phase 2（Issue 3 bottom→left routing stub，preview branch + trace 驗證）/ Phase 3（Issue 1B 動態 column gap，看 Phase 1 後是否還需要）。',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: 'L4 任務名稱未填寫 warning 加「元件類型 + L4 編號」前綴',
     items: [
       '**緣由**：使用者：「我希望提出 L4 任務名稱未填寫的時候，可以把該任務的編號和元件類型也提出來，例如排他閘道 1-1-1-1_g1」。原本 PR #146 加的 rule 7 用通用 label「任務 N「未命名」」，使用者看不出哪個任務、要去 task list 數第幾個。',
