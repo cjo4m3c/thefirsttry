@@ -1,6 +1,11 @@
+import { useRef, useLayoutEffect, useState } from 'react';
 import { routeArrow } from '../../diagram/layout.js';
 
 const HOVER_STROKE = '#2563EB'; // Tailwind blue-600
+// Buffer so tooltips don't tuck under the sticky FlowEditor header.
+const HEADER_SAFE_PX = 60;
+// Gap between tooltip and the task shape (matches the original 12px).
+const TOOLTIP_GAP = 12;
 
 /**
  * Drop-target highlight: while dragging the target handle, if the cursor is
@@ -71,21 +76,40 @@ export function DragPreview({ conn, positions, dragInfo }) {
 }
 
 /**
- * Hover tooltip — shows task.description anchored above the shape.
- * Only rendered when the user hovers a task that has a description.
+ * Hover tooltip — shows task.description.
+ *
+ * Placement: defaults above the shape (existing behavior). After mount we
+ * measure the rendered tooltip height; if placing above would clip behind
+ * the sticky header (top - height < HEADER_SAFE_PX), flip to below the
+ * shape instead. useLayoutEffect runs synchronously before paint so the
+ * user doesn't see a "flash above then jump below" frame.
  */
 export function HoverTooltip({ tooltip, tasks }) {
+  const ref = useRef(null);
+  const [placement, setPlacement] = useState('above');
+
+  useLayoutEffect(() => {
+    if (!tooltip || !ref.current) return;
+    const h = ref.current.getBoundingClientRect().height;
+    const fitsAbove = (tooltip.top - h - TOOLTIP_GAP) >= HEADER_SAFE_PX;
+    setPlacement(fitsAbove ? 'above' : 'below');
+  }, [tooltip]);
+
   if (!tooltip) return null;
   const t = (tasks || []).find(x => x.id === tooltip.taskId);
   if (!t || !t.description?.trim()) return null;
+  // Backward compat: older callers used `tooltip.y` as rect.top. Prefer
+  // explicit top/bottom; fall back to y for both.
+  const top = tooltip.top ?? tooltip.y;
+  const bottom = tooltip.bottom ?? tooltip.y;
+  const style = placement === 'above'
+    ? { left: tooltip.x, top: top - TOOLTIP_GAP, transform: 'translate(-50%, -100%)' }
+    : { left: tooltip.x, top: bottom + TOOLTIP_GAP, transform: 'translate(-50%, 0)' };
   return (
     <div
+      ref={ref}
       className="fixed z-30 pointer-events-none bg-white shadow-xl border border-gray-200 rounded-lg p-2.5 max-w-xs"
-      style={{
-        left: tooltip.x,
-        top: tooltip.y - 12,
-        transform: 'translate(-50%, -100%)',
-      }}
+      style={style}
     >
       <div className="text-[13px] font-semibold text-gray-700 mb-1">任務重點說明</div>
       <div className="text-[13px] text-gray-600 whitespace-pre-wrap leading-relaxed">

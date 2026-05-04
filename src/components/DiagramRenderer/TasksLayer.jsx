@@ -42,12 +42,13 @@ export function TasksLayer({ tasks, positions, l4Numbers, hoveredId, hoveredConn
           // ("任務重點說明") to avoid empty popovers.
           if (task.description?.trim()) {
             const rect = e.currentTarget.getBoundingClientRect();
+            // Pass both top + bottom so HoverTooltip can flip placement
+            // (above / below) when the shape is near a viewport edge.
             setTooltip({
               taskId: task.id,
-              // Anchor center-X above the shape (stable, doesn't
-              // chase the cursor).
               x: rect.left + rect.width / 2,
-              y: rect.top,
+              top: rect.top,
+              bottom: rect.bottom,
             });
           }
         }}
