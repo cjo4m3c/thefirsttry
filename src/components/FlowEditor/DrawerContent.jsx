@@ -47,19 +47,23 @@ function InsertPicker({ index, allTasks, displayLabels,
       onAddL3At(index, l3Number.trim(), l3Name.trim());
     } else if (type.startsWith('gateway-')) {
       const kind = type.slice(8);  // xor / and / or
-      const valid = gwBranches.filter(b => b.target);
-      if (valid.length < 2) return;
-      onAddGatewayAt(index, kind, valid.map(b => ({ label: b.label, targetId: b.target })));
+      // 2026-05-04 後段：pass all rows incl empty-target ones (per user spec
+      // "不強制要先連到任務才能按確定"). Save-time validation 1 / 3c-bis
+      // catches missing targets so the create flow stays unblocked.
+      onAddGatewayAt(index, kind, gwBranches.map(b => ({ label: b.label, targetId: b.target })));
     }
     reset();
   }
 
-  // Disable confirm when required fields missing
-  const validBranchCount = gwBranches.filter(b => b.target).length;
+  // Disable confirm only when required fields are missing for THIS type:
+  //   - l3activity: needs the L3 number
+  //   - gateway: always allowed (per user spec 2026-05-04 後段; missing
+  //              targets become save-time warnings)
+  //   - others (task / start / end / interaction): always allowed
   const canConfirm =
     type === 'task' || type === 'start' || type === 'end' || type === 'interaction'
-      || (type === 'l3activity' && l3Number.trim())
-      || (type.startsWith('gateway-') && validBranchCount >= 2);
+      || type.startsWith('gateway-')
+      || (type === 'l3activity' && l3Number.trim());
 
   if (!expanded) {
     return (

@@ -6,6 +6,23 @@
 export default [
   {
     date: '2026-05-04',
+    title: '閘道 UX 兩件：允許空 target 建立 + 點選閘道自動展開「編輯閘道」',
+    items: [
+      '**緣由 1**：使用者：「加閘道的時候不強制要先連到任務才能按「確定」，允許使用者先新增後回來補分支」。原本 tooltip / 編輯器「新增閘道」表單 disable 「確定」按鈕直到至少 2 條分支都填了 target，使用者反映新增前要先想好所有目標太累，希望可以先 placeholder 建出來再回頭補。',
+      '**緣由 2**：使用者：「在流程圖上點選閘道時，除了原本編輯的欄位，希望也預設展開編輯閘道分支的欄位」+「第二個需求要請你也評估怎樣的欄位順序比較合理，提出建議」。閘道最常見的編輯需求是改分支條件 / 改類型，原本要先點「編輯閘道」才展開多了一步；且該按鈕排在動作列中段，視覺權重不夠。',
+      '**修法 1（`ContextMenu/subforms.jsx` GatewaySubForm）**：移除 `validCount >= 2` 約束，`canSubmit = true`。預設 2 條空分支仍會產生（`gwBranches=[{label:"",target:""}, {label:"",target:""}]`），缺 target 改由儲存階段 warning rule 1 / 3c-bis 提醒。',
+      '**修法 2（`ContextMenu/index.jsx submitGateway`）**：不再 `filter(b => b.target)`，直接 `gwBranches.map` 全部傳給 `onAddGateway` — 空 target 也會建出來。`onAddGateway` callback 已能處理 empty targetId（生出 placeholder branch，無連線）。',
+      '**修法 3（`FlowEditor/DrawerContent.jsx` InsertPicker）**：同步移除 `valid.length < 2` 阻擋；`canConfirm` gateway 分支改成 `type.startsWith("gateway-")` 一律允許（不再要求 `validBranchCount >= 2`）。',
+      '**修法 4（`ContextMenu/index.jsx useEffect`）**：當 `task.type === "gateway"` 時 `setSubForm("gw-edit")` 自動展開，其他類型維持 `null`（collapsed）。dependency 加 `task?.type` 確保切換 task 時正確 re-evaluate。',
+      '**修法 5（`ContextMenu/index.jsx` ActionToggle 重排）**：把 `編輯閘道` ActionToggle + GatewayEditorSubForm 從動作列中段移到最頂端（在 `新增任務` 之前）。閘道專屬，其他 task type 不顯示此 button — 順序評估：(a) 閘道 SOP「先決定條件再決定怎麼接」→ 編輯類優先 (b) 既然 default expanded，最上面排序視覺合理 (c) 「新增任務 / 新增結束 / 新增其他」這些 outgoing 動作對閘道而言是「填分支以外的補充」，較少用，往下排合理。',
+      '**helpPanelData**：(a) 「點任務元件 → 彈出編輯選單」EDITABLE_ACTIONS 加 1 條子項說明閘道自動展開行為 (b) 新增條目「新增閘道：允許先新增再補分支」4 子項，說明預設 2 條空分支 / 可空 target 確定 / 儲存 warning / 後續補 target 流程。',
+      '**動到的檔案（5 個）**：`src/components/ContextMenu/subforms.jsx`（GatewaySubForm `canSubmit=true`）/ `src/components/ContextMenu/index.jsx`（auto-expand gw-edit / submitGateway 不 filter / ActionToggle 重排）/ `src/components/FlowEditor/DrawerContent.jsx`（InsertPicker canConfirm + onConfirm 不 filter）/ `src/data/helpPanelData.js`（2 條更新）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 點空白處新增 → 選閘道 → 不填 target → 「確定」可按 → 建出空分支閘道 ✓ (b) 流程圖上點任務「轉換為 → 閘道」→ 不填 target → 確定 ✓ (c) 流程圖上點閘道 → ContextMenu 開啟即看到「編輯閘道（種類 / 條件）」展開於最頂 ✓ (d) 切換不同閘道 → subForm 維持展開 ✓ (e) 切換閘道 → 任務 → subForm 收合（task default null）✓ (f) 空 target 閘道 → 儲存 → 跳 warning「節點 X 必須設定下一步」/「閘道應有至少 2 條分支」✓ (g) 後續點該閘道 → 自動展開區塊填 target → 儲存 OK ✓',
+      '**已知 follow-up（不在本 PR）**：`current.js` 已長到 54KB（遠超 7KB 凍結門檻），下個 PR 起應 `c24.js` 凍結再加新條目。',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '密度 toggle Phase 1：3 段 zoom + COL_W 加寬 + 閘道 label 多行 wrap',
     items: [
       '**緣由**：使用者：「有些場景元件間距需要寬一點，有些希望單頁看到最多資訊，可以做成使用者點選後調整間距嗎？」+ 三個 routing/spacing 議題（相鄰 right-left 連線不夠明顯 / 閘道 label 寬度超出 column / bottom→left 路徑跟左邊框重疊）。Phase 1 解前 2 個 + 密度 toggle，Phase 2 走 preview branch 處理 routing 改動（Issue 3）。',

@@ -93,8 +93,11 @@ export function GatewaySubForm({
   targetOptions, displayLabels,
   onCancel, onSubmit,
 }) {
-  const validCount = gwBranches.filter(b => b.target).length;
-  const canSubmit = validCount >= 2;
+  // 2026-05-04 後段：let user create a gateway without filling targets first
+  // (per user spec). Default 2 empty rows are still produced; missing targets
+  // become save-time warnings via validation rule 1 + 3c-bis instead of
+  // blocking the create flow.
+  const canSubmit = true;
   const placeholderFor = (i) => {
     if (gwType === 'and') return '條件標籤（選填）';
     if (i === 0) return '條件標籤（如「已核准」）';
