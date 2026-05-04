@@ -1,6 +1,6 @@
 import { COLORS } from '../../diagram/constants.js';
 import { routeArrow } from '../../diagram/layout.js';
-import { estimateTextWidth } from './text.jsx';
+import { estimateTextWidth, wrapText } from './text.jsx';
 
 // PR H: red stroke / marker for override-induced violations.
 const VIOLATION_STROKE = '#EF4444';  // Tailwind red-500
@@ -96,22 +96,39 @@ export function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredCo
       <polyline points={pointsStr} fill="none" stroke={strokeColor}
         strokeWidth={strokeW} markerEnd={`url(#${markerId})`} />
       {conn.label && (() => {
-        // Bg width hugs the rendered text instead of a fixed 40px slab —
-        // long labels stop being clipped, short ones stop having a tail
-        // of empty white. Padding 4px each side, height = fontSize + 4.
+        // Wrap long labels onto multiple lines so they don't overflow into
+        // adjacent task rectangles. maxChars is derived from the middle
+        // segment's actual horizontal length (or fallback to NODE_W gap),
+        // clamped to [3, 12] CJK-equivalent. Each char ≈ fontSize px wide
+        // for CJK, so available chars = floor((segLen - 8px pad) / fontSize).
+        // Per user 2026-05-04 後段：「閘道條件字很多的時候沒有調整寬度或自動換行」.
         const fontSize = 14;
-        const labelW = estimateTextWidth(conn.label, fontSize) + 8;
-        const labelH = fontSize + 4;
+        const lineH = fontSize + 4;
+        const segLen = pts.length >= 3
+          ? Math.abs(pts[2][0] - pts[1][0])
+          : Math.abs(pts[pts.length - 1][0] - pts[0][0]);
+        const availChars = Math.floor((segLen - 8) / fontSize);
+        const maxChars = Math.max(3, Math.min(12, availChars || 3));
+        const lines = wrapText(conn.label, maxChars, 24);
+        const totalH = lines.length * lineH;
         return (
           <>
-            <rect x={labelPt[0] - labelW / 2} y={labelPt[1] - labelH / 2}
-              width={labelW} height={labelH}
-              fill={COLORS.ARROW_LABEL_BG} opacity={0.9} rx={2} />
-            <text x={labelPt[0]} y={labelPt[1]} textAnchor="middle" dominantBaseline="middle"
-              fontSize={fontSize} fill={COLORS.ARROW_COLOR}
-              fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
-              {conn.label}
-            </text>
+            {lines.map((line, i) => {
+              const w = estimateTextWidth(line, fontSize) + 8;
+              const y = labelPt[1] - totalH / 2 + i * lineH + lineH / 2;
+              return (
+                <g key={i}>
+                  <rect x={labelPt[0] - w / 2} y={y - lineH / 2}
+                    width={w} height={lineH}
+                    fill={COLORS.ARROW_LABEL_BG} opacity={0.9} rx={2} />
+                  <text x={labelPt[0]} y={y} textAnchor="middle" dominantBaseline="middle"
+                    fontSize={fontSize} fill={COLORS.ARROW_COLOR}
+                    fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
+                    {line}
+                  </text>
+                </g>
+              );
+            })}
           </>
         );
       })()}
