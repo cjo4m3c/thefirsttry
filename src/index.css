@@ -85,8 +85,8 @@ svg text {
 
 /* Save success celebration — fires on every save click that completes
    (after validation passes, paired with logo-wave). 700ms green flash
-   on the button + a floating ✨ that drifts up + fades. Quick, playful,
-   matches the random encouragement phrase shown in tooltip. */
+   on the button + a 5-particle radial confetti burst (preview range +30%
+   per user 2026-05-04). */
 @keyframes save-celebrate-flash {
   0%   { background: #FBBF24; color: #422006; transform: scale(1.05); }
   25%  { background: #10B981; color: #FFFFFF; transform: scale(1.15); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.4); }
@@ -94,9 +94,55 @@ svg text {
 }
 .save-celebrate-flash { animation: save-celebrate-flash 0.7s ease-out forwards; }
 
-@keyframes save-celebrate-sparkle {
-  0%   { transform: translate(-50%, 0)    scale(0.5); opacity: 0; }
-  20%  { opacity: 1; }
-  100% { transform: translate(-50%, -32px) scale(1.4); opacity: 0; }
+/* Confetti: 5 small colored shapes (circles + rotated squares) fan out
+   from the button center — like paper confetti, no emoji. Range ~42px
+   (was 32px = +31% per user 2026-05-04). Mix of color + shape + per-
+   particle direction + rotation gives a "real burst" feel. Staggered
+   start times via animation-delay produce a sequential pop-pop-pop. */
+.confetti {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  opacity: 0;
 }
-.save-celebrate-sparkle { animation: save-celebrate-sparkle 0.9s ease-out forwards; }
+@keyframes confetti-up {
+  0%   { transform: translate(-50%, 0)     scale(0.5); opacity: 0; }
+  20%  { opacity: 1; }
+  100% { transform: translate(-50%, -42px) scale(1.4); opacity: 0; }
+}
+@keyframes confetti-up-l {
+  0%   { transform: translate(-50%, 0)                 scale(0.5); opacity: 0; }
+  25%  { opacity: 1; }
+  100% { transform: translate(calc(-50% - 32px), -28px) scale(1.3) rotate(-25deg); opacity: 0; }
+}
+@keyframes confetti-up-r {
+  0%   { transform: translate(-50%, 0)                 scale(0.5); opacity: 0; }
+  25%  { opacity: 1; }
+  100% { transform: translate(calc(-50% + 32px), -28px) scale(1.3) rotate(25deg); opacity: 0; }
+}
+@keyframes confetti-side-l {
+  0%   { transform: translate(-50%, 0)                 scale(0.4); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translate(calc(-50% - 38px), -18px) scale(1.2) rotate(-45deg); opacity: 0; }
+}
+@keyframes confetti-side-r {
+  0%   { transform: translate(-50%, 0)                 scale(0.4); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translate(calc(-50% + 38px), -18px) scale(1.2) rotate(45deg); opacity: 0; }
+}
+/* Per-particle shape + color + path. 1 / 3 are circles (sparkle dots),
+   2 / 4 / 5 are rotated squares (paper confetti). Festive palette but
+   not garish — gold / pink / sky / mint / coral. */
+.confetti-1 { background: #FBBF24; border-radius: 50%; width: 9px; height: 9px;
+              animation: confetti-up      1.0s ease-out forwards; animation-delay: 0ms; }
+.confetti-2 { background: #F472B6; border-radius: 1px;
+              animation: confetti-up-l    0.95s ease-out forwards; animation-delay: 40ms; }
+.confetti-3 { background: #38BDF8; border-radius: 50%;
+              animation: confetti-up-r    0.95s ease-out forwards; animation-delay: 40ms; }
+.confetti-4 { background: #34D399; border-radius: 1px;
+              animation: confetti-side-l  0.85s ease-out forwards; animation-delay: 80ms; }
+.confetti-5 { background: #FB923C; border-radius: 1px;
+              animation: confetti-side-r  0.85s ease-out forwards; animation-delay: 80ms; }
