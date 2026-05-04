@@ -75,6 +75,30 @@ export function horizontalPathHasObstacle(ctx, fr, fc, tr, tc) {
   return false;
 }
 
+// Mirror predicate for vertical exits (top/bottom). The 1-bend or
+// corridor-detour path drawn by routeArrow for a vertical exit places its
+// long vertical segment at either source's column (`fc`, when target is
+// "in front of" the exit direction so no detour is needed) or target's
+// column (`tc`, when needsCorridor=true forces a detour). Either column
+// can pass through tasks in intermediate rows. Be conservative — check
+// both source and target columns. Same-row exits have no vertical leg
+// to worry about.
+//
+// Per user bug 2026-05-04 後段 (情境 E): "從畫面左側包容閘道連到右下方
+// 5-1-4-4 ... 自動規則因為會越過任務，所以會從上方出發 ... 但會切過中間
+// 排他閘道 → 紅標違規". Adding this check lets phase3 reject vertical
+// exits whose drop/rise crosses an intermediate task, falling back to
+// sibling-sharing (pass 2) which produces the cleaner bottom-port route.
+export function verticalPathHasObstacle(ctx, fr, fc, tr, tc) {
+  if (fr === tr) return false;
+  const rLo = Math.min(fr, tr), rHi = Math.max(fr, tr);
+  for (let r = rLo + 1; r < rHi; r++) {
+    if (ctx.taskAt(r, fc)) return true;
+    if (fc !== tc && ctx.taskAt(r, tc)) return true;
+  }
+  return false;
+}
+
 // A future Phase 3d edge (same-row non-gateway task with a cross-lane
 // forward next) may exit that task's TOP or BOTTOM, drawing a vertical at
 // the task's own column. That vertical only lands at `col` if Phase 3d

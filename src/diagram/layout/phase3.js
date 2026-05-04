@@ -1,7 +1,8 @@
 import { getExitPriority, inferEntrySide } from './gatewayRouting.js';
 import {
   hasTopConflict, registerTopCorridor, topCorridorRange,
-  horizontalPathHasObstacle, corridorBlockedByFuturePhase3dVertical,
+  horizontalPathHasObstacle, verticalPathHasObstacle,
+  corridorBlockedByFuturePhase3dVertical,
   useIn, useOut,
 } from './corridor.js';
 
@@ -118,6 +119,11 @@ export function runPhase3(ctx) {
       // below can share the primary exit with a sibling (visual line
       // overlap near the gateway is preferred over cutting a task box).
       if ((p === 'right' || p === 'left') && horizontalPathHasObstacle(ctx, c.fr, c.fc, c.tr, c.tc)) continue;
+      // Vertical exit (top/bottom) — symmetric obstacle check. Without
+      // this the picker accepted top/bottom even when the long vertical
+      // segment crossed a task in source's or target's column. See
+      // verticalPathHasObstacle docstring for the bug history (情境 E).
+      if ((p === 'top' || p === 'bottom') && verticalPathHasObstacle(ctx, c.fr, c.fc, c.tr, c.tc)) continue;
       // Vertical exit (top/bottom) going OPPOSITE the target's row span
       // needs a corridor detour whose drop/rise crosses more than one lane
       // boundary when |dr| > 1. Prefer sharing the primary exit with a
@@ -140,6 +146,7 @@ export function runPhase3(ctx) {
         if (!used.has(p)) continue;
         if (incoming.has(p)) continue;
         if ((p === 'right' || p === 'left') && horizontalPathHasObstacle(ctx, c.fr, c.fc, c.tr, c.tc)) continue;
+        if ((p === 'top' || p === 'bottom') && verticalPathHasObstacle(ctx, c.fr, c.fc, c.tr, c.tc)) continue;
         if (p === 'top'    && c.dr > 1)  continue;
         if (p === 'bottom' && c.dr < -1) continue;
         const testEntry = inferEntrySide(p, c.dr, c.dc);
