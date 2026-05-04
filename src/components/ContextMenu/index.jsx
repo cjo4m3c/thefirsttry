@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { applyRoleChange } from '../../utils/elementTypes.js';
 import {
   L3ActivitySubForm,
@@ -51,11 +51,9 @@ export default function ContextMenu({
 }) {
   const ref = useRef(null);
   const [adjusted, setAdjusted] = useState({ left: x, top: y });
-  // Drag state: tracks whether the menu has been manually relocated by the
-  // user. Once moved (`userMoved=true`) the auto-reclamp effects stop trying
-  // to reposition — respect the user's choice. Drag offset captures the
-  // pointer's offset within the menu at drag-start so movement feels natural.
-  const [userMoved, setUserMoved] = useState(false);
+  // Drag state: per user spec 2026-05-04 the menu is always reclamped on
+  // size change (incl. after a drag), so we only need the dragging flag
+  // and the pointer offset to drive the live drag.
   const [dragging, setDragging] = useState(false);
   const dragOffsetRef = useRef({ dx: 0, dy: 0 });
   // 'connection' | 'gateway' | 'l3activity' | 'gw-edit' | 'other' | 'convert' | null
@@ -81,24 +79,89 @@ export default function ContextMenu({
     setL3Name('');
   }, [task?.id]);
 
-  // Reposition if menu would overflow the viewport.
+  // Initialize position from the click point whenever the menu opens for
+  // a different task. Subsequent drags / sub-form expansions only adjust
+  // from the previous adjusted position (not back to the click point).
   useEffect(() => {
+    setAdjusted({ left: x, top: y });
+  }, [x, y, task?.id]);
+
+  // Pure clamp — given prev (left, top), shrink to viewport bounds.
+  // Reads ref.current rect inside so it always uses the latest size.
+  const reclamp = useCallback(() => {
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    let left = x;
-    let top = y;
-    if (left + rect.width > vw - 8)  left = vw - rect.width - 8;
-    if (top  + rect.height > vh - 8) top  = vh - rect.height - 8;
-    if (left < 8) left = 8;
-    if (top  < 8) top  = 8;
-    setAdjusted({ left, top });
-  }, [x, y, subForm]);
+    setAdjusted(prev => {
+      let left = prev.left;
+      let top = prev.top;
+      if (left + rect.width > vw - 8)  left = vw - rect.width - 8;
+      if (top  + rect.height > vh - 8) top  = vh - rect.height - 8;
+      if (left < 8) left = 8;
+      if (top  < 8) top  = 8;
+      return (left === prev.left && top === prev.top) ? prev : { left, top };
+    });
+  }, []);
 
-  // Click outside / Esc closes.
+  // Auto-reclamp on size changes — covers sub-form expand/collapse + window
+  // resize + post-drag (when user drags to an edge then expands). Per user
+  // spec 2026-05-04, this runs even after manual drag (always corrects
+  // overflow). ResizeObserver fires on any element-size change.
+  useEffect(() => {
+    if (!ref.current) return;
+    const ro = new ResizeObserver(() => reclamp());
+    ro.observe(ref.current);
+    function onWinResize() { reclamp(); }
+    window.addEventListener('resize', onWinResize);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', onWinResize);
+    };
+  }, [reclamp]);
+
+  // Drag handlers — pointermove / pointerup attach to window only while
+  // actively dragging. Live position is also clamped to viewport so the
+  // user can't lose the menu off-screen.
+  function startDrag(e) {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    dragOffsetRef.current = {
+      dx: e.clientX - rect.left,
+      dy: e.clientY - rect.top,
+    };
+    setDragging(true);
+    e.preventDefault();
+  }
+  useEffect(() => {
+    if (!dragging) return;
+    function onMove(e) {
+      if (!ref.current) return;
+      const rect = ref.current.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let left = e.clientX - dragOffsetRef.current.dx;
+      let top = e.clientY - dragOffsetRef.current.dy;
+      if (left + rect.width > vw - 8)  left = vw - rect.width - 8;
+      if (top  + rect.height > vh - 8) top  = vh - rect.height - 8;
+      if (left < 8) left = 8;
+      if (top  < 8) top  = 8;
+      setAdjusted({ left, top });
+    }
+    function onUp() { setDragging(false); }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [dragging]);
+
+  // Click outside / Esc closes. Skipped while dragging — releasing the
+  // pointer outside the menu shouldn't accidentally close it.
   useEffect(() => {
     const onDocClick = (e) => {
+      if (dragging) return;
       if (ref.current && !ref.current.contains(e.target)) onClose?.();
     };
     const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
@@ -112,7 +175,7 @@ export default function ContextMenu({
       document.removeEventListener('mousedown', onDocClick);
       window.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, dragging]);
 
   if (!task) return null;
 
@@ -175,12 +238,25 @@ export default function ContextMenu({
       style={{ left: adjusted.left, top: adjusted.top, width: 300 }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Header */}
-      <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 rounded-t-lg flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-700">編輯元件</span>
+      {/* Header — left has drag handle (☰), right has close (✕). The
+          handle is the only drag region so clicking elsewhere on the header
+          (e.g. ✕) doesn't start a drag. */}
+      <div className="px-2 py-2 border-b border-gray-200 bg-gray-50 rounded-t-lg flex items-center justify-between gap-2">
+        <button onPointerDown={startDrag}
+          title="拖曳移動編輯選單"
+          aria-label="拖曳移動"
+          className="text-gray-400 hover:text-gray-700 text-base leading-none px-1"
+          style={{ cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}>
+          ☰
+        </button>
+        <span className="text-xs font-semibold text-gray-700 flex-1">編輯元件</span>
         <button onClick={onClose} title="關閉（Esc）"
-          className="text-gray-400 hover:text-gray-700 text-sm leading-none">✕</button>
+          className="text-gray-400 hover:text-gray-700 text-sm leading-none px-1">✕</button>
       </div>
+      {/* Body — scrollable when sub-form expand pushes total height past
+          70vh. Header (drag + ✕) stays outside this wrapper so always
+          reachable even when scrolled. */}
+      <div className="overflow-y-auto" style={{ maxHeight: '70vh' }}>
 
       {/* Inline edit fields */}
       <div className="px-3 py-2.5 flex flex-col gap-2">
@@ -288,6 +364,7 @@ export default function ContextMenu({
           刪除此元件
         </button>
       </div>
+      </div>{/* /body scroll wrapper */}
     </div>
   );
 }

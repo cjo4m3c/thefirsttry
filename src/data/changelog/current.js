@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-04',
+    title: 'ContextMenu 可拖曳 + 自動防溢出 + 內捲動：解「展開項目被視窗邊界卡到」',
+    items: [
+      '**緣由**：使用者：「流程圖上的 tooltip 有時候會因為瀏覽器比例的關係，在展開的時候沒辦法看到所有資訊...例如下方的轉換為、新增其他，在部分瀏覽器中就很容易被卡到」+「已拖曳的 menu 後續展開還是要 auto-reclamp，其他依照建議執行」。三個方案 ABC 全做。',
+      '**A. 拖曳 handle（`ContextMenu/index.jsx`）**：header 加 ☰ 圖標 button，`onPointerDown` 觸發 drag — 計算 pointer 在 menu 內的相對 offset，window-level `pointermove` 更新位置（即時 clamp 到 viewport 邊界 8px gap），`pointerup` 釋放。`pointer events` 一套支援 mouse + touch。`cursor: grab` / `grabbing` 視覺回饋。Header 的其他區域（含 ✕ 關閉按鈕）正常可點，不會誤觸 drag。',
+      '**B. 自動防溢出 reclamp**：抽 `reclamp()` `useCallback`，用 `setAdjusted(prev => clamp(prev))` 從**目前位置**起算（不是 click 點），確保 user drag 過後再展開仍會被推回。`ResizeObserver` 觀察 menu 真實 DOM 高度，**展開 / 收合 sub-form 觸發大小變更 → 自動 reclamp**。原本 `useEffect [x, y, subForm]` 只在 React render 後算一次（可能 sub-form lazy 渲染量不到），ResizeObserver 不受 render timing 影響。`window resize` 也綁同樣 reclamp。',
+      '**C. max-height + 內捲動**：menu body 包進新 `<div>` 設 `maxHeight: 70vh; overflow-y: auto`。極端情況（小視窗 + 8 條閘道分支）即使 reclamp 後還超出，內部出現捲軸。**Header 在 wrapper 外**永遠可見（drag handle + ✕ 關閉按鈕不會被內捲吃掉）。',
+      '**邊角細節**：(a) 拖曳期間 click-outside-close 暫停（防誤觸鬆開時關閉）(b) 任務切換（`task.id` 變）時 adjusted 重置成 click 點 — 不會遺留上一個任務的拖曳位置 (c) Esc 關閉鍵不變 (d) `touch-action: none` 在 drag handle 防止觸控設備瀏覽器手勢搶走事件。',
+      '**動到的檔案（4 個）**：`src/components/ContextMenu/index.jsx`（+useCallback / +useState dragging / +dragOffsetRef / +reclamp / +ResizeObserver effect / +pointer drag effect / header 改結構加 ☰ button / body 包 wrapper / click-outside skip dragging）/ `src/data/helpPanelData.js`（EDITABLE_ACTIONS 條目補拖曳 + 防溢出說明）/ `src/data/changelog/current.js`（本條 — 取代 WIP stub commit）。`build` 通過。',
+      '**驗證情境**：(a) 點畫面右下角任務 → menu 自動推回視窗內 ✓ (b) 拖 ☰ 把 menu 拖到任意位置 → ok ✓ (c) 拖到極邊後展開「編輯閘道」加 6 條 → 自動推回視窗內 ✓ (d) 縮小瀏覽器至超小，menu 加滿條件超過 70vh → 內部出現捲軸、header 仍可見可關 ✓ (e) 拖曳期間鬆手在 menu 外 → 不會誤關（dragging skip click-outside）✓ (f) Esc 仍可關閉 ✓ (g) 切到別的任務 → menu 重新從 click 點開始（不留前次拖曳位置）✓ (h) touch screen 拖曳可用 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '儲存提醒互動升級：tooltip 改隨機鼓勵句 + 點擊存檔的綠閃 + ✨ 慶祝動畫',
     items: [
       '**緣由**：使用者：「我希望這個儲存效果 hover tooltip 不要顯示時間，改為隨機顯示這些句子（5 句）」+「每次點選存檔按鈕都要有一個慶祝的回應」。把生硬的「閒置 N 分鐘」訊息換成有趣的鼓勵語、加上點存檔的成功反饋讓互動更有溫度。',
