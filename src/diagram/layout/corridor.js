@@ -89,12 +89,24 @@ export function horizontalPathHasObstacle(ctx, fr, fc, tr, tc) {
 // 排他閘道 → 紅標違規". Adding this check lets phase3 reject vertical
 // exits whose drop/rise crosses an intermediate task, falling back to
 // sibling-sharing (pass 2) which produces the cleaner bottom-port route.
+// Bug fix v2: the original strictly-between-rows loop (r from rLo+1 to
+// rHi-1) was empty for |dr|=1 (the user's actual scenario), so the
+// check never fired. The corridor-detour path's long vertical at `tc`
+// passes through SOURCE'S row at column tc — so we must include fr in
+// the row scan when checking tc, and include tr when checking fc.
+//
+// Walk inclusive bounding box at columns {fc, tc}, excluding the source
+// cell (fr,fc) and target cell (tr,tc).
 export function verticalPathHasObstacle(ctx, fr, fc, tr, tc) {
-  if (fr === tr) return false;
   const rLo = Math.min(fr, tr), rHi = Math.max(fr, tr);
-  for (let r = rLo + 1; r < rHi; r++) {
-    if (ctx.taskAt(r, fc)) return true;
-    if (fc !== tc && ctx.taskAt(r, tc)) return true;
+  for (let r = rLo; r <= rHi; r++) {
+    // Source column (fc): skip the source cell itself
+    if (!(r === fr) && ctx.taskAt(r, fc)) {
+      // Also skip if this happens to be (tr, tc) when fc === tc
+      if (!(r === tr && fc === tc)) return true;
+    }
+    // Target column (tc): only check if it's a different column from fc
+    if (fc !== tc && !(r === tr) && ctx.taskAt(r, tc)) return true;
   }
   return false;
 }
