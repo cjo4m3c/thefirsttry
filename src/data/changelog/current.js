@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-04',
+    title: 'L4 任務名稱未填寫 warning 加「元件類型 + L4 編號」前綴',
+    items: [
+      '**緣由**：使用者：「我希望提出 L4 任務名稱未填寫的時候，可以把該任務的編號和元件類型也提出來，例如排他閘道 1-1-1-1_g1」。原本 PR #146 加的 rule 7 用通用 label「任務 N「未命名」」，使用者看不出哪個任務、要去 task list 數第幾個。',
+      '**修法（`model/validation.js`）**：(a) 抽 `describeElement(t)` helper — 依 `t.type` / `shapeType` / `gatewayType` 回傳「L4 任務 / 開始事件 / 結束事件 / 流程斷點 / L3 流程 / 外部關係人互動 / 排他閘道 / 並行閘道 / 包容閘道」(b) 在 validateFlow 開頭加 `const displayLabels = computeDisplayLabels(tasks, flow.l3Number)` 取 L4 編號（含 `_g` / `_s` / `_w` 後綴）(c) rule 7 message 改成 `${describeElement(t)} ${displayLabels[t.id]}：名稱未填寫（建議補上以利辨識）`。例：「L4 任務 1-1-5-3：名稱未填寫（建議補上以利辨識）」。',
+      '**範圍**：rule 7 仍只對 `type === \'task\'` 觸發（per 原規格 — 閘道 / 開始 / 結束有自己的前綴慣例不檢查）。`describeElement` helper 是通用的，未來若需擴展到其他 rules 也可重用。',
+      '**動到的檔案（3 個）**：`src/model/validation.js`（+`describeElement` + `computeDisplayLabels` import + rule 7 message 改寫）/ `src/data/helpPanelData.js`（VALIDATION 條目補例子）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) L4 任務名稱空、L4 編號 `1-1-5-3` → warning「L4 任務 1-1-5-3：名稱未填寫（建議補上以利辨識）」 ✓ (b) 多筆未命名任務 → 每筆獨立顯示對應編號 ✓ (c) 沒有 displayLabel 的 fallback：只顯示「L4 任務：名稱未填寫」 ✓ (d) 非 L4 任務（閘道 / 開始 / 結束 / L3 / 互動）名稱空 → 不觸發此 rule（per 原規格）✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '儲存檢核 + UX 三件：空泳道 warning / L4 任務名稱 warning / start-end 自動補前綴',
     items: [
       '**緣由 1**：使用者：「希望加一個儲存時的檢核條件（僅跳提醒，可以儲存）：如果這個角色泳道上沒有任何元件（包含開始、結束、L3 子流程、任務、閘道、外部元件等全部可用元件），要跳提醒」。',
