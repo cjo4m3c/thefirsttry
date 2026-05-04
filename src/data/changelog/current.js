@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-04',
+    title: '儲存檢核加新 warning：空泳道（沒有任何元件的角色）',
+    items: [
+      '**緣由**：使用者：「希望加一個儲存時的檢核條件（僅跳提醒，可以儲存）：如果這個角色泳道上沒有任何元件（包含開始、結束、L3 子流程、任務、閘道、外部元件等全部可用元件），要跳提醒」。常見情境：使用者新增了角色但忘了指派任務、或者刪光了該泳道內容但忘了刪角色。',
+      '**修法（`model/validation.js` rule 6）**：在現有 task-level rules 之後加一段 `flow.roles.forEach`，對每個角色檢查 `tasks.some(t => t.roleId === role.id)`。`tasks[]` 涵蓋所有元件類型（type=start/end/task/gateway/l3activity 一律有 roleId 欄），所以單一檢查即覆蓋全部需求。空泳道跳 warning「角色泳道「X」上沒有任何元件 — 建議刪除此泳道、或新增任務 / 元件指派給它」。warning 不擋儲存（per spec「僅跳提醒，可以儲存」）。',
+      '**helpPanelData VALIDATION** 同步加新條目，含 4 子項列點：規則描述 / 檢查範圍 / 可選「仍然儲存」/ 兩種解法。',
+      '**動到的檔案（3 個）**：`src/model/validation.js`（+rule 6）/ `src/data/helpPanelData.js`（VALIDATION 新條目）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**驗證情境**：(a) 新增角色但無任何任務指派 → 儲存跳 warning ✓ (b) 刪除某泳道所有任務 → 儲存跳 warning ✓ (c) 每個泳道至少 1 個元件（含開始 / 結束 / 閘道 / L3 / 互動）→ 不跳 ✓ (d) warning modal 點「仍然儲存」可成功 ✓',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '流程圖 hover tooltip 防壓 sticky header — 上方空間不夠時自動翻到下方',
     items: [
       '**緣由**：使用者：「流程圖上元件的 hover 現在統一出現在上方，有時候元件在頁面上方、且文字較長時會被擋住，可以依照對應位置自動調整顯示位置嗎」。Sticky header 高度 ~50px、最頂的任務 bounding box 距 viewport top 可能 50-100px、tooltip 含長 description 高度可能 100-200px → 上方放不下會被 header 擋。',

@@ -216,6 +216,16 @@ export const VALIDATION = [
   },
   {
     tier: 'warning',
+    rule: '空泳道（沒有任何元件）',
+    detail: [
+      '`flow.roles` 內定義了但沒有任何 task / 元件指派的角色泳道，儲存時跳 warning',
+      '檢查範圍涵蓋所有元件類型（開始 / 結束 / L4 任務 / L3 子流程 / 閘道 / 外部關係人互動 / 流程斷點）',
+      '可選「仍然儲存」（規格沒有強制刪除）— 通常代表使用者新增了泳道但忘了指派任務、或刪光了該泳道任務但忘了刪泳道',
+      '解法：(a) 新增任務指派給該角色 (b) 在右側「設定泳道角色」分頁刪除該角色',
+    ],
+  },
+  {
+    tier: 'warning',
     rule: '迴圈返回必須指定目標',
     detail: '`connectionType=loop-return` 的任務必須在 `nextTaskIds[0]` 指向上游某任務。沒指定跳 warning。（編輯器已不再提供新增 loop-return 入口，舊資料仍會檢查）',
   },

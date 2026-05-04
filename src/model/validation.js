@@ -157,6 +157,20 @@ export function validateFlow(flow) {
     }
   });
 
+  // 6. Empty role lane — warning. A role defined in flow.roles but with
+  // zero tasks bound to it is probably leftover from earlier editing or
+  // a forgotten lane. User can delete the role or assign a task; this
+  // rule catches the unused-lane case at save time. Per user spec
+  // 2026-05-04: includes ALL element types (start / end / task / gateway
+  // / l3activity / interaction) — anything in tasks[].roleId counts.
+  (flow.roles || []).forEach(role => {
+    if (!role.id) return;
+    const hasAny = tasks.some(t => t.roleId === role.id);
+    if (!hasAny) {
+      warnings.push(`角色泳道「${role.name || '（未命名）'}」上沒有任何元件 — 建議刪除此泳道、或新增任務 / 元件指派給它`);
+    }
+  });
+
   // PR H — override-induced violations. Blocking: IN+OUT mix on same port.
   // Warning: line crosses another task. Auto-routing already avoids both,
   // so these only fire when a user override forces the condition.
