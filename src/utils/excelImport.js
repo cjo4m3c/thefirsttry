@@ -6,6 +6,7 @@ import {
   L4_GATEWAY_PATTERN, L4_SUBPROCESS_PATTERN, L4_INTERACTION_PATTERN,
   computeDisplayLabels,
 } from './taskDefs.js';
+import { AUX_FIELD_DEFS } from './auxFieldDefs.js';
 import {
   parseConnection,
   detectGatewayFromText,
@@ -28,6 +29,45 @@ function normalizeL3Number(raw) {
   return String(raw ?? '').trim().replace(/\./g, '-');
 }
 
+/**
+ * Walk the header row (allRows[0]) and build a `{ auxKey → colIndex }` map by
+ * matching trimmed cell text against `AUX_FIELD_DEFS[].header`. Headers we
+ * can't find are simply absent from the map — corresponding `task.meta[key]`
+ * stays unset, and downstream code uses `?? ''`. Nothing is treated as a
+ * fatal error (auxiliary content is optional by spec).
+ *
+ * Tolerance:
+ *   - `String(cell ?? '').trim()` collapses null / non-string / surrounding
+ *     whitespace
+ *   - First match wins if a header is duplicated (rare; user typo)
+ *   - Header positions are independent of `COL_*` core indices, so users
+ *     who reorder aux columns in their Excel still import correctly
+ */
+function buildAuxColMap(headerRow) {
+  const map = {};
+  if (!Array.isArray(headerRow)) return map;
+  const trimmed = headerRow.map(c => String(c ?? '').trim());
+  AUX_FIELD_DEFS.forEach(({ key, header }) => {
+    const idx = trimmed.indexOf(header);
+    if (idx >= 0) map[key] = idx;
+  });
+  return map;
+}
+
+/**
+ * Read a single task row's auxiliary fields into a fresh `meta` object using
+ * the `{ key → colIndex }` map. Empty cells are skipped (kept off the object
+ * so downstream `task.meta[k] ?? ''` works without storing redundant ''s).
+ */
+function readAuxMeta(row, auxColMap) {
+  const meta = {};
+  for (const key in auxColMap) {
+    const v = String(row[auxColMap[key]] ?? '').trim();
+    if (v) meta[key] = v;
+  }
+  return meta;
+}
+
 
 /**
  * Determine gateway type from a parsed annotation. Returns null when the row
@@ -42,7 +82,7 @@ function detectGatewayType(ann) {
   return null;
 }
 
-function buildFlow(rows) {
+function buildFlow(rows, auxColMap = {}) {
   const firstRow = rows[0];
   const l3Number = normalizeL3Number(firstRow[COL_L3_NUMBER]);
   const l3Name   = String(firstRow[COL_L3_NAME] ?? '').trim();
@@ -109,6 +149,7 @@ function buildFlow(rows) {
       outputItems:    String(row[7] ?? '').trim(),
       reference:      String(row[9] ?? '').trim(),
       flowAnnotation: flowText,
+      meta:           readAuxMeta(row, auxColMap),
     };
 
     taskByNumber[l4Num] = task;
@@ -428,6 +469,11 @@ export function parseExcelToFlow(arrayBuffer) {
   // Soft chain-integrity warnings (non-blocking)
   const warnings = collectGatewayChainWarnings(allRows);
 
+  // Resolve auxiliary column positions from the header row. Optional and
+  // forgiving — missing headers stay absent from the map and corresponding
+  // task.meta keys remain unset (rendered as '' downstream).
+  const auxColMap = buildAuxColMap(allRows[0]);
+
   const dataRows = allRows.slice(1).filter(row => String(row[COL_L4_NUMBER] ?? '').trim());
   if (dataRows.length === 0) throw new Error('找不到有效的 L4 任務資料（請確認欄位順序正確，且 Excel 首列為標題列）');
 
@@ -453,7 +499,7 @@ export function parseExcelToFlow(arrayBuffer) {
   if (currentGroup.length > 0) groups.push(currentGroup);
   if (groups.length === 0) throw new Error('無法識別 L3 活動編號（第 1 欄）');
 
-  const flows = groups.map(buildFlow);
+  const flows = groups.map(group => buildFlow(group, auxColMap));
 
   // 2026-04-29: Auto-normalize l4Number to match spec §2 (順號從 1 起;
   // 連續 _g1/_g2 vs single _g; same for _s). Collect every change and
