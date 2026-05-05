@@ -5,6 +5,17 @@
  */
 export default [
   {
+    date: '2026-05-05',
+    title: 'HelpPanel 編號規則改列點呈現，移除反引號 code 標記',
+    items: [
+      '**緣由**：使用者：「我希望首頁右上角點開的規則說明中，編號邏輯這個區塊，不要用程式語言有「`」這樣的符號，請改為列點說明」。原本「編號規則 Numbering」表格的「規則」欄塞滿 Markdown 反引號（如 `\\d+-\\d+-\\d+`、`_g`、`_s`、`_w`），對非工程背景的使用者像是雜訊。',
+      '**改法（`src/data/helpPanelData.js` NUMBERING）**：每個 entry 的 `rule` 從單句字串改成 string[]（列點），整體去掉所有反引號，改用全形書名號「」標標識符；`example` 同步改成 string[]，render 時用「、」串接，仍保留 mono 字體呈現範例編號。',
+      '**改法（`src/components/HelpPanel.jsx`）**：編號規則區塊從三欄 `<table>` 換成跟「流程圖元件定義」一致的 card 列表 — 左欄「類型」、右欄上方用 `Content` 元件 render 列點規則、下方一行「範例：」+ mono 範例字串。同步把區塊尾巴提示文字裡殘留的 `_g` 反引號改成純文字。',
+      '**驗證**：`npm run build` 通過，bundle size 不變。每個 NUMBERING 條目（L3 / L4 / 開始 / 結束 / 閘道 / 迴圈 / 子流程 / 外部互動）的規則都已轉成 2-4 個列點，使用者打開「規則說明 → 編號規則 Numbering」可讀到不含反引號的純中文敘述。',
+      '**動到的檔案（3 個）**：`src/data/helpPanelData.js`（NUMBERING 重寫）/ `src/components/HelpPanel.jsx`（render 改 card + bullets）/ `src/data/changelog/current.js`（本條）。業務規則本身沒變，所以 `docs/business-spec.md` 不用動。',
+    ],
+  },
+  {
     date: '2026-05-04',
     title: 'Routing 大討論交接文件 + cleanup unused alias (PR #152)',
     items: [

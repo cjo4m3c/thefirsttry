@@ -104,26 +104,24 @@ export default function HelpPanel() {
 
               {/* ── 1b. Numbering ── */}
               <Section title="編號規則 Numbering">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-gray-500 text-xs">
-                      <th className="pb-1 w-36">類型</th>
-                      <th className="pb-1">規則</th>
-                      <th className="pb-1 w-44">範例</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {NUMBERING.map(n => (
-                      <tr key={n.kind} className="border-t border-gray-100">
-                        <td className="py-1.5 font-medium text-gray-700">{n.kind}</td>
-                        <td className="py-1.5 text-gray-600">{n.rule}</td>
-                        <td className="py-1.5 font-mono text-xs text-indigo-600">{n.example}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="grid gap-2">
+                  {NUMBERING.map(n => (
+                    <div key={n.kind} className="flex gap-3 bg-gray-50 rounded-lg px-3 py-2">
+                      <div className="w-32 flex-shrink-0 font-medium text-gray-800">{n.kind}</div>
+                      <div className="flex-1">
+                        <Content value={n.rule} className="text-gray-600" />
+                        <div className="mt-1 text-xs text-gray-500">
+                          範例：
+                          <span className="font-mono text-indigo-600">
+                            {Array.isArray(n.example) ? n.example.join('、') : n.example}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 <p className="text-xs text-gray-400 mt-2">
-                  Excel 匯入時會驗證所有編號格式；舊資料（點分隔 / 閘道缺 `_g`）載入時自動遷移為新格式。
+                  Excel 匯入時會驗證所有編號格式；舊資料（點分隔、閘道缺 _g）載入時自動遷移為新格式。
                 </p>
               </Section>
 
