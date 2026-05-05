@@ -8,6 +8,7 @@
  *   2. From Excel import (opened directly in view/edit mode)
  */
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { saveFlow } from '../../utils/storage.js';
 import DiagramRenderer from '../DiagramRenderer.jsx';
 import FlowTable from '../FlowTable.jsx';
 import BackToTop from '../BackToTop.jsx';
@@ -253,6 +254,15 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     saveAndValidate();
   }
 
+  // PR-D12: dismiss import-warnings banner. Persists immediately (bypasses
+  // validateFlow / hasChanges) so a single click clears the banner without
+  // requiring a save action. Only this field is touched.
+  function handleDismissImportWarnings() {
+    const updated = { ...liveFlow, importWarnings: [] };
+    setLiveFlow(updated);
+    saveFlow(updated);
+  }
+
   function handleTogglePin() {
     const next = { ...liveFlow, pinned: !liveFlow.pinned };
     setLiveFlow(next);
@@ -278,6 +288,31 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         densityMode={densityMode} onCycleDensity={cycleDensity} />
 
       <main className="px-4 py-6 w-full max-w-full">
+        {/* PR-D12: Excel import warnings banner — shows the auto-fix /
+            cross-check messages saved on this flow at import time. User
+            clicks ✕ to permanently dismiss (saves the cleared array to
+            localStorage so reopening the flow doesn't re-show). */}
+        {Array.isArray(liveFlow.importWarnings) && liveFlow.importWarnings.length > 0 && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-300 text-sm text-amber-800">
+            <div className="flex items-start gap-2 mb-1.5">
+              <span className="flex-shrink-0 font-bold">⚠</span>
+              <span className="font-medium flex-1">
+                匯入時自動調整了 {liveFlow.importWarnings.length} 筆內容（不影響使用，建議檢視 Excel 原始檔對照）
+              </span>
+              <button
+                onClick={handleDismissImportWarnings}
+                className="ml-auto text-amber-500 hover:text-amber-700 font-bold flex-shrink-0"
+                title="不再顯示此提醒"
+              >✕</button>
+            </div>
+            <ul className="ml-5 max-h-64 overflow-y-auto pr-1 space-y-0.5">
+              {liveFlow.importWarnings.map((w, i) => (
+                <li key={i} className="whitespace-pre-wrap">{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Diagram — always visible. ref exposes exportPng/Drawio/Excel
             imperatively so the Header download dropdown can trigger them. */}
         <DiagramRenderer ref={diagramRef} flow={liveFlow}

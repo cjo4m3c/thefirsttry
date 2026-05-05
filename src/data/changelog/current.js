@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D12：Excel 匯入警示加 Excel 列號 + 重生 stored flowAnnotation + FlowEditor 流程上方 banner + 持續化',
+    items: [
+      '**緣由**：使用者回報 (a) 匯入訊息「`[排他閘道]判斷客戶確認結果」5-1-2-7_g → 5-1-2-6_g`」只有元件名跟編號、沒列號，800 行 Excel 找不到要修哪一列 (b) 想確保 normalize 後 stored data 完全一致（task.flowAnnotation 不殘留 Excel 原始字串） (c) 想要使用者點進流程圖時頂部也能看到匯入時的提醒、可主動 dismiss。',
+      '**Step 1（Excel 列號）**：`parseExcelToFlow` 開頭建 `excelRowByL4` map（`l4 → 1-indexed Excel row`）+ `l3OfRow` map（`row → l3Number`）。`normalizeL4Numbers` 收 `excelRowByL4` 參數，每筆 fix 額外帶 `excelRow` 欄位。warning 訊息升級為「`第 547 列「轉換請購訂單」5-3-3-5 → 5-3-3-4`」。Synthetic start/end 沒對應 Excel row 時優雅 fallback 不顯示「第 X 列」。',
+      '**Step 2（重生 stored flowAnnotation）**：normalize 完之後跑一遍 `formatConnection(task, tasks, l4Map)` 寫回 `task.flowAnnotation`，讓 stored 字串跟 displayLabels（流程圖、FlowTable、Excel 匯出實際讀的）永遠同步。修掉 c13 留下的 stored vs derived 不一致歷史包袱。Round-trip：匯入→存→reload→匯出 全部對齊。',
+      '**Step 3（per-flow `importWarnings` 持續化）**：`flow.importWarnings = []` 加在每個 flow 物件上，parseExcelToFlow 的所有 warning 都 push 到對應 flow（normalize / merge / validation 走 per-flow loop 自然分流；cross-row 的 chain warnings + cross-check warnings 用 regex 抓「第 N 列」→ `l3OfRow[N]` → flow 路由）。flow 存進 localStorage 時 importWarnings 一起持續化（migrateFlow 沒 strip 此欄位）。',
+      '**Step 4（FlowEditor 頂部 banner）**：`src/components/FlowEditor/index.jsx` `<main>` 內、DiagramRenderer 上方加琥珀色 banner — 顯示「匯入時自動調整了 N 筆內容」+ 滾動列表 max-h-64 + ✕ 按鈕。dismiss handler 直接 `setLiveFlow + saveFlow` 持續化（繞過 saveAndValidate 不要求使用者 click 儲存按鈕）。下次再開該流程不會再顯示。',
+      '**為什麼 dismiss 立即持續化**：使用者預期「✕ 按下去就消失」。若走 patch + hasChanges + 儲存按鈕的常規路徑，使用者要多一步點儲存才真的清。直接 `saveFlow(updated)` 一個字段、零 validation 風險。',
+      '**Dashboard 端 importWarnings 行為（不變）**：仍是 session-scoped useState，匯入後立即顯示。新增的 per-flow 持續化只服務「使用者下次開流程時還能看到」這個訴求；Dashboard 的「剛 import 完的 banner」靠 session state 即可，不需要持續化。',
+      '**動到的檔案（3 個）**：`src/utils/excelImport.js`（excelRowByL4 map + normalizeL4Numbers 簽名 + per-flow warnings 路由 + regenerate flowAnnotation）/ `src/components/FlowEditor/index.jsx`（saveFlow import + handleDismissImportWarnings + banner JSX）/ `src/data/changelog/current.js`（本條）。`npm run build` 通過。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D11：D 系列 doc / cleanup 收尾（CLAUDE / README / HANDOVER / backlog 同步、刪未用 SHAPE_TYPES、修 migrateLegacyWtoE typo 註解、關 stale PRs）',
     items: [
       '**緣由**：D 系列 D1–D10 + aux fields A/B/C 共 13 支 PR 連續落地後，文件 / 冗餘碼 audit 找出零散 staleness 跟 dead code。本 PR 一次收齊，避免散在各 follow-up。',
