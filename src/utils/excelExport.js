@@ -1,13 +1,16 @@
 /**
  * Excel export utility for flow data.
- * Generates the standard 10-column L4 task spreadsheet.
+ * Generates the L4 task spreadsheet — 10 core columns (A~J) + 20 auxiliary
+ * columns (K~AD) driven by AUX_FIELDS. Aux content lives in `task.meta` and
+ * never participates in flow logic; export just reads it through.
  */
 import * as XLSX from 'xlsx';
 import { todayYmd } from './storage.js';
 import { computeDisplayLabels } from './taskDefs.js';
 import { formatConnection } from '../model/connectionFormat.js';
+import { AUX_FIELDS } from './auxFieldDefs.js';
 
-export const EXCEL_HEADERS = [
+const CORE_HEADERS = [
   'L3 活動編號',
   'L3 活動名稱',
   'L4 任務編號',
@@ -20,7 +23,7 @@ export const EXCEL_HEADERS = [
   '參考資料來源文件名稱',
 ];
 
-const COL_WIDTHS = [
+const CORE_WIDTHS = [
   { wch: 14 }, // L3 編號
   { wch: 24 }, // L3 名稱
   { wch: 14 }, // L4 編號
@@ -32,6 +35,15 @@ const COL_WIDTHS = [
   { wch: 36 }, // 關聯說明
   { wch: 25 }, // 參考資料
 ];
+
+// Auxiliary columns: separator → empty header + narrow width; real field →
+// header text from AUX_FIELDS + 18 wch default. Keep this derivation pure so
+// AUX_FIELDS edits propagate without touching this file.
+const AUX_HEADERS = AUX_FIELDS.map(f => f.separator ? '' : f.header);
+const AUX_WIDTHS  = AUX_FIELDS.map(f => f.separator ? { wch: 3 } : { wch: 18 });
+
+export const EXCEL_HEADERS = [...CORE_HEADERS, ...AUX_HEADERS];
+const COL_WIDTHS = [...CORE_WIDTHS, ...AUX_WIDTHS];
 
 /**
  * Build a map from task ID → L4 task number.
@@ -79,6 +91,10 @@ function buildExcelRows(flow) {
     // download — three views, two truths. FlowTable already always
     // recomputes; this aligns Excel export with it.
     const annotation = generateFlowAnnotation(task, tasks, l4Map);
+    const meta = task.meta || {};
+    const auxCells = AUX_FIELDS.map(f =>
+      f.separator ? '' : (meta[f.key] ?? '')
+    );
     return [
       l3Number,
       l3Name,
@@ -90,6 +106,7 @@ function buildExcelRows(flow) {
       task.outputItems || '',
       annotation,
       task.reference || '',
+      ...auxCells,
     ];
   });
 }

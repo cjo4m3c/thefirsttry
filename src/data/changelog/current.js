@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-05',
+    title: '輔助欄位 PR-B：Excel 匯入匯出讀寫 20 個輔助欄位（header mapping）',
+    items: [
+      '**緣由**：PR-A 已落地 schema + task.meta migration，此 PR 把 AUX_FIELDS 接進 Excel I/O。匯出時在核心 10 欄（A~J）右側 append 20 欄（K~AD），匯入時用 header row 找輔助欄位位置存進 task.meta。輔助欄位仍完全不影響流程結構解析、編號規則、validation。',
+      '**`src/utils/excelExport.js`**：`EXCEL_HEADERS` 從 10 欄擴成 30 欄，由 `CORE_HEADERS` + `AUX_HEADERS`（從 AUX_FIELDS 推導，separator → 空字串 header）組合；`COL_WIDTHS` 同步擴充（separator 用 wch=3 窄欄、實際欄位 wch=18）。`buildExcelRows` 讀 `task.meta[key]` append 到 row 末尾，separator 永遠輸出空字串。下載出來的 Excel 看得到 K~AD 共 20 欄、4 個空白分組欄位視覺上跟使用者提供的範本一致。',
+      '**`src/utils/excelImport.js`**：新增 `buildAuxColMap(headerRow)` 從 row 0 文字找 `AUX_FIELD_DEFS[].header` 位置，產出 `{ key → colIndex }` 字典；`readAuxMeta(row, auxColMap)` 讀單列輔助欄位成 meta object（空 cell 略過、不存 `""`）。`parseExcelToFlow` 在 `validateNumbering` 之後算一次 `auxColMap`，傳給 `buildFlow(group, auxColMap)`，在 task stub 建立時填上 `meta`。容忍策略：找不到 header → 該 key 不存 task.meta（下游 `?? ""` 取值），永不報錯；header 拼錯 / 缺欄完全 graceful。',
+      '**Round-trip 驗證**：寫了臨時 node script 模擬 build flow（含非空 meta）→ XLSX export buffer → parseExcelToFlow → 比對 meta 內容。確認：(a) 30 欄完整匯出 (b) 5 個 meta 欄位 round-trip 後完全一致 (c) 空 meta 任務（start / end）re-import 後 meta 仍是空 object，不會被汙染。Script 用後即刪、不進 codebase。',
+      '**隔離保證再次確認**：`parseConnection` / `validateNumbering` / `computeDisplayLabels` 都不讀 `task.meta`；`auxColMap` 跟核心 `COL_*` 常數獨立，使用者調序輔助欄位不會錯讀核心欄位。',
+      '**動到的檔案（3 個）**：`src/utils/excelExport.js`（HEADERS 結構重組 + buildExcelRows append aux cells）/ `src/utils/excelImport.js`（buildAuxColMap / readAuxMeta + 流入 buildFlow）/ `src/data/changelog/current.js`（本條）。`npm run build` 通過。',
+      '**下一步 PR-C**：FlowTable 加「⊕ 顯示輔助欄位」toggle、向右展開 cell 編輯 + 同步 `docs/business-spec.md §10` / `helpPanelData.js EXPORTS`。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '輔助欄位 PR-A：AUX_FIELDS schema + task.meta migration（infra-only）',
     items: [
       '**緣由**：使用者規劃在 FlowTable 加 20 個輔助欄位（任務描述用），需求是預設隱藏、可自由編輯、完全不影響流程圖 / 編號 / 連線解析。為了讓後續的 Excel I/O（PR-B）與 UI toggle（PR-C）可以乾淨落地，先做純基建：定 schema + 補 task.meta migration + 確認流程邏輯與輔助欄位徹底隔離。本 PR 不動 UI、不動匯入匯出、使用者看不到任何變化。',
