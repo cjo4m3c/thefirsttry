@@ -10,7 +10,24 @@ import { makeConverterActions } from './useFlowActions/converters.js';
  */
 export function useFlowActions({ liveFlow, patch }) {
   function updateTask(id, updated) {
-    patch({ tasks: liveFlow.tasks.map(t => t.id === id ? updated : t) });
+    // PR-D8 (2026-05-05): when a task's `type` or `shapeType` changes, the
+    // anchor topology shifts — `_g` / `_s` / `_e` suffix anchors and
+    // regular-task counter ordering may become invalid for OTHER tasks in
+    // the flow. Strip stored l4Number from every other task so
+    // computeDisplayLabels re-derives a consistent layout. The directly-
+    // updated task already strips its own l4Number via makeTypeChange /
+    // applyRoleChange. Safe because labels regenerate deterministically.
+    const prev = liveFlow.tasks.find(t => t.id === id);
+    const topologyShift = !!prev
+      && (prev.type !== updated.type || prev.shapeType !== updated.shapeType);
+    patch({
+      tasks: liveFlow.tasks.map(t => {
+        if (t.id === id) return updated;
+        if (!topologyShift || !t.l4Number) return t;
+        const { l4Number, ...rest } = t;
+        return rest;
+      }),
+    });
   }
 
   function addTask() {
