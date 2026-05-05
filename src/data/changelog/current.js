@@ -6,6 +6,24 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D9：修元件類型變更時多目標連線被截掉只剩第一個（任務 ↔ 外部互動 / 閘道 ↔ 任務）',
+    items: [
+      '**緣由**：使用者回報「在內部泳道新增連線到外部互動，再變更元件類型，前一個修改的連線會被自動刪除」。Trace 後找到 `makeTypeChange` 在所有 kind 分支都用 `existingTarget = nextTaskIds[0]`（只取首個目標）的過度簡化寫法。原 doc comment 標的「best-effort，使用者再手動補」是當初為了避開 gateway↔non-gateway 結構不對稱（`nextTaskIds[]` vs `conditions[]`）的權宜，但**順著這個規則套到 task ↔ interaction / start 之類「兩邊結構相同」的轉換上完全沒必要**，造成多目標連線被吃掉。',
+      '**重現**：(1) Task A 已有 `nextTaskIds=[B]`（自動序列連結 / 使用者手選 / Excel 匯入） (2) 使用者用拖曳 / ContextMenu 加 A→X 互動 → `addConnection` append → `A.nextTaskIds=[B, X]` (3) TaskCard 改 A 元件類型 → makeTypeChange 取 `existingTarget=nextTaskIds[0]=B` → 新 A 的 `nextTaskIds=[B]`，X 消失。',
+      '**Fix（`utils/elementTypes.js makeTypeChange`）**：把 `existingTarget` 改成 `existingTargets`（陣列），分派時依 kind 結構做正確映射：',
+      '  • `task` / `interaction` / `start`（同用 `nextTaskIds[]`）→ **保留全部** `existingTargets`',
+      '  • `gateway-*`（用 `conditions[]`）→ 從 N 個 nextTaskIds 種出 **N 個 conditions**，每個 label 空（使用者後續填）',
+      '  • `l3activity`（spec 1-in-1-out 慣例）→ 取首個 `firstTarget`',
+      '  • `end` / `breakpoint`（無 outgoing）→ 維持空',
+      '  • Gateway → task / interaction → 保留全部，N 個 conditions 攤平成 N 個 nextTaskIds（連 connectionType 已硬設 sequence，normalizeTask 不會把它再推回 gateway）',
+      '**為什麼這次改 makeTypeChange 是 single-source 修法**：所有元件類型轉換的入口（TaskCard 元件類型 select、ContextMenu 轉換 sub-form、useFlowActions/converters convertTaskType）都呼叫同一個 `makeTypeChange` 純函式。改一處所有觸發點立即一致。連線結構（`nextTaskIds` / `conditions`）是 SOT，下游所有 view（流程圖箭頭、FlowTable 任務關聯說明 via formatConnection、TaskCard ConnectionSection、Excel / drawio 匯出）全部從這層衍生 → 自動同步。',
+      '**驗證情境（單元測試）**：(a) Task `[B,X]` → interaction → 保留 `[B,X]` (b) Task `[B,X]` → gateway-and → 2 個 conditions（label 空） (c) Task `[B,X]` → l3activity → 取首個 `[B]` (d) Task `[B,X]` → end / breakpoint → `[]`（end 沒 outgoing） (e) Gateway 兩 conditions `[B,X]` → task → `[B,X]` (f) Gateway 兩 conditions `[B,X]` → interaction → `[B,X]`。`npm run build` 通過。',
+      '**Edge case 已確認不衝突**：(1) Gateway → task 多目標時，`makeTypeChange` 已硬設 `connectionType=sequence`，`normalizeTask` 看到 connectionType 已設 → 不再自動推回 parallel-branch。(2) 多目標 task 在 formatConnection 會 render 為「並行分支至 X、Y、Z」（regular task 隱式 fan-out），跟以前行為一致。(3) 使用者若想只留單目標，仍可在 ConnectionSection 「下一步」select 改成單一 target（onChange 行為是 replace 整個 array）。',
+      '**動到的檔案（2 個）**：`src/utils/elementTypes.js`（makeTypeChange 重寫成 existingTargets 陣列分派）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D8：修角色 type 翻轉 / 元件類型變更後，閘道與其他互動編號錨點沒重算',
     items: [
       '**緣由**：使用者回報「角色從內部改成外部時，編號沒依規則更新」。Trace 後找到兩個串連點：`syncTasksToRoles` 只 strip 直接被翻轉的 task；非 lane-sensitive 元件（閘道、子流程）跟既有 `_e` 互動沒被 strip → stored `l4Number` 留下舊錨點 → `computeDisplayLabels` 看到 stored 就 short-circuit return。',
