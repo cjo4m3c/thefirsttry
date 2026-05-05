@@ -1,7 +1,7 @@
 /**
  * Excel export utility for flow data.
  * Generates the L4 task spreadsheet — 10 core columns (A~J) + 20 auxiliary
- * columns (K~AD) driven by AUX_FIELDS. Aux content lives in `task.meta` and
+ * columns (K~AE) driven by AUX_FIELDS. Aux content lives in `task.meta` and
  * never participates in flow logic; export just reads it through.
  */
 import * as XLSX from 'xlsx';
