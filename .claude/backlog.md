@@ -10,26 +10,26 @@
 
 ## 規格已明確、可排程
 
-- **AD. 迴圈返回自動偵測**（使用者：「迴圈返回無法自動判斷」）— 任意 task 的 `nextTaskIds` 指向上游 task（DAG 反向邊）時自動標記成 loop-return 連線型，行為比照 auto-merge 偵測。動到 `src/model/connectionFormat.js` formatConnection 加反向邊判斷 + `src/model/flowSelectors.js` 加 `isBackEdge(task, allTasks)` selector。**注意**：(1) 編輯器已移除「迴圈返回」入口（PR-2026-04-29），這裡是衍生顯示不是手動標記 (2) 跟 backlog AC 複製工作流 / AG 表格無依賴，可獨立做
-- **AE. 儲存檢核補強**（使用者：「更新儲存時檢核/提醒條件（連線錯誤、元件未連線、多個開始結束、未寫任務名稱）」）— 既有實作清單（`src/model/validation.js`）：`detectOverrideViolations` 偵測連線錯誤 ✓ / rule 4 孤立節點 ✓ / multi-start / multi-end warnings ✓。**待補**：任務名稱必填 warning（rule 6 新增 `if (!t.name?.trim() && t.type === 'task') warnings.push(...)`，非 blocking）。同時 audit 現有 warning UX modal 是否清楚分群顯示
-- **V. 儲存事件閃亮提醒**（使用者：「新增儲存事件閃亮亮閃亮亮動態提醒」）— 儲存按鈕被按下後加 logo 閃光 / 按鈕短暫變綠等視覺回饋（取代原 J「儲存提醒優化」的待選方向）。動到 `src/components/FlowEditor/Header.jsx`
+- **AD. 迴圈返回自動偵測**（使用者：「迴圈返回無法自動判斷」）— 任意 task 的 `nextTaskIds` 指向上游 task（DAG 反向邊）時自動標記成 loop-return 連線型，行為比照 auto-merge 偵測。動到 `src/model/connectionFormat.js` formatConnection 加反向邊判斷 + `src/model/flowSelectors.js` 加 `isBackEdge(task, allTasks)` selector
 - **AC. 複製整個 L3 工作流**（使用者：「可以在頁面上複製一整個工作流」）— Dashboard 卡片加「複製」按鈕，複製後產生新 flow（編號自動 +1 或讓使用者改），tasks / roles / connections 全套複製。動到 `Dashboard` + `src/utils/storage.js` 加 `cloneFlow` 函式
-- **AG. 表格一鍵適應文字高度**（使用者：「表格可以一鍵讓他適應文字高度嗎？」）— FlowTable 預設或 toolbar 加按鈕，textarea 從 fixed-height 改成 auto-grow（`field-sizing: content` 或 JS 計算 scrollHeight）。動到 `src/components/FlowTable.jsx`
-- ~~**N. 泳道角色拖曳視覺提示**~~ — **OBSOLETED 2026-04-30**：HTML5 drag 整個被砍（PR #112 改用 ▲ ▼ 按鈕），`useDragReorder` / DropLine 都不存在了
+- ~~**AE. 儲存檢核補強**~~ — **DONE 2026-05-05**（使用者確認）
+- ~~**V. 儲存事件閃亮提醒**~~ — **DONE 2026-05-05**（使用者確認）
+- ~~**AG. 表格一鍵適應文字高度**~~ — **DONE 2026-05-05（PR-AUX-RELABEL #171）**：FlowTable toolbar 加「適應內容高度」toggle
+- ~~**N. 泳道角色拖曳視覺提示**~~ — **OBSOLETED 2026-04-30**：HTML5 drag 整個被砍（PR #112 改用 ▲ ▼ 按鈕）
 - ~~**AF. Excel 匯入檢核補強**~~ / ~~**W. 泳道高度調整**~~ / ~~**F. Excel 部分匯入**~~ — **DROPPED 2026-05-04**：使用者確認不需要
 
 ## 規格待確認、不能直接動手
 
 - **AH. 線段上的字被任務矩形擋住的處理** — 2026-05-04 排程啟動，演進為更廣的 routing 違規問題（見 `.claude/routing-handover.md`）
-- **路徑廣義最佳化 (Phase B / C)** — 使用者廣義訴求：「偵測流程圖空白區間，繞路連起來」。屬於 grid-based path-finding 升級（重構 routing engine），詳見 `.claude/routing-handover.md` §4-5 的 12 個必須考慮情境 + Phase A/B/C 三段策略
+- **路徑廣義最佳化 (Phase B / C)** — 使用者廣義訴求：「偵測流程圖空白區間，繞路連起來」。屬於 grid-based path-finding 升級（重構 routing engine），詳見 `.claude/routing-handover.md` §4-5
 - **G. 匯出圖等比寬度**（使用者：「匯出的圖檔要符合 ISO 文件適用寬度」）— PNG 匯出規格 / ISO A4 等比
 
 ## Nice-to-have / 有空再修
 
-- **B. layout 同欄對齊**（使用者：「先放成 nice-to-have」+「包容、並行閘道後方任務對齊」）— fork 兩分支步數不等時，短分支末段對齊到長分支同欄；含使用者要求的「包容、並行閘道後方任務對齊」。推薦解法 A（`alignForkBranches` post-pass），先開 `claude/preview-layout-same-column` 預覽分支驗證。動手前須跟使用者確認 §10.6 四個問題
+- ~~**B. layout 同欄對齊**~~ — **DONE 2026-05-05**（使用者確認）
 - **C. 線段邏輯 / Phase 3.5 gateway obstacle avoidance**（`src/diagram/layout/`）— 閘道作為跨列 forward obstacle 時走 vertical-detour
 - **H. 邊側批量下載缺檔**（使用者：「批量下載數量太多時比較後面的編號會漏檔案 → 目前排解只有 edge 瀏覽器有，晚點再修」）
-- **後續批次拆檔（PR-4 size check 命中）**：`Dashboard.jsx` 26KB / `excelImport.js` **30KB**（PR-D5 detectRoleTypes + PR-D10 cross-checks 撐爆）/ `ContextMenu/index.jsx` 16KB / 凍結 `c13.js` 拆成 c13a + c13b（17KB）。已解：`HelpPanel.jsx` 26KB → 11.3KB（PR #84 抽 helpPanelData）/ `taskDefs.js` 17.4KB → 14.3KB（PR #81 抽 selector）
+- **後續批次拆檔（PR-4 size check 命中）**：`excelImport.js` **31KB**（PR-D5/D10/D12 撐爆，最急）/ `Dashboard.jsx` 26KB / `ContextMenu/index.jsx` 16KB / 凍結 `c13.js` 拆成 c13a + c13b（17KB）。已解：`HelpPanel.jsx` 26KB → 11.3KB（PR #84）/ `taskDefs.js` 17.4KB → 14.3KB（PR #81）
 
 ## Phase 2（model 共用層抽出）— 全部完成
 
@@ -65,7 +65,15 @@
 - **PR #123**：流程圖文字 UI 微調 — TaskShape `lineH` 14→24（1.5 ratio）+ `letterSpacing` 0.02em / Edge label 白底寬度從固定 40×22 改成 `estimateTextWidth + padding` 動態 hug 文字 / L4Number 加白底 pill 防被線穿過
 - **U（PR #124）**：新增閘道操作拉齊 — `insertGatewayAfter` 簽名升級成 N-branch；ContextMenu / DrawerContent InsertPicker 都從固定 2 條改成預設 2 條 + 「+ 新增分支」/「✕」可動態增減
 
-**2026-05-05 已完成 — 外部互動 / 外部角色重構 D 系列（10 支 PR）+ aux fields 三件組（PR-A/B/C）+ doc cleanup**：
+**2026-05-05 後段已完成（D 系列收尾後）**：
+
+- **PR #169（PR-D11）**：D 系列 doc / cleanup 收尾（CLAUDE / README / HANDOVER / backlog 同步、刪未用 SHAPE_TYPES、修 typo 註解、關 stale PRs #83 #125、清 14 個 stale local branches）
+- **PR #170（PR-D12）**：Excel 匯入警示加 Excel 列號 + 重生 stored flowAnnotation + FlowEditor 流程上方 banner（持續化、可 dismiss）
+- **PR #171（aux fields relabel）**：輔助欄位 schema 改版 — 21 欄無 separator（K~AE）、5 個新欄位（備註 / SO 釐清狀況 / 找 User 釐清 / 合併場次 / User 釐清狀況）、改寫 1 個 header；FlowTable toolbar 三鍵改版（適應內容高度 / 隱藏輔助欄位 / 隱藏L3欄位、純文字、active 樣式）
+- **PR #172**：CLAUDE.md §12 工作流通則 — merge 後自動列待辦 + 評估需求先用情境寫判斷點
+- **PR #173**：`/doc-audit` skill 改寫成完整 doc + 冗餘碼 audit（含 agent 派工模板）
+
+**2026-05-05 前段已完成 — 外部互動 / 外部角色重構 D 系列（10 支 PR）+ aux fields 三件組（PR-A/B/C）+ doc cleanup**：
 
 - **PR #154**：HelpPanel 編號規則改列點 + 用 logo 做 favicon
 - **PR #155 / #156 / #157（aux fields A/B/C）**：20 個輔助欄位 schema → Excel I/O → FlowTable toggle UI（核心 10 + 輔助 20 共 30 欄結構）
