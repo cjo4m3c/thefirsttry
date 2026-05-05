@@ -102,23 +102,28 @@ export function detectElementKind(task) {
  *   - Adds/removes "[XX閘道] " name prefix based on direction
  */
 export function makeTypeChange(task, kind) {
-  const existingTarget =
-    task.type === 'gateway'
-      ? (task.conditions || []).map(c => c.nextTaskId).filter(Boolean)[0] || ''
-      : (task.nextTaskIds || []).filter(Boolean)[0] || '';
+  // PR-D9 (2026-05-05): collect ALL existing target ids, not just the first.
+  // Lets non-gateway↔non-gateway preserve fan-out (task ↔ interaction etc.),
+  // and seeds multi-condition gateways from a multi-target task.
+  const existingTargets = task.type === 'gateway'
+    ? (task.conditions || []).map(c => c.nextTaskId).filter(Boolean)
+    : (task.nextTaskIds || []).filter(Boolean);
+  const firstTarget = existingTargets[0] || '';
   let overrides;
   if (kind === 'task') {
     overrides = { type: 'task', shapeType: 'task', connectionType: 'sequence',
-      nextTaskIds: existingTarget ? [existingTarget] : [''], conditions: [] };
+      nextTaskIds: existingTargets.length ? existingTargets : [''], conditions: [] };
   } else if (kind === 'l3activity') {
+    // Subprocess convention: single return target. Drop extras (l3activity
+    // is a 1-in-1-out element by spec).
     overrides = { type: 'l3activity', shapeType: 'l3activity', connectionType: 'subprocess',
-      nextTaskIds: existingTarget ? [existingTarget] : [''], conditions: [] };
+      nextTaskIds: firstTarget ? [firstTarget] : [''], conditions: [] };
   } else if (kind === 'interaction') {
     overrides = { type: 'task', shapeType: 'interaction', connectionType: 'sequence',
-      nextTaskIds: existingTarget ? [existingTarget] : [''], conditions: [] };
+      nextTaskIds: existingTargets.length ? existingTargets : [''], conditions: [] };
   } else if (kind === 'start') {
     overrides = { type: 'start', shapeType: 'task', connectionType: 'start',
-      nextTaskIds: existingTarget ? [existingTarget] : [''], conditions: [] };
+      nextTaskIds: existingTargets.length ? existingTargets : [''], conditions: [] };
   } else if (kind === 'end') {
     overrides = { type: 'end', shapeType: 'task', connectionType: 'end',
       nextTaskIds: [], conditions: [] };
@@ -129,9 +134,15 @@ export function makeTypeChange(task, kind) {
     const gType = kind.slice(8);
     const ctMap = { xor: 'conditional-branch', and: 'parallel-branch', or: 'inclusive-branch' };
     const existingConds = task.type === 'gateway' ? (task.conditions || []) : [];
+    // PR-D9: when source isn't a gateway, seed conditions from EVERY target
+    // (each gets empty label for the user to fill in). Single-target tasks
+    // still get exactly one seeded condition; multi-target tasks no longer
+    // silently drop branches.
     const conditions = existingConds.length
       ? existingConds
-      : [{ id: generateId(), label: '', nextTaskId: existingTarget || '' }];
+      : existingTargets.length
+        ? existingTargets.map(id => ({ id: generateId(), label: '', nextTaskId: id }))
+        : [{ id: generateId(), label: '', nextTaskId: '' }];
     overrides = {
       type: 'gateway', shapeType: 'task', gatewayType: gType,
       connectionType: ctMap[gType],
