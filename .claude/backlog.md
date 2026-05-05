@@ -10,6 +10,7 @@
 
 ## 規格已明確、可排程
 
+- **AJ. FlowTable 也對 lane / 元件不配對的 task 加紅色邊框**（PR-D3 配套，2026-05-05 留 backlog）— PR-D3 在流程圖加紅框後，FlowTable 表格 cell 也應該同步顯示紅框（避免使用者只在流程圖看到、表格漏看）。實作：FlowTable 取 violation set（同一份 SOT，validation.js 既有 lane-mismatch warning 結果），對 violation tasks 的 row 加紅色 border。動到 `src/components/FlowTable.jsx`，純視覺、不影響資料層
 - **AD. 迴圈返回自動偵測**（使用者：「迴圈返回無法自動判斷」）— 任意 task 的 `nextTaskIds` 指向上游 task（DAG 反向邊）時自動標記成 loop-return 連線型，行為比照 auto-merge 偵測。動到 `src/model/connectionFormat.js` formatConnection 加反向邊判斷 + `src/model/flowSelectors.js` 加 `isBackEdge(task, allTasks)` selector。**注意**：(1) 編輯器已移除「迴圈返回」入口（PR-2026-04-29），這裡是衍生顯示不是手動標記 (2) 跟 backlog AC 複製工作流 / AG 表格無依賴，可獨立做
 - **AE. 儲存檢核補強**（使用者：「更新儲存時檢核/提醒條件（連線錯誤、元件未連線、多個開始結束、未寫任務名稱）」）— 既有實作清單（`src/model/validation.js`）：`detectOverrideViolations` 偵測連線錯誤 ✓ / rule 4 孤立節點 ✓ / multi-start / multi-end warnings ✓。**待補**：任務名稱必填 warning（rule 6 新增 `if (!t.name?.trim() && t.type === 'task') warnings.push(...)`，非 blocking）。同時 audit 現有 warning UX modal 是否清楚分群顯示
 - **V. 儲存事件閃亮提醒**（使用者：「新增儲存事件閃亮亮閃亮亮動態提醒」）— 儲存按鈕被按下後加 logo 閃光 / 按鈕短暫變綠等視覺回饋（取代原 J「儲存提醒優化」的待選方向）。動到 `src/components/FlowEditor/Header.jsx`
