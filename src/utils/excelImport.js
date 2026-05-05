@@ -244,15 +244,49 @@ function buildFlow(rows, auxColMap = {}) {
   finalTasks.push(...taskList);
   if (syntheticEnd) finalTasks.push(syntheticEnd);
 
-  // PR-D4: ensure `[外部角色]` prefix on external roles. Currently buildFlow
-  // marks every role as internal — this is a no-op until PR-D5 wires up
-  // role.type detection from `_e` row distribution. Pre-wiring here so
-  // PR-D5 doesn't have to touch the return shape.
+  // PR-D5: detect role.type from row distribution per user spec rules 7 + 8:
+  //   • role with only `_e` (interaction) lane-sensitive rows → external
+  //   • role with only regular task rows → internal
+  //   • role with mixed task + `_e` rows → internal (rule 8); the `_e` rows
+  //     stay shapeType=interaction and get surfaced via PR-D3 red border on
+  //     the diagram + FlowTable so the user can fix manually
+  //   • role with no lane-sensitive rows (only start/end/gateway/l3activity)
+  //     → internal (default; can't infer either way)
+  // Then PR-D4 prefix automation kicks in (no-op for internal, prefixes
+  // external names with `[外部角色]`).
+  const typedRoles = detectRoleTypes(roles, finalTasks);
   return {
     id: generateId(), l3Number, l3Name,
-    roles: applyExternalPrefixToRoles(roles),
+    roles: applyExternalPrefixToRoles(typedRoles),
     tasks: finalTasks,
   };
+}
+
+/**
+ * Per-role role.type detection (PR-D5). Walks lane-sensitive tasks
+ * (type='task' with shapeType in {task, interaction}) and votes per
+ * roleId. Pure function. See callsite for spec.
+ */
+function detectRoleTypes(roles, tasks) {
+  if (!Array.isArray(roles) || !Array.isArray(tasks)) return roles;
+  // Tally lane-sensitive shape counts per role.
+  const counts = new Map();  // roleId → { task: n, interaction: n }
+  tasks.forEach(t => {
+    if (t.type !== 'task' || !t.roleId) return;
+    if (t.shapeType !== 'task' && t.shapeType !== 'interaction') return;
+    let c = counts.get(t.roleId);
+    if (!c) { c = { task: 0, interaction: 0 }; counts.set(t.roleId, c); }
+    c[t.shapeType] += 1;
+  });
+  return roles.map(r => {
+    const c = counts.get(r.id);
+    if (!c) return r;  // no lane-sensitive evidence → leave default (internal)
+    if (c.interaction > 0 && c.task === 0) return { ...r, type: 'external' };
+    // c.task > 0 (only-task or mixed) → internal. Mixed leaves the `_e` rows
+    // as interaction-on-internal-lane violations, picked up by PR-D3's red
+    // border so the user knows to review.
+    return r;
+  });
 }
 
 /**

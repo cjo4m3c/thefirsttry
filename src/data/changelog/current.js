@@ -6,6 +6,25 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D5：Excel 匯入智慧推導角色類型（純看 row 分布、不讀「角色類型」欄）',
+    items: [
+      '**緣由**：使用者規則 7 + 8 + E&G — Excel 匯入時依該角色 row 的元件分布自動判斷 internal / external，不依賴 Excel 任何「角色類型」欄位。完成「外部互動 / 外部角色重構」最後一支 PR。',
+      '**`utils/excelImport.js detectRoleTypes`** 新增純函式：walk lane-sensitive tasks（type=task + shapeType in {task, interaction}），按 roleId 累計 task / interaction 計數，套規則：(a) 全 interaction → external (b) 全 task / 混用 → internal (c) 沒任何 lane-sensitive row → internal（預設）。混用 case 中 `_e` row 仍是 interaction shape，PR-D3 紅框會在 internal lane 上 surface 給使用者檢查。',
+      '**`buildFlow` return**：在 `applyExternalPrefixToRoles` 之前先跑 `detectRoleTypes`，讓被推為 external 的角色在前綴自動化時自然帶上「[外部角色]」（兩個 PR 串聯一起）。',
+      '**`docs/business-spec.md §3.1`**：Excel 匯入段擴成完整對照表（4 種 row 分布 → role.type 推論 + 備註）。明確標註「不再讀 Excel 角色類型欄」。',
+      '**`src/data/helpPanelData.js` VALIDATION import 區**：第一條新增「角色類型自動推導」說明 5 種情境推論結果，給使用者了解匯入後角色泳道為何會是某 type。',
+      '**整個 D 系列完成（PR-D1 → D5）**：',
+      '  • **D1 (#159)**：`_w → _e` 後綴 rename + Excel 嚴格 `_e`',
+      '  • **D2 (#160)**：lane↔shape sync 對稱化（internal lane 也強制 task）',
+      '  • **D3 (#161)**：違規元件紅框 UI（流程圖 + FlowTable）+ PNG / drawio 排除',
+      '  • **D4 (#162)**：`[外部角色]` 前綴自動化（onBlur / 切 type / Excel / load）+ 兜底 warning',
+      '  • **D5 (本 PR)**：Excel role.type 智慧推導（純看 row 分布）',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) Excel 全 `_e` 角色 → 推論 external + 自動補前綴 (b) 全 task 角色 → 推論 internal (c) 混用角色 → 推論 internal、`_e` row 紅框警示 (d) 只有 start / end / gateway 角色 → 預設 internal (e) PR-D4 onBlur 在 Excel 匯入後 Wizard / Drawer 改名仍正常運作。',
+      '**動到的檔案（4 個）**：`src/utils/excelImport.js`（detectRoleTypes + buildFlow 串接）/ `docs/business-spec.md` §3.1（Excel 匯入推導表）/ `src/data/helpPanelData.js`（VALIDATION import 條目）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D4：外部角色名稱「[外部角色]」前綴自動補 + 儲存兜底檢核',
     items: [
       '**緣由**：使用者規則 5「外部角色以『[外部角色]角色名稱』呈現」+ 規則 6「儲存時若沒前綴跳提醒」+ 規則 I「使用者刪掉前綴自動補回」。本 PR 把前綴自動化跨所有寫入路徑（建立 / 改 type / 改名 onBlur / Excel / localStorage 載入），validation 加兜底警示。',
