@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-05',
+    title: '輔助欄位 PR-C：FlowTable 加「⊕ 顯示輔助欄位」toggle + 七視圖文件同步',
+    items: [
+      '**緣由**：PR-A / PR-B 已落地 schema 與 Excel I/O。此 PR 把使用者編輯介面接上 — FlowTable 加 toggle，預設隱藏輔助欄位（只顯示核心 10 欄），點開後在右側依 Excel K~AD 順序展開 20 欄供編輯。完成後使用者就能在畫面上自由編輯任務的輔助描述，不影響流程圖。',
+      '**`src/components/FlowTable.jsx`**：新增 `showAux` state（預設 false，跨 session 寫 localStorage `bpm_flow_table_show_aux`）+ 「⊕ 顯示輔助欄位 / ⊖ 隱藏輔助欄位」按鈕（排在 toggle 列最左）。Header 渲染加 `if (!showAux && i >= 10) return null` 跳過輔助欄；toggle 開啟時，AUX_FIELDS separator 用 24px 窄分隔欄（gray-50 底色、無內容），實際欄位用 `EditCell` 綁 `task.meta[key]`。新增 `updateMeta(taskId, key, value)` helper：trim 後空字串則 delete key，避免 localStorage 累積空字串噪音。',
+      '**`docs/business-spec.md §10`**：擴充 §10 匯出格式，加 §10.1 子章節列出 30 欄結構（核心 10 / 輔助 20 / 4 個視覺分組欄位置）+ 辨識規則對照（核心硬編 vs 輔助 header mapping）+ UI toggle 行為說明。',
+      '**`src/data/helpPanelData.js`**：`EXPORTS` 的 Excel 條目從單句改成列點，明確說明 30 欄結構；`EDITABLE_ACTIONS` 新增「⊕ 顯示輔助欄位」條目（緊接在「⇕ 表格列高切換」之前）。「規則說明」彈窗使用者打開即可看到輔助欄位用途說明。',
+      '**驗證**：`npm run build` 通過。FlowTable 從 271 → 345 行（+74，仍在 15KB 軟上限內）。功能驗證點：(a) 預設隱藏 — toggle off 時表格寬度跟之前完全一致 (b) 點開後右邊依序展開 20 欄、4 個分組空白欄視覺分隔可見 (c) 在輔助欄輸入 → 儲存 → reload → 內容保留 (d) 匯出 Excel → 看到 30 欄完整資料 (e) 流程圖 / 編號 / 連線解析完全沒受影響（隔離保證來自 PR-A）。',
+      '**動到的檔案（4 個）**：`src/components/FlowTable.jsx`（toggle + render）/ `docs/business-spec.md`（§10.1 新增）/ `src/data/helpPanelData.js`（EXPORTS 改寫 + EDITABLE_ACTIONS 新條目）/ `src/data/changelog/current.js`（本條）。',
+      '**輔助欄位三件組完成**：使用者現在可以 (1) 在 FlowTable 自由編輯 16 個業務描述欄位 (2) 匯入帶輔助欄的 Excel 進來 (3) 匯出含完整 30 欄的 Excel — 全程不影響流程圖、編號、連線、validation。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '輔助欄位 PR-B：Excel 匯入匯出讀寫 20 個輔助欄位（header mapping）',
     items: [
       '**緣由**：PR-A 已落地 schema + task.meta migration，此 PR 把 AUX_FIELDS 接進 Excel I/O。匯出時在核心 10 欄（A~J）右側 append 20 欄（K~AD），匯入時用 header row 找輔助欄位位置存進 task.meta。輔助欄位仍完全不影響流程結構解析、編號規則、validation。',
