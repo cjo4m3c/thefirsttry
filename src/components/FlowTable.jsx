@@ -4,6 +4,12 @@ import {
   generateFlowAnnotation,
   EXCEL_HEADERS,
 } from '../utils/excelExport.js';
+import { AUX_FIELDS } from '../utils/auxFieldDefs.js';
+
+// EXCEL_HEADERS = 10 core (0~9) + 20 auxiliary (10~29). When the user
+// hasn't expanded aux columns we slice the header loop at the boundary
+// to keep the table at its previous width.
+const CORE_HEADER_COUNT = 10;
 
 // Sticky-left columns spec — leftmost N columns are frozen during horizontal
 // scroll so identifiers (L3 / L4 numbers + names) stay visible. Widths are
@@ -127,6 +133,17 @@ function RoleCell({ roleId, roles, onChange }) {
 // regardless of this toggle (export = full data, view = filtered).
 const L3_VISIBLE_KEY = 'bpm_flow_table_show_l3';
 
+// localStorage key for "show 20 auxiliary description columns" toggle.
+// Default false — auxiliary fields are off-flow metadata only relevant
+// to a subset of business reviews. When off the table renders 10 core
+// columns; when on, AUX_FIELDS expand to the right (separator entries
+// become narrow visual gaps to preserve Excel grouping).
+const AUX_VISIBLE_KEY = 'bpm_flow_table_show_aux';
+
+// 24px narrow gap for AUX_FIELDS[i].separator entries — visually mimics
+// the empty grouping columns in the user's Excel template.
+const AUX_SEP_WIDTH = 24;
+
 export default function FlowTable({ flow, onUpdateTask }) {
   const tasks = flow.tasks || [];
   const l4Map = useMemo(
@@ -142,6 +159,14 @@ export default function FlowTable({ flow, onUpdateTask }) {
     try { localStorage.setItem(L3_VISIBLE_KEY, String(showL3)); }
     catch {}
   }, [showL3]);
+  const [showAux, setShowAux] = useState(() => {
+    try { return localStorage.getItem(AUX_VISIBLE_KEY) === 'true'; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(AUX_VISIBLE_KEY, String(showAux)); }
+    catch {}
+  }, [showAux]);
   // Per-table toggle: row heights = textarea content (auto-grow) vs the
   // default fixed rows={2}. Session-only — refresh resets to default.
   const [autoFitRows, setAutoFitRows] = useState(false);
@@ -154,6 +179,18 @@ export default function FlowTable({ flow, onUpdateTask }) {
     onUpdateTask(taskId, { ...task, [field]: value });
   }
 
+  // Auxiliary field updater — writes into task.meta[key]. Empty / whitespace
+  // strings are stripped from the meta object so the saved data stays lean.
+  function updateMeta(taskId, key, value) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const trimmed = (value ?? '').trim();
+    const nextMeta = { ...(task.meta || {}) };
+    if (trimmed) nextMeta[key] = value;
+    else delete nextMeta[key];
+    onUpdateTask(taskId, { ...task, meta: nextMeta });
+  }
+
   return (
     <div className="mt-6">
       {/* Toggle bar — small, no title/description (info redundant with the
@@ -161,6 +198,14 @@ export default function FlowTable({ flow, onUpdateTask }) {
           Auto-fit row heights toggle 2026-05-04: switches between fixed
           rows={2} (default) and textarea-grows-to-content. */}
       <div className="mb-2 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setShowAux(v => !v)}
+          className="shrink-0 px-3 py-1.5 text-sm rounded border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap"
+          title="輔助欄位（執行主體 / 操作系統 / 動詞名詞 / 字典檢核 等 16 欄）為任務描述用，不影響流程圖、編號或連線。Excel 匯出無論顯示與否都會包含。"
+        >
+          {showAux ? '⊖ 隱藏輔助欄位' : '⊕ 顯示輔助欄位'}
+        </button>
         <button
           type="button"
           onClick={() => setAutoFitRows(v => !v)}
@@ -195,13 +240,22 @@ export default function FlowTable({ flow, onUpdateTask }) {
               {EXCEL_HEADERS.map((h, i) => {
                 // Skip L3 編號 (i=0) and L3 名稱 (i=1) when toggle is off.
                 if (!showL3 && (i === 0 || i === 1)) return null;
+                // Skip 20 auxiliary columns when toggle is off.
+                if (!showAux && i >= CORE_HEADER_COUNT) return null;
                 const sticky = stickyMap[i];
                 // Sticky+top corner cells need higher z so they sit above
                 // both the row's other sticky-left cells and the rest of
                 // the thead (which is sticky-top only).
                 const z = sticky ? 7 : 5;
+                // Auxiliary separator entries (4 of 20) become narrow visual
+                // gaps mirroring the empty grouping columns in the Excel
+                // template — no header text, just a divider.
+                const isAuxSep = i >= CORE_HEADER_COUNT
+                  && AUX_FIELDS[i - CORE_HEADER_COUNT]?.separator;
                 const widthStyle = sticky
                   ? { width: `${sticky.width}px`, minWidth: `${sticky.width}px`, left: `${sticky.left}px` }
+                  : isAuxSep
+                  ? { width: `${AUX_SEP_WIDTH}px`, minWidth: `${AUX_SEP_WIDTH}px` }
                   : {};
                 return (
                   <th
@@ -260,6 +314,26 @@ export default function FlowTable({ flow, onUpdateTask }) {
                     placeholder="參考文件"
                     autoFit={autoFitRows}
                   />
+                  {showAux && AUX_FIELDS.map((f, i) => {
+                    if (f.separator) {
+                      return (
+                        <td
+                          key={`aux-${i}`}
+                          className="border border-gray-200 bg-gray-50"
+                          style={{ width: AUX_SEP_WIDTH, minWidth: AUX_SEP_WIDTH }}
+                        />
+                      );
+                    }
+                    return (
+                      <EditCell
+                        key={`aux-${i}`}
+                        value={task.meta?.[f.key] || ''}
+                        onChange={v => updateMeta(task.id, f.key, v)}
+                        placeholder={f.header}
+                        autoFit={autoFitRows}
+                      />
+                    );
+                  })}
                 </tr>
               );
             })}
