@@ -236,8 +236,9 @@ const RE_SEQUENCE       = new RegExp(`${PHRASE.SEQUENCE_FLOW}\\s*${NUM}`, 'g');
 const RE_RETURN         = new RegExp(`${PHRASE.RETURN_FLOW}\\s*${NUM}`, 'g');
 const RE_XOR_FORK       = new RegExp(`${PHRASE.XOR_FORK}\\s*([^\\n]+)`);
 const RE_AND_FORK       = new RegExp(`${PHRASE.AND_FORK}\\s*([^\\n]+)`);
-// OR fork tolerates two verbs: 包容分支至 (spec) and 可能分支至 (legacy import)
-const RE_OR_FORK        = new RegExp(`(?:包容|可能)分支至\\s*([^\\n]+)`);
+// OR fork tolerates three verbs: 包容分支至 (spec) / 可能分支至 (legacy import)
+// / 包含分支至 (PR-D10, BPM 業界常見同義詞，2026-05-05 加入)
+const RE_OR_FORK        = new RegExp(`(?:包容|可能|包含)分支至\\s*([^\\n]+)`);
 // Merge regex tolerates BOTH the new "X合併 5-1-3-3、5-1-3-4，序列流向 Z" form
 // (output by current code) AND the legacy "X合併來自多個分支，序列流向 Z" form
 // (older Excels / older saved data) so old strings still parse correctly.
@@ -357,7 +358,7 @@ export function parseConnection(flowText) {
 export function detectGatewayFromText(flowText) {
   const text = String(flowText ?? '');
   if (new RegExp(PHRASE.AND_FORK).test(text))                            return 'and';
-  if (new RegExp(`(?:包容|可能)分支至`).test(text))                       return 'or';
+  if (new RegExp(`(?:包容|可能|包含)分支至`).test(text))                   return 'or';
   if (new RegExp(PHRASE.XOR_FORK).test(text))                            return 'xor';
   return null;
 }

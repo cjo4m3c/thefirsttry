@@ -83,6 +83,31 @@ function detectGatewayType(ann) {
   return null;
 }
 
+/**
+ * Recognize the gateway sub-type from the L4 name's `[XX閘道]` prefix.
+ * Used as cross-check signal (PR-D10 2026-05-05) — name only ever surfaces
+ * warnings, body remains the authoritative gateway-sub-type signal.
+ */
+function detectGatewayFromName(l4Name) {
+  if (/\[排他閘道\]|\[XOR\s*閘道\]/.test(l4Name)) return 'xor';
+  if (/\[並行閘道\]|\[AND\s*閘道\]/.test(l4Name)) return 'and';
+  if (/\[包容閘道\]|\[OR\s*閘道\]/.test(l4Name))  return 'or';
+  return null;
+}
+
+/**
+ * PR-D10 (2026-05-05): L4 number suffix is the SOT for element type.
+ * Returns one of: 'start' | 'end' | 'gateway' | 'l3activity' | 'task'.
+ * For 'task', the caller derives shapeType separately based on `_e` suffix.
+ */
+function detectKindFromL4(l4Num) {
+  if (/-0$/.test(l4Num))      return 'start';
+  if (/-99$/.test(l4Num))     return 'end';
+  if (/_g\d*$/.test(l4Num))   return 'gateway';
+  if (/_s\d*$/.test(l4Num))   return 'l3activity';
+  return 'task';   // plain or `_e\d*` suffix — both regular tasks (shapeType differs)
+}
+
 function buildFlow(rows, auxColMap = {}) {
   const firstRow = rows[0];
   const l3Number = normalizeL3Number(firstRow[COL_L3_NUMBER]);
@@ -114,23 +139,16 @@ function buildFlow(rows, auxColMap = {}) {
     const flowText = String(row[COL_L4_FLOW]   ?? '');
 
     const ann = parseFlowAnnotations(flowText);
-    const gType = detectGatewayType(ann);
-    const isGateway = gType !== null;
-    const isStartEvent = /開始事件/.test(l4Name);
-    const isEndEvent   = /結束事件/.test(l4Name);
-
-    const isSubprocess = Boolean(ann.subprocessL3);
-    // 2026-04-30: `_e` suffix → external interaction (shapeType only;
-    // type stays 'task'). Per user spec, internal-lane interaction is
-    // ALLOWED (validation 3e warns at save time, doesn't block import).
+    // PR-D10 (2026-05-05): L4 number suffix is the SOT for element type.
+    // Body's fork keyword only refines gateway sub-type (xor/and/or); name
+    // prefix is informational, surfaced as warning if it disagrees.
+    const taskType = detectKindFromL4(l4Num);
     const isInteraction = /_e\d*$/.test(l4Num);
-
-    let taskType;
-    if (isStartEvent)       taskType = 'start';
-    else if (isEndEvent)    taskType = 'end';
-    else if (isGateway)     taskType = 'gateway';
-    else if (isSubprocess)  taskType = 'l3activity';  // 調用子流程 → render as bookend rectangle
-    else                    taskType = 'task';
+    const isSubprocess  = taskType === 'l3activity';
+    const gTypeFromBody = detectGatewayType(ann);
+    // Default XOR when L4 says gateway but body has no fork keyword (decision 2).
+    // The validateNumbering layer already surfaces a warning so the user knows.
+    const gType = taskType === 'gateway' ? (gTypeFromBody || 'xor') : null;
 
     // PR-D6: always set shapeType explicitly for type='task' rows so
     // detectRoleTypes (and getLaneShapeViolations) can count them — leaving
@@ -150,7 +168,7 @@ function buildFlow(rows, auxColMap = {}) {
         : { nextTaskIds: [] }),
       ...(taskType === 'start' ? { connectionType: 'start' } : {}),
       ...(taskType === 'end'   ? { connectionType: 'end'   } : {}),
-      ...(isSubprocess ? { connectionType: 'subprocess', subprocessName: ann.subprocessL3 } : {}),
+      ...(isSubprocess ? { connectionType: 'subprocess', subprocessName: ann.subprocessL3 || '' } : {}),
       l4Number:       l4Num,
       description:    String(row[4] ?? '').trim(),
       inputItems:     String(row[5] ?? '').trim(),
@@ -363,6 +381,20 @@ function validateNumbering(allRows) {
     if (isSubprocessRow && !L4_SUBPROCESS_PATTERN.test(l4)) {
       errors.push(`• 第 ${excelRow} 列為「子流程調用」，L4 編號「${l4}」應加「_s」後綴（單一 _s；連續多個用 _s1/_s2/_s3… 範例:1-1-9-5_s 或 1-1-9-5_s1）`);
     }
+    // PR-D10 (decision 4): conflicting kind signals → block. L4 says one
+    // element type, body says a different one.
+    if (hasGTag && isSubprocessRow) {
+      errors.push(`• 第 ${excelRow} 列衝突：L4「${l4}」帶「_g」（閘道）但任務關聯說明寫「調用子流程」（子流程）— 請統一兩處`);
+    }
+    if (hasSTag && gatewayType) {
+      const label = gatewayType === 'and' ? '並行' : gatewayType === 'or' ? '包容' : '條件';
+      errors.push(`• 第 ${excelRow} 列衝突：L4「${l4}」帶「_s」（子流程）但任務關聯說明寫「${label}分支至」（閘道）— 請統一兩處`);
+    }
+    // Decision 4: L4 _s requires body's "調用子流程 X-Y-Z" reference (need
+    // the L3 number to know which subprocess is called).
+    if (hasSTag && !isSubprocessRow) {
+      errors.push(`• 第 ${excelRow} 列：L4「${l4}」帶「_s」（子流程）但任務關聯說明缺少「調用子流程 X-Y-Z」— 請補上要呼叫的 L3 編號`);
+    }
     // _g / _s / _e prefix-must-match-task: 前綴必為既有 L4 任務（含 -0 開始事件）
     if (hasGTag || hasSTag || hasWTag) {
       const baseNum = l4.replace(/(_g\d*|_s\d*|_e\d*)$/, '');
@@ -388,6 +420,58 @@ function validateNumbering(allRows) {
     `  • 外部關係人互動：加「_e」後綴，例如 1-1-9-5_e；連續多個用 1-1-9-5_e1、1-1-9-5_e2…\n` +
     `    _g / _s / _e 前綴必為對應 L4 任務（含 -0 開始事件）`
   );
+}
+
+/**
+ * PR-D10 (2026-05-05): non-blocking cross-check between L4 suffix, L4 name,
+ * and 任務關聯說明 body. Surfaces inconsistencies the user can fix in the
+ * editor (validateNumbering already blocks the hard structural errors).
+ *
+ * Rules:
+ *   • L4 `_g` + body has no fork keyword → default XOR + warn (decision 2)
+ *   • Name `[XX閘道]` ≠ body fork keyword → warn (decision 6 / F2 寬鬆)
+ *   • L4 `-0` + name doesn't say「開始事件」 → suggest name prefix
+ *   • L4 `-99` + name doesn't say「結束事件」 → suggest name prefix
+ */
+function collectCrossCheckWarnings(allRows) {
+  const warnings = [];
+  for (let i = 1; i < allRows.length; i++) {
+    const row = allRows[i];
+    const l4 = String(row[COL_L4_NUMBER] ?? '').trim();
+    if (!l4) continue;
+    const l4Name = String(row[COL_L4_NAME] ?? '').trim();
+    const flowText = String(row[COL_L4_FLOW] ?? '');
+    const excelRow = i + 1;
+
+    const hasGTag    = /_g\d*$/.test(l4);
+    const isStartL4  = /-0$/.test(l4);
+    const isEndL4    = /-99$/.test(l4);
+    const gtFromText = detectGatewayFromText(flowText);
+    const gtFromName = detectGatewayFromName(l4Name);
+    const labelOf = (g) => g === 'and' ? '並行閘道' : g === 'or' ? '包容閘道' : '排他閘道';
+
+    if (hasGTag && !gtFromText) {
+      warnings.push(
+        `• 第 ${excelRow} 列：L4「${l4}」帶「_g」後綴但任務關聯說明沒寫分支詞彙，系統預設為「排他閘道（XOR）」— 若實際是 OR / AND，請在 I 欄補「條件分支至 / 並行分支至 / 包容分支至 ...」`
+      );
+    }
+    if (gtFromText && gtFromName && gtFromText !== gtFromName) {
+      warnings.push(
+        `• 第 ${excelRow} 列閘道類型不一致：L4 名稱寫「[${labelOf(gtFromName)}]」但任務關聯說明用「${labelOf(gtFromText)}」的詞彙 — 系統依任務關聯說明判定為「${labelOf(gtFromText)}」，若不對請改 I 欄詞彙`
+      );
+    }
+    if (isStartL4 && !/開始事件/.test(l4Name)) {
+      warnings.push(
+        `• 第 ${excelRow} 列：L4「${l4}」結尾「-0」（開始事件），建議名稱補「[開始事件]」前綴以利辨識`
+      );
+    }
+    if (isEndL4 && !/結束事件/.test(l4Name)) {
+      warnings.push(
+        `• 第 ${excelRow} 列：L4「${l4}」結尾「-99」（結束事件），建議名稱補「[結束事件]」前綴以利辨識`
+      );
+    }
+  }
+  return warnings;
 }
 
 /**
@@ -514,7 +598,10 @@ export function parseExcelToFlow(arrayBuffer) {
   validateNumbering(allRows);
 
   // Soft chain-integrity warnings (non-blocking)
-  const warnings = collectGatewayChainWarnings(allRows);
+  const warnings = [
+    ...collectCrossCheckWarnings(allRows),  // PR-D10 cross-checks
+    ...collectGatewayChainWarnings(allRows),
+  ];
 
   // Resolve auxiliary column positions from the header row. Optional and
   // forgiving — missing headers stay absent from the map and corresponding
