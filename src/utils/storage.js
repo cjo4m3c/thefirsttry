@@ -186,23 +186,34 @@ function migrateTaskMeta(tasks) {
 }
 
 /**
- * 2026-04-30: external-interaction tasks now use the `_w` suffix (analogous
- * to `_g` / `_s`). Pre-PR data has them numbered as regular L4 tasks (e.g.
- * `1-1-5-3`); strip those stored l4Numbers so computeDisplayLabels re-derives
- * with the correct `_w` suffix on next render. Idempotent — only acts on
- * shapeType='interaction' tasks whose l4Number lacks `_w`.
+ * External-interaction l4Number migration. Two distinct legacy shapes get
+ * normalised so `computeDisplayLabels` can re-derive a clean `_e` label:
+ *
+ *   (a) Pre-2026-04-30 data has interactions numbered as regular L4 tasks
+ *       (e.g. `1-1-5-3`) — strip so the suffix gets added on next render.
+ *   (b) 2026-04-30 ~ 2026-05-04 data has interactions with the old `_w`
+ *       suffix (e.g. `1-1-5-2_w1`) — strip so `_e` replaces `_w` on next
+ *       render. The `_w` suffix has been retired entirely (per 2026-05-05
+ *       external-role rework, Excel import strictly rejects `_w`).
+ *
+ * Idempotent: tasks already on `_e` are left alone; tasks with no
+ * l4Number are passed through.
  */
 function migrateInteractionSuffix(tasks) {
   if (!Array.isArray(tasks)) return tasks;
+  const isLegacyW = num => /_w\d*$/.test(String(num));
+  const isInteractionWithoutE = (t) =>
+    t.shapeType === 'interaction'
+    && t.type === 'task'  // exclude gateway / l3activity / start / end
+    && t.l4Number
+    && !/_e\d*$/.test(String(t.l4Number));
   const needsFix = tasks.some(t =>
-    t && t.shapeType === 'interaction'
-      && t.type === 'task'  // exclude gateway / l3activity / start / end
-      && t.l4Number && !/_w\d*$/.test(String(t.l4Number))
+    t && t.l4Number && (isLegacyW(t.l4Number) || isInteractionWithoutE(t))
   );
   if (!needsFix) return tasks;
   return tasks.map(t => {
-    if (t && t.shapeType === 'interaction' && t.type === 'task'
-        && t.l4Number && !/_w\d*$/.test(String(t.l4Number))) {
+    if (!t || !t.l4Number) return t;
+    if (isLegacyW(t.l4Number) || isInteractionWithoutE(t)) {
       const { l4Number, ...rest } = t;
       return rest;
     }
