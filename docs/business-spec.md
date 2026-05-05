@@ -135,7 +135,16 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 
 **紅框警示（PR-D3）**：違規元件（內部泳道的 interaction、外部泳道的 task）會在流程圖元件外圍套一層紅色 stroke + FlowTable row 也加紅色 outline。**僅介面 warning**，下載 PNG / drawio 都不會帶紅框 — PNG 透過 `data-export-skip="1"` 屬性 + html-to-image `filter` callback 過濾；drawio 由 `drawioExport.js` 自行構造 XML，本來就不渲染紅框 overlay。
 
-**Excel 匯入**：parser 偵測 `_e\d*$` 的 L4 編號 → set `shapeType=interaction`。角色 type 由 PR-D5 智慧偵測（`_e` 多數 → external、混用 → internal + 紅框）。
+**Excel 匯入**：parser 偵測 `_e\d*$` 的 L4 編號 → set `shapeType=interaction`。角色 type 由 `excelImport.detectRoleTypes` 智慧偵測：
+
+| 該角色 lane-sensitive row 分布 | 推論 role.type | 備註 |
+|---|---|---|
+| 全 interaction（`_e` row） | **external** | 自動套 `[外部角色]` 前綴（PR-D4） |
+| 全 task（一般任務） | **internal** | |
+| 混用（task + `_e`） | **internal** | `_e` row 留在 interaction shape；PR-D3 紅框讓使用者檢查 |
+| 0 個 lane-sensitive row（只有 start / end / gateway / l3activity） | **internal** | 無法分辨，預設內部 |
+
+不再讀 Excel「角色類型」欄；純由 row 內容推導。
 
 **流程圖顯示**：`_e*` 編號**不顯示在流程圖任務元件上**（同 `_g*` / `_s*` / `-0` / `-99` 規則）；編輯器 + 表格仍顯示完整 `_e` 編號（含後綴）。
 
