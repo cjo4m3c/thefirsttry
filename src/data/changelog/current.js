@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-04',
+    title: 'Routing 大討論交接文件 + cleanup unused alias (PR #152)',
+    items: [
+      '**緣由 1**：使用者：「請把這些關於自動連線方式的討論記錄成交接文件，並確保所有檔案都在最新，讓下一個對話也可以無縫接手」。本日後段做了 auto-routing 違規情境深度分析（6 個情境 A-F），使用者實際遇到情境 E（OR 閘道→5-1-4-4 切過 XOR），開了 preview branch `claude/preview-vertical-obstacle-fix` 做兩輪修法（v1 strict-between-rows loop bug、v2 inclusive-box）但暴露第二個 bug（bottom→left L-path 切過 5-1-4-3）。使用者進一步提出廣義訴求：希望 auto-router 偵測空白格子繞路。整個討論需要交接給下個對話。',
+      '**緣由 2**：cleanup audit 出 1 個 high-confidence 命中 — `flowSelectors.js getDisplayLabels` 是 `computeDisplayLabels` 的 alias，全 codebase 0 個 caller。',
+      '**新增 `.claude/routing-handover.md`**：8 章完整交接 — (§1) 現有 routing 架構與 routeArrow geometry 表 (§2) 三條規則 + 6 個情境分類（A 不是 bug、E 進行中、其他狀態） (§3) 當前 in-progress 工作含 v1/v2 fix 歷史 + v3 設計草稿 (§4) 使用者廣義訴求翻譯成工程語言 (§5) Phase A/B/C 三段策略 (§6) 接手 Claude 開機 checklist + 關鍵檔案 + fixture (§7) PR 狀態 (§8) 額外背景。',
+      '**Cleanup PR #152**：`src/model/flowSelectors.js` 移除 `getDisplayLabels` alias（2 行）。`computeDisplayLabels` 是 SOT，alias 從沒被任何 caller 用到。',
+      '**Backlog 更新**：(a) 「立即可動 / Bug」加 Routing Phase A 條目指向交接文件 (b) 「規格待確認」加「路徑廣義最佳化 (Phase B/C)」條目 (c) 「已完成」加 PR #148-#152 + 本次討論。',
+      '**CLAUDE.md §開頭外部檔列表**：新增 `.claude/routing-handover.md` pointer。',
+      '**動到的檔案（4 個）**：`.claude/routing-handover.md`（新檔，~8KB）/ `.claude/backlog.md`（routing 條目 + done log）/ `CLAUDE.md`（pointer 一行）/ `src/data/changelog/current.js`（本條）。`build` 通過。',
+      '**接手 checklist**（給下個對話）：(1) 看 `.claude/routing-handover.md` (2) 開 preview URL https://cjo4m3c.github.io/FlowSprite/preview-routing-fix/ 看 v2 行為 (3) 問使用者要 (a)/(b)/(c) (4) Routing 改動一律走 preview branch per §10.6。',
+    ],
+  },
+  {
+    date: '2026-05-04',
     title: '線段 label 自動換行：閘道條件字太長不再 overflow 進相鄰任務矩形',
     items: [
       '**緣由**：使用者：「我發現閘道條件字很多的時候，並沒有調整元件間的寬度或是自動換行，請找出問題和解決方案」+ 截圖顯示 `XOR 閘道 → 任務` 條件字「嗎可以嗎可...」直接穿過旁邊任務矩形 `1-0-1-6 發起需求討論` 的左邊緣。',
