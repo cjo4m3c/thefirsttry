@@ -6,6 +6,22 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D11：D 系列 doc / cleanup 收尾（CLAUDE / README / HANDOVER / backlog 同步、刪未用 SHAPE_TYPES、修 migrateLegacyWtoE typo 註解、關 stale PRs）',
+    items: [
+      '**緣由**：D 系列 D1–D10 + aux fields A/B/C 共 13 支 PR 連續落地後，文件 / 冗餘碼 audit 找出零散 staleness 跟 dead code。本 PR 一次收齊，避免散在各 follow-up。',
+      '**Doc 同步（4 個檔案）**：',
+      '  • `CLAUDE.md §10` 規則 4 row：`-0 / -99 / _g* 不顯示` → 補上 `_s*` / `_e*` 對齊 §3 詳細規則',
+      '  • `README.md`：(a) 目錄樹 changelog 從 `c01.js…c21.js` → `c01.js…c24.js`（D1 freeze c24） (b) `storage.js` migration 數量從 5 → 6（PR-D10 加 `migrateTypeFromL4Suffix`） (c) 「關鍵檔案」段同步 storage 描述',
+      '  • `HANDOVER.md`：(a) 同 README 改 changelog chunk 數 + storage migration 數 (b) §3.1 編號格式表加「外部關係人互動 _e」row、註解從「`_g` 與 `_s` 共用」擴成「`_g` / `_s` / `_e` 共用」 (c) §3.1 加 PR-D10「L4 後綴是 SOT」備註',
+      '  • `.claude/backlog.md`：補 D 系列 13 支 PR done log（PR #154 HelpPanel + #155-157 aux fields + #158-168 D1-D10）+ 「後續批次拆檔」size 數據更新（`excelImport.js` 15.5KB → 30KB 標記為 PR-D5+D10 撐爆）',
+      '**冗餘碼清理（`utils/taskDefs.js`）**：(a) 刪未用的 `SHAPE_TYPES` 常數匯出（PR #111 後已被 ELEMENT_TYPES 取代，零 importer，c21 changelog 仍提及屬歷史描述不影響） (b) 改 line 38 註解 `storage.migrateLegacyWtoE` typo → `storage.migrateInteractionSuffix`（實際函式名）',
+      '**Stale PR 收掉**：(a) PR #83（Dashboard 拆檔，#82 後沒 rebase 過）→ closed (b) PR #125（backlog merge，AF/AH 已 dropped、AJ 已併入）→ closed',
+      '**Local branch cleanup**：squash merge 後本地分支沒自動刪，14 個 stale local branches 一次 `git branch -D` 清掉（aux-fields-pr-a/b/c、external-role-pr-d1 ~ d10、update-rules-formatting）。',
+      '**動到的檔案（5 個）**：`CLAUDE.md`（1 行）/ `README.md`（3 處）/ `HANDOVER.md`（4 處）/ `.claude/backlog.md`（D 系列 done log + size 更新）/ `src/utils/taskDefs.js`（刪 SHAPE_TYPES + 修註解）/ `src/data/changelog/current.js`（本條）。`npm run build` 通過、bundle size 不變。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D10：元件類型判斷改為「L4 編號為 SOT」，加跨訊號 cross-check + OR 詞彙容忍清單擴充',
     items: [
       '**緣由**：使用者上傳 Excel 出現「`_g` 編號 + `[包容閘道]` 名稱 + `條件分支至` 任務關聯說明」的三訊號矛盾情境，系統判為 XOR、但名稱寫包容閘道 → 視覺上「辨識錯誤」。Trace 後確認系統現行設計**只看任務關聯說明**做 type 判斷，名稱跟編號後綴都被忽略。經跟使用者討論 8 個情境後決定改為「L4 編號是 SOT、name + body 是輔助訊號」。',

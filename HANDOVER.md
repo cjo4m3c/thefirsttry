@@ -104,7 +104,7 @@ FlowSprite/
     │   ├── helpPanelData.js       # HelpPanel 規則摘要 data，每個 array 對應 docs/business-spec.md 章節
     │   └── changelog/
     │       ├── current.js         # 「tip」當前 PR 條目寫這裡（>7KB 就凍結成 c{N}.js）
-    │       ├── c01.js…c21.js      # 凍結 chunks（newest first 順序由 index.js 串接）
+    │       ├── c01.js…c24.js      # 凍結 chunks（newest first 順序由 index.js 串接）
     │       └── index.js           # 串接 current + 所有 frozen chunks
     ├── model/                     # 純函式共用層（Phase 2 PR #80/#81/#82 抽出，視圖層只 import 不重複實作）
     │   ├── connectionFormat.js    # task ↔ 中文字串（「條件分支至 X、Y」）正反向轉換 + auto-merge 偵測
@@ -117,7 +117,7 @@ FlowSprite/
     └── utils/
         ├── taskDefs.js            # 編號 regex、connectionType 常數、makeTask 等工廠函式
         ├── elementTypes.js        # ELEMENT_TYPES 8 種元件類型 catalog + detectElementKind / makeTypeChange / applyRoleChange / syncTasksToRoles（TaskCard / ContextMenu / convertTaskType / Excel migration 共用）
-        ├── storage.js             # localStorage 讀寫 + 載入時 4 個 migration（點→橫線、閘道補 _g、子流程補 _s、merge type→branch、外部互動 shape sync）
+        ├── storage.js             # localStorage 讀寫 + 載入時 6 個 migration（點→橫線、閘道補 _g、子流程補 _s、merge type→branch、外部互動 _e、type 對齊 L4 後綴 [PR-D10]）
         ├── excelImport.js         # parseExcelToFlow：解析 Excel → flow 物件 + validator + 軟警告
         ├── excelExport.js         # 匯出 .xlsx
         └── drawioExport.js        # 匯出 .drawio
@@ -178,11 +178,13 @@ FlowSprite/
 | 結束事件 | 尾碼 `99` | `1-1-1-99` |
 | 閘道 | 前置任務 + `_g`（單一）或 `_g1` / `_g2` / `_g3`（連續）| `1-1-1-4_g`、`1-1-1-4_g1` |
 | 子流程調用 | 前置任務 + `_s`（單一）或 `_s1` / `_s2`（連續）| `1-1-1-4_s`、`1-1-1-4_s1` |
+| 外部關係人互動 | 前置任務 + `_e`（單一）或 `_e1` / `_e2`（連續）| `1-1-1-4_e`、`1-1-1-4_e1` |
 
 - **只接受 `-` 分隔**（載入舊資料時自動把 `.` 轉成 `-`）
-- **閘道 / 子流程前綴必為既有 L4 任務**（或 `-0` 開始事件，例 `1-1-1-0_g`）
-- **`_g` 與 `_s` 共用 anchor**：兩者都不佔流水順號，連續計數器互不重置（規格範例 `_s1 → _g → _s2`，中間 `_g` 不打斷 `_s` 連續性）
-- **連續閘道編號鏈**：`X_g1` 接在 X 後、`X_g2` 接在 `X_g1` 後
+- **閘道 / 子流程 / 外部互動前綴必為既有 L4 任務**（或 `-0` 開始事件，例 `1-1-1-0_g`）
+- **`_g` / `_s` / `_e` 共用 anchor**：三者都不佔流水順號，連續計數器互不重置（規格範例 `_s1 → _g → _s2`、`_e1 → _g → _e2`，中間後綴不打斷彼此連續性）
+- **連續編號鏈**：`X_g1` 接在 X 後、`X_g2` 接在 `X_g1` 後（`_s` / `_e` 同理）
+- **2026-05-05 PR-D10**：元件類型由 L4 後綴決定（SOT），任務關聯說明的詞彙是輔助訊號（補閘道子型 XOR/AND/OR）
 
 ### 3.2 哪些算獨立閘道（需要 `_g` 尾碼）
 
@@ -281,7 +283,7 @@ FlowSprite/
 
 ## 8. 歷史參考資料
 
-- `src/data/changelog/`（`index.js` 串接 `current.js` + `c01.js`…`c21.js`）：使用者可見的變更紀錄（newest first）。動程式時先看最近幾條了解 in-flight 規則演進
+- `src/data/changelog/`（`index.js` 串接 `current.js` + `c01.js`…`c24.js`）：使用者可見的變更紀錄（newest first）。動程式時先看最近幾條了解 in-flight 規則演進
 - GitHub `Closed PRs`：每個 PR description 都有 root cause + fix 解說
 - `CLAUDE.md`：AI 長期規則（regex 索引、PR SOP、CI 追蹤、單檔大小上限）
 - `docs/business-spec.md`：業務規則完整版（13 章），跟 `src/data/helpPanelData.js` 一一對應
