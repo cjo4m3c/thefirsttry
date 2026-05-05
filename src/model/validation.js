@@ -210,6 +210,23 @@ export function validateFlow(flow) {
     }
   });
 
+  // 6b (PR-D4 / rule 6): external role name must carry the `[外部角色]`
+  // prefix. UI auto-prefixes on add / role.type=external / onBlur, and
+  // storage migration backfills legacy data, so this normally won't fire.
+  // Defensive guardrail in case some path bypassed the prefix automation
+  // (e.g. programmatic mutation, future JSON import). Empty-payload-only
+  // names (just `[外部角色]` with no actual name) also warn — the prefix
+  // alone isn't a usable role name.
+  (flow.roles || []).forEach(role => {
+    if (role.type !== 'external') return;
+    const name = (role.name || '').trim();
+    if (!name.startsWith('[外部角色]')) {
+      warnings.push(`外部角色「${name || '（未命名）'}」：名稱缺少「[外部角色]」前綴（請補上以區分內部 / 外部角色）`);
+    } else if (name === '[外部角色]') {
+      warnings.push(`外部角色：「[外部角色]」前綴後的名稱為空（請補上實際角色名稱）`);
+    }
+  });
+
   // PR H — override-induced violations. Blocking: IN+OUT mix on same port.
   // Warning: line crosses another task. Auto-routing already avoids both,
   // so these only fire when a user override forces the condition.

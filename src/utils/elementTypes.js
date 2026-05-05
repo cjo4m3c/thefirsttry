@@ -233,3 +233,34 @@ export function syncTasksToRoles(tasks, roles) {
   });
   return changed ? next : tasks;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// External-role name prefix automation (PR-D4, 2026-05-05)
+// ────────────────────────────────────────────────────────────────────────────
+
+export const EXTERNAL_ROLE_PREFIX = '[外部角色]';
+
+/**
+ * Ensure an external-role's display name carries the `[外部角色]` prefix
+ * (per user spec rule 5 + I — auto-prefix on add / Excel import / type-flip,
+ * and re-add when user manually deletes the prefix). Idempotent: returns
+ * the same object reference when already prefixed or when role.type !== 'external'.
+ */
+export function ensureExternalPrefix(role) {
+  if (!role || role.type !== 'external') return role;
+  const name = role.name || '';
+  if (name.startsWith(EXTERNAL_ROLE_PREFIX)) return role;
+  return { ...role, name: EXTERNAL_ROLE_PREFIX + name };
+}
+
+/** Cascade-apply ensureExternalPrefix to a roles array; same-ref when no-op. */
+export function applyExternalPrefixToRoles(roles) {
+  if (!Array.isArray(roles)) return roles;
+  let changed = false;
+  const next = roles.map(r => {
+    const fixed = ensureExternalPrefix(r);
+    if (fixed !== r) changed = true;
+    return fixed;
+  });
+  return changed ? next : roles;
+}

@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import TaskCard from './TaskCard.jsx';
 import { ReorderButtons } from '../reorderButtons.jsx';
 import { makeRole, taskOptionLabel } from '../../utils/taskDefs.js';
-import { ELEMENT_TYPES, getElementType, syncTasksToRoles } from '../../utils/elementTypes.js';
+import { ELEMENT_TYPES, getElementType, syncTasksToRoles, ensureExternalPrefix } from '../../utils/elementTypes.js';
 
 // InsertPicker — drawer-side equivalent of the diagram's ContextMenu, used
 // to add elements between TaskCards. Collapsed state looks identical to the
@@ -267,12 +267,23 @@ export function DrawerContent({ activeTab, liveFlow, displayLabels,
               <span className="text-sm text-gray-400 w-5 flex-shrink-0">#{i + 1}</span>
               <input type="text" placeholder="角色名稱" value={role.name}
                 onChange={e => onPatch({ roles: liveFlow.roles.map(r => r.id === role.id ? { ...r, name: e.target.value } : r) })}
+                onBlur={() => {
+                  // PR-D4 rule I: re-add `[外部角色]` if user manually deleted.
+                  const fixed = ensureExternalPrefix(role);
+                  if (fixed === role) return;
+                  onPatch({ roles: liveFlow.roles.map(r => r.id === role.id ? fixed : r) });
+                }}
                 className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-base focus:outline-none focus:ring-1 focus:ring-blue-400" />
               <select value={role.type}
                 onChange={e => {
                   // Cascade-sync: flipping a role internal↔external swaps
                   // every L4 task in that lane between task / interaction.
-                  const newRoles = liveFlow.roles.map(r => r.id === role.id ? { ...r, type: e.target.value } : r);
+                  // Switching to external also auto-adds `[外部角色]` prefix.
+                  const newType = e.target.value;
+                  let newRoles = liveFlow.roles.map(r => r.id === role.id ? { ...r, type: newType } : r);
+                  if (newType === 'external') {
+                    newRoles = newRoles.map(r => r.id === role.id ? ensureExternalPrefix(r) : r);
+                  }
                   onPatch({ roles: newRoles, tasks: syncTasksToRoles(liveFlow.tasks, newRoles) });
                 }}
                 className="px-2 py-1.5 border border-gray-300 rounded text-base focus:outline-none"

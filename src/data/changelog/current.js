@@ -6,6 +6,22 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D4：外部角色名稱「[外部角色]」前綴自動補 + 儲存兜底檢核',
+    items: [
+      '**緣由**：使用者規則 5「外部角色以『[外部角色]角色名稱』呈現」+ 規則 6「儲存時若沒前綴跳提醒」+ 規則 I「使用者刪掉前綴自動補回」。本 PR 把前綴自動化跨所有寫入路徑（建立 / 改 type / 改名 onBlur / Excel / localStorage 載入），validation 加兜底警示。',
+      '**`utils/elementTypes.js`** 新增 `EXTERNAL_ROLE_PREFIX = "[外部角色]"` 常數 + `ensureExternalPrefix(role)` 純函式（idempotent — 已前綴或非 external 都回 same ref）+ `applyExternalPrefixToRoles(roles)` cascade helper（同 ref 短路）。',
+      '**`Wizard.jsx` Step 2 角色設定**：(a) `updateRole(id, "type", "external")` 觸發後立即套 `ensureExternalPrefix`（規則 5 切到外部即補）(b) 角色名 input 加 `onBlur={onRoleNameBlur}` — 失焦時若是 external 且缺前綴自動補回（規則 I）(c) `role.type === "internal"` 時不動，使用者可自由命名。',
+      '**`FlowEditor/DrawerContent.jsx` 角色泳道列表**：同 Wizard 的 onBlur + 切外部時補前綴邏輯。Drawer / Wizard 兩套入口同步處理。',
+      '**`utils/excelImport.js buildFlow`**：return 時包 `applyExternalPrefixToRoles(roles)`。當前 Excel 解析端 `role.type` 全標 internal（PR-D5 才會偵測），此呼叫先預埋；PR-D5 設 external 時前綴會自然 follow。',
+      '**`utils/storage.js migrateFlow`**：load 時 `applyExternalPrefixToRoles(flow.roles)`，把舊 localStorage 資料的外部角色補上前綴。Idempotent — 已前綴的 same-ref 短路。',
+      '**`model/validation.js` rule 6b**：external 角色名沒「[外部角色]」開頭跳 warning + 名字只剩前綴（empty payload）也跳 warning。常規路徑下使用者看不到（自動補完已涵蓋）— 兜底防程式化匯入 / 未來 JSON import 等繞過 UI 的路徑。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) Wizard 切「外部角色」→ 名稱自動加「[外部角色]」(b) 改名刪掉前綴 → onBlur 自動補回 (c) DrawerContent 同樣行為 (d) external + 空 payload（單純「[外部角色]」）儲存時跳 warning (e) Excel 載入後角色 type 仍 internal（PR-D5 前），前綴邏輯 no-op — 非 regression。',
+      '**動到的檔案（8 個）**：`src/utils/elementTypes.js`（helper）/ `src/components/Wizard.jsx`（onBlur + cascade）/ `src/components/FlowEditor/DrawerContent.jsx`（onBlur + cascade）/ `src/utils/excelImport.js`（buildFlow return）/ `src/utils/storage.js`（migrateFlow）/ `src/model/validation.js`（rule 6b）/ `src/data/helpPanelData.js`（VALIDATION 新條目）/ `docs/business-spec.md` §7.2（前綴 warning）/ `src/data/changelog/current.js`（本條）。',
+      '**接下來 PR-D5**：Excel 智慧角色 type 偵測（規則 7/8 — `_e` 多數 → external、混用 → internal + 紅框讓使用者修）。前綴 prefix 邏輯已備妥，PR-D5 設 type 時自動補。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D3：lane / 元件 shape 違規紅框警示（含 FlowTable + PNG / drawio 排除）',
     items: [
       '**緣由**：PR-D2 把 lane↔shape sync 改為對稱、且 load-time 不再強制 cascade — 既有違規（內部泳道的 interaction、外部泳道的 task）需要視覺方式提醒使用者。本 PR 落地紅框 UI（規則 9 + backlog AJ 配套）。',
