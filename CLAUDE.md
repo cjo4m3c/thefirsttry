@@ -8,6 +8,7 @@
 - `.claude/business-rules.md` — Claude 工作流慣例（trace 驗證、Excel I/O 相容、CJK wrap、文件同步、協作偏好）
 - `.claude/orphans.md` — 已清理的孤兒檔案
 - `.claude/backlog.md` — 跨 session 待辦清單
+- `.claude/routing-handover.md` — 2026-05-04 auto-routing 違規情境分析 + Phase A/B/C 策略（preview branch `claude/preview-vertical-obstacle-fix` in flight）
 - `HANDOVER.md` §2.5 — `src/diagram/layout/` routing 細節（dr/dc / phase / corridor）
 
 ---

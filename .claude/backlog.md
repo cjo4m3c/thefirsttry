@@ -6,7 +6,7 @@
 
 ## 立即可動 / Bug
 
-（無）
+- **Routing Phase A 進行中**：閘道 auto-routing 違規 → 詳細討論在 `.claude/routing-handover.md`。Preview branch `claude/preview-vertical-obstacle-fix` 部署在 `/preview-routing-fix/`，v2 修法部分有效，**等使用者決策**走 (a) 繼續 v3 corridor 切換 / (b) 轉 Phase B/C 設計
 
 ## 規格已明確、可排程
 
@@ -20,7 +20,8 @@
 
 ## 規格待確認、不能直接動手
 
-- **AH. 線段上的字被任務矩形擋住的處理**（使用者：「線段上的字如果被擋到，可以提醒或手動調整嗎？暫定先調整線段指向，看要不要調整 hover 顯示」）— 2026-05-04 排程啟動，規格討論中
+- **AH. 線段上的字被任務矩形擋住的處理** — 2026-05-04 排程啟動，演進為更廣的 routing 違規問題（見 `.claude/routing-handover.md`）
+- **路徑廣義最佳化 (Phase B / C)** — 使用者廣義訴求：「偵測流程圖空白區間，繞路連起來」。屬於 grid-based path-finding 升級（重構 routing engine），詳見 `.claude/routing-handover.md` §4-5 的 12 個必須考慮情境 + Phase A/B/C 三段策略
 - **G. 匯出圖等比寬度**（使用者：「匯出的圖檔要符合 ISO 文件適用寬度」）— PNG 匯出規格 / ISO A4 等比
 
 ## Nice-to-have / 有空再修
@@ -63,6 +64,16 @@
 - **AI（PR #135）**：Undo / Redo stack — 50 步 snapshot、500ms 打字 debounce、儲存後 stack 清空、Ctrl+Z / Ctrl+Y 鍵盤 + Header 按鈕；session-only
 - **PR #123**：流程圖文字 UI 微調 — TaskShape `lineH` 14→24（1.5 ratio）+ `letterSpacing` 0.02em / Edge label 白底寬度從固定 40×22 改成 `estimateTextWidth + padding` 動態 hug 文字 / L4Number 加白底 pill 防被線穿過
 - **U（PR #124）**：新增閘道操作拉齊 — `insertGatewayAfter` 簽名升級成 N-branch；ContextMenu / DrawerContent InsertPicker 都從固定 2 條改成預設 2 條 + 「+ 新增分支」/「✕」可動態增減
+
+**2026-05-04 已完成（含本次討論）**：
+
+- **PR #136-#147**：1.5 個月雜項 — 規則更新、bug 修、UI 改善（細節在 changelog）
+- **PR #148**：密度 toggle Phase 1 — 3 段 zoom + COL_W 184 + 閘道 label wrap
+- **PR #149**：閘道 UX 兩件 — 允許空 target 建立 + 點選自動展開「編輯閘道」
+- **PR #150**：線段 label 自動換行（segment-length-aware maxChars）
+- **PR #151**：sticky 角色欄 zoom 補償（修密度 toggle regression）
+- **PR #152**：drop unused `getDisplayLabels` alias（cleanup audit 唯一 high-confidence 命中）
+- **2026-05-04 後段 routing 大討論**：分析 6 個違規情境 + 使用者實際 case，產出 `.claude/routing-handover.md` 完整交接文件。Preview branch `claude/preview-vertical-obstacle-fix` v2 修法部分有效，等使用者決策
 
 **2026-04-30 使用者整合 backlog 時確認 PR #123 已涵蓋的兩項**（不需另外排程）：
 
