@@ -218,20 +218,32 @@ export function applyRoleChange(task, newRoleId, roles) {
 export function syncTasksToRoles(tasks, roles) {
   if (!Array.isArray(tasks) || !Array.isArray(roles)) return tasks;
   const roleById = new Map(roles.map(r => [r.id, r]));
-  let changed = false;
-  const next = tasks.map(t => {
+  let anyShapeChange = false;
+  // Pass 1: flip shapeType where the lane requires it.
+  const intermediate = tasks.map(t => {
     if (!isLaneSensitive(t) || !t.roleId) return t;
     const role = roleById.get(t.roleId);
     if (!role) return t;
     const targetShape = targetShapeFor(t.shapeType, role);
     if (t.shapeType === targetShape) return t;
-    changed = true;
-    const stripped = { ...t, shapeType: targetShape };
-    // Shape change → drop stored l4Number for re-derive (`_e` ↔ regular L4).
-    if (stripped.l4Number) delete stripped.l4Number;
-    return stripped;
+    anyShapeChange = true;
+    return { ...t, shapeType: targetShape };
   });
-  return changed ? next : tasks;
+  if (!anyShapeChange) return tasks;
+  // Pass 2 (PR-D8, 2026-05-05): strip stored l4Number from EVERY task in
+  // the flow when any shape changes. Anchor topology shifts when a task
+  // flips between task↔interaction — `_g` / `_s` / `_e` suffix anchors
+  // and regular-task counter ordering all need to re-derive against the
+  // new layout. computeDisplayLabels prefers stored over derived, so a
+  // surgical strip on only the directly-flipped task left gateway / other
+  // interaction labels pointing at stale anchors. Stripping all is safe
+  // because computeDisplayLabels regenerates deterministically; tasks not
+  // affected by the flip get the same number back.
+  return intermediate.map(t => {
+    if (!t.l4Number) return t;
+    const { l4Number, ...rest } = t;
+    return rest;
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────────

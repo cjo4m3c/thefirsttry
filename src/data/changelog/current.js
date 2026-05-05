@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D8：修角色 type 翻轉 / 元件類型變更後，閘道與其他互動編號錨點沒重算',
+    items: [
+      '**緣由**：使用者回報「角色從內部改成外部時，編號沒依規則更新」。Trace 後找到兩個串連點：`syncTasksToRoles` 只 strip 直接被翻轉的 task；非 lane-sensitive 元件（閘道、子流程）跟既有 `_e` 互動沒被 strip → stored `l4Number` 留下舊錨點 → `computeDisplayLabels` 看到 stored 就 short-circuit return。',
+      '**問題情境（使用者實例）**：原本內部泳道有 `5-1-5-0` 開始、`5-1-5-1` 任務、`5-1-5-1_g1` `_g2` 兩閘道、`5-1-5-1_e` 互動，下游另角色 `5-1-5-2` 任務。把第一個角色翻成外部後，期望：`_e1` `_g1` `_g2` `_e2` 全部錨點退到 `5-1-5-0`、原 `5-1-5-2` 升級成第一個 L4 任務 `5-1-5-1`。實際只有第一個任務被 strip 重推為 `5-1-5-0_e`，其他元件編號全部凍結在舊錨點。',
+      '**Fix 1（`utils/elementTypes.js syncTasksToRoles`）**：改成兩遍掃描。Pass 1 維持現行 lane-sensitive 偵測（找出 shape 要翻的 task）。**Pass 2 新增**：只要 Pass 1 有任何 shape change → strip 全 flow 所有 task 的 stored `l4Number`，讓 `computeDisplayLabels` 從頭重推。anchor topology 在 task ↔ interaction 翻轉時必然撼動，所以全 flow 重推是正確而非粗暴。',
+      '**Fix 2（`components/FlowEditor/useFlowActions.js updateTask`）**：同樣的 anchor 失效會發生在 TaskCard / ContextMenu 的單任務 `applyRoleChange` 跟 `makeTypeChange`。`updateTask` 是 single-source，集中加偵測：若 `prev.type !== updated.type || prev.shapeType !== updated.shapeType`（topology shift）→ 對其他所有 task strip stored `l4Number`。被更新的 task 自己的 strip 已由 `applyRoleChange` / `makeTypeChange` 各自處理，這裡只負責「漣漪到別人」的部分。',
+      '**為什麼 strip 全 flow 安全**：`computeDisplayLabels` 是純函式 deterministic，給定相同拓撲輸入永遠產生相同編號。沒被 anchor 翻轉影響的 task 重推會得到完全一樣的結果，stripping 是 safe；被影響的 task 才會出現新編號 — 正是想要的行為。Excel 匯出走 `buildTableL4Map = computeDisplayLabels`（不是 raw `task.l4Number`），所以匯出值跟畫面一致。',
+      '**驗證情境**：`npm run build` 通過。Sanity test 6-task 流程跨兩角色、翻轉其中一個角色：start 留 `5-1-5-0`、原任務變 `5-1-5-0_e1`、兩閘道 `_g1`/`_g2` 都退到 `5-1-5-0` 錨點、原 `_e` 變 `_e2`、另角色的下游任務從 `5-1-5-2` 升 `5-1-5-1`。所有顯示位置（流程圖 / FlowTable / TaskCard / ContextMenu / Excel 匯出）共用 `displayLabels` SOT，一處改全處同步。',
+      '**動到的檔案（3 個）**：`src/utils/elementTypes.js`（syncTasksToRoles 兩遍掃描）/ `src/components/FlowEditor/useFlowActions.js`（updateTask topology shift 偵測）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D6：修 Excel 匯入 `_e` shapeType 被洗掉的串連 bug + FlowTable 紅框改紅字',
     items: [
       '**緣由**：使用者回報「匯入 _e 後綴編號的會被認為是 L4 任務並畫紅框」+「同角色同時有任務和 _e，被認為是外部角色了」。Trace 後發現是兩個 bug 串連觸發，加上規則 6「表格紅框移除、改成 L4 編號變紅色」。',
