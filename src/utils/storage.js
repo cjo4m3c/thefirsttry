@@ -1,4 +1,5 @@
 import { syncTasksToRoles } from './elementTypes.js';
+import { ensureMeta } from './auxFieldDefs.js';
 
 const FLOWS_KEY = 'bpm_flows_v1';
 
@@ -170,6 +171,21 @@ function migrateMergeConnectionType(tasks) {
 }
 
 /**
+ * 2026-05-05: 輔助欄位 schema 上線後，每個 task 都應有 `meta` 物件。
+ * 老資料沒有這個欄位 → 補空 object；型別錯（null / array）→ 一律覆蓋成 {}。
+ * 流程結構 / 編號 / validation 完全不讀 meta，所以這層只是把 shape 補齊
+ * 避免 UI 取值時要到處寫 `task.meta?.[k] ?? ''`。
+ */
+function migrateTaskMeta(tasks) {
+  if (!Array.isArray(tasks)) return tasks;
+  const needsFix = tasks.some(t =>
+    t && (!t.meta || typeof t.meta !== 'object' || Array.isArray(t.meta))
+  );
+  if (!needsFix) return tasks;
+  return tasks.map(ensureMeta);
+}
+
+/**
  * 2026-04-30: external-interaction tasks now use the `_w` suffix (analogous
  * to `_g` / `_s`). Pre-PR data has them numbered as regular L4 tasks (e.g.
  * `1-1-5-3`); strip those stored l4Numbers so computeDisplayLabels re-derives
@@ -203,6 +219,7 @@ function migrateFlow(flow) {
   tasks = migrateSubprocessSuffix(tasks);
   tasks = migrateInteractionSuffix(tasks);
   tasks = migrateMergeConnectionType(tasks);
+  tasks = migrateTaskMeta(tasks);
   tasks = cleanStaleOverrides(tasks);
   // 2026-04-30: one-time fixup so tasks living in external-role lanes use
   // shapeType='interaction' and tasks in internal lanes use shapeType='task'.
