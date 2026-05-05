@@ -5,6 +5,7 @@ import {
   EXCEL_HEADERS,
 } from '../utils/excelExport.js';
 import { AUX_FIELDS } from '../utils/auxFieldDefs.js';
+import { getLaneShapeViolations } from '../model/flowSelectors.js';
 
 // EXCEL_HEADERS = 10 core (0~9) + 20 auxiliary (10~29). When the user
 // hasn't expanded aux columns we slice the header loop at the boundary
@@ -150,6 +151,13 @@ export default function FlowTable({ flow, onUpdateTask }) {
     () => buildTableL4Map(flow.l3Number, tasks),
     [flow.l3Number, tasks]
   );
+  // PR-D3 (backlog AJ companion): same lane / element-shape violation set
+  // surfaced on the diagram, mirrored as a red row border in the table so
+  // users editing data exclusively in the table can spot the issue too.
+  const violationIds = useMemo(
+    () => getLaneShapeViolations(tasks, flow.roles || []),
+    [tasks, flow.roles]
+  );
 
   const [showL3, setShowL3] = useState(() => {
     try { return localStorage.getItem(L3_VISIBLE_KEY) === 'true'; }
@@ -272,8 +280,11 @@ export default function FlowTable({ flow, onUpdateTask }) {
           <tbody>
             {tasks.map(task => {
               const annotation = generateFlowAnnotation(task, tasks, l4Map);
+              const isViolation = violationIds.has(task.id);
               return (
-                <tr key={task.id} className="hover:bg-blue-50 transition-colors">
+                <tr key={task.id}
+                  className={`hover:bg-blue-50 transition-colors ${isViolation ? 'outline outline-2 -outline-offset-2 outline-red-500' : ''}`}
+                  title={isViolation ? '泳道角色類型與元件形狀不符（外部泳道應為外部互動，內部泳道應為 L4 任務）' : undefined}>
                   {showL3 && <ReadCell value={flow.l3Number} muted sticky={stickyMap[0]} />}
                   {showL3 && <ReadCell value={flow.l3Name} muted sticky={stickyMap[1]} />}
                   <ReadCell value={l4Map[task.id] || ''} sticky={stickyMap[2]} />

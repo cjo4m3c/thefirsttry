@@ -202,6 +202,44 @@ export function computeDisplayLabels(tasks, l3Number) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Lane / element-shape violation set (PR-D3, 2026-05-05)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Identify tasks whose shape doesn't match the role.type of their lane.
+ * Per symmetric strict rule (2026-05-05):
+ *   - external lane only allows shapeType='interaction'
+ *   - internal lane only allows shapeType='task'
+ *
+ * Cascade auto-converts on explicit role.type / roleId edits, but legacy
+ * data, manual TaskCard "元件類型" picks, and Excel imports flagged as
+ * mixed-role (rule 8) can still produce violations. The diagram surfaces
+ * them with a red overlay border (UI-only — excluded from PNG / drawio
+ * export via `data-export-skip` attribute).
+ *
+ * Lane-agnostic kinds (start / end / gateway / l3activity / interaction-as-
+ * event / role-less tasks) are never violations regardless of lane.
+ *
+ * @param {object[]} tasks
+ * @param {object[]} roles
+ * @returns {Set<string>} task ids in violation
+ */
+export function getLaneShapeViolations(tasks, roles) {
+  const out = new Set();
+  if (!Array.isArray(tasks) || !Array.isArray(roles)) return out;
+  const roleById = new Map(roles.map(r => [r.id, r]));
+  tasks.forEach(t => {
+    if (!t || t.type !== 'task' || !t.roleId) return;
+    if (t.shapeType !== 'task' && t.shapeType !== 'interaction') return;
+    const role = roleById.get(t.roleId);
+    if (!role) return;
+    if (role.type === 'internal' && t.shapeType === 'interaction') out.add(t.id);
+    else if (role.type === 'external' && t.shapeType === 'task')   out.add(t.id);
+  });
+  return out;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Incoming-edge map (formerly duplicated inline in validateFlow.js and
 // connectionFormat.js — byte-identical implementations)
 // ────────────────────────────────────────────────────────────────────────────
