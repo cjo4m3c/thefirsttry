@@ -35,7 +35,7 @@ export const L4_SUBPROCESS_PATTERN = /^\d+-\d+-\d+-\d+_s\d*$/;
 // `_g` / `_s`, doesn't claim a flow counter and shares the previous L4
 // task's anchor. Renamed from `_w` to `_e` in 2026-05-05 (external role
 // rework). Excel import / storage strictly enforces `_e`; legacy `_w`
-// localStorage data is auto-migrated via storage.migrateLegacyWtoE.
+// localStorage data is auto-migrated via storage.migrateInteractionSuffix.
 export const L4_INTERACTION_PATTERN = /^\d+-\d+-\d+-\d+_e\d*$/;
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -56,12 +56,6 @@ export const CONNECTION_TYPES = [
   { value: 'start',              label: '流程開始' },
   { value: 'end',                label: '流程結束' },
   { value: 'subprocess',         label: '子流程調用' },
-];
-
-export const SHAPE_TYPES = [
-  { value: 'task',        label: 'L4 任務' },
-  { value: 'interaction', label: '外部互動' },
-  { value: 'l3activity',  label: 'L3 活動（關聯）' },
 ];
 
 export const CONN_BADGE = {

@@ -29,7 +29,7 @@
 - **B. layout 同欄對齊**（使用者：「先放成 nice-to-have」+「包容、並行閘道後方任務對齊」）— fork 兩分支步數不等時，短分支末段對齊到長分支同欄；含使用者要求的「包容、並行閘道後方任務對齊」。推薦解法 A（`alignForkBranches` post-pass），先開 `claude/preview-layout-same-column` 預覽分支驗證。動手前須跟使用者確認 §10.6 四個問題
 - **C. 線段邏輯 / Phase 3.5 gateway obstacle avoidance**（`src/diagram/layout/`）— 閘道作為跨列 forward obstacle 時走 vertical-detour
 - **H. 邊側批量下載缺檔**（使用者：「批量下載數量太多時比較後面的編號會漏檔案 → 目前排解只有 edge 瀏覽器有，晚點再修」）
-- **後續批次拆檔（PR-4 size check 命中）**：`Dashboard.jsx` 26KB / `ContextMenu.jsx` 19KB / 凍結 `c13.js` 拆成 c13a + c13b（17KB）/ `excelImport.js` 15.5KB（PR-7 加完 validateFlow 又超 15KB 軟上限）。已解：`HelpPanel.jsx` 26KB → 11.3KB（PR #84 抽 helpPanelData）/ `taskDefs.js` 17.4KB → 14.3KB（PR #81 抽 selector）/ `excelImport.js` 17.2 → 14.9KB（PR #80）
+- **後續批次拆檔（PR-4 size check 命中）**：`Dashboard.jsx` 26KB / `excelImport.js` **30KB**（PR-D5 detectRoleTypes + PR-D10 cross-checks 撐爆）/ `ContextMenu/index.jsx` 16KB / 凍結 `c13.js` 拆成 c13a + c13b（17KB）。已解：`HelpPanel.jsx` 26KB → 11.3KB（PR #84 抽 helpPanelData）/ `taskDefs.js` 17.4KB → 14.3KB（PR #81 抽 selector）
 
 ## Phase 2（model 共用層抽出）— 全部完成
 
@@ -65,7 +65,23 @@
 - **PR #123**：流程圖文字 UI 微調 — TaskShape `lineH` 14→24（1.5 ratio）+ `letterSpacing` 0.02em / Edge label 白底寬度從固定 40×22 改成 `estimateTextWidth + padding` 動態 hug 文字 / L4Number 加白底 pill 防被線穿過
 - **U（PR #124）**：新增閘道操作拉齊 — `insertGatewayAfter` 簽名升級成 N-branch；ContextMenu / DrawerContent InsertPicker 都從固定 2 條改成預設 2 條 + 「+ 新增分支」/「✕」可動態增減
 
-**2026-05-04 已完成（含本次討論）**：
+**2026-05-05 已完成 — 外部互動 / 外部角色重構 D 系列（10 支 PR）+ aux fields 三件組（PR-A/B/C）+ doc cleanup**：
+
+- **PR #154**：HelpPanel 編號規則改列點 + 用 logo 做 favicon
+- **PR #155 / #156 / #157（aux fields A/B/C）**：20 個輔助欄位 schema → Excel I/O → FlowTable toggle UI（核心 10 + 輔助 20 共 30 欄結構）
+- **PR #158**：backlog log AJ red-border parity follow-up（PR-D3 配套留 backlog）
+- **PR-D1 #159**：外部互動編號後綴 `_w → _e` 全 codebase rename + Excel 嚴格 `_e` + freeze c24（current.js 76KB → 4KB）
+- **PR-D2 #160**：lane↔shape sync 對稱化（internal lane 也強制 task）+ load-time 不再 cascade
+- **PR-D3 #161**：違規元件流程圖紅框 UI（含 PNG / drawio export 排除）+ FlowTable 紅框（後 PR-D6 改紅字）
+- **PR-D4 #162**：`[外部角色]` 前綴自動補 + onBlur 補回 + Excel/load 補 + 兜底 warning
+- **PR-D5 #163**：Excel 智慧推導角色 type（純看 row 分布、不讀「角色類型」欄）
+- **PR-D6 #164**：修 Excel 匯入 `_e` shapeType 被 normalizeTask 洗掉的串連 bug + FlowTable 紅框改紅字（規則 6）
+- **PR-D7 #165**：修 connectionFormat regex NUM/NUM_HEAD/RE_LOOP_LEGACY 漏 `_e` 後綴（造成閘道目標解錯）
+- **PR-D8 #166**：修角色 type 翻轉 / 元件類型變更後，閘道 / 既有互動編號錨點沒重算（syncTasksToRoles 兩遍掃描 + updateTask 偵測 topology shift）
+- **PR-D9 #167**：修 makeTypeChange 切元件類型時多目標連線只剩首個（task ↔ interaction 等 non-gateway 轉換保留全部 nextTaskIds）
+- **PR-D10 #168**：元件類型 SOT 改為 L4 編號後綴 + cross-check warnings + OR 詞彙加「包含分支至」
+
+**2026-05-04 已完成**：
 
 - **PR #136-#147**：1.5 個月雜項 — 規則更新、bug 修、UI 改善（細節在 changelog）
 - **PR #148**：密度 toggle Phase 1 — 3 段 zoom + COL_W 184 + 閘道 label wrap

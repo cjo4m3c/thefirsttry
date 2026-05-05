@@ -110,7 +110,7 @@ FlowSprite/
     │   └── ChangelogPanel.jsx     ← 版本更新紀錄 Modal（讀 src/data/changelog/index.js）
     ├── data/
     │   ├── helpPanelData.js       ← HelpPanel 規則摘要 data，每個 array 對應 docs/business-spec.md 章節
-    │   └── changelog/             ← current.js（tip）+ c01.js…c21.js（凍結）+ index.js 串接
+    │   └── changelog/             ← current.js（tip）+ c01.js…c24.js（凍結）+ index.js 串接
     ├── model/                     ← 純函式共用層（Phase 2 抽出）
     │   ├── connectionFormat.js    ← task ↔ 中文字串雙向轉換 + auto-merge 偵測
     │   ├── flowSelectors.js       ← computeDisplayLabels / getTaskIncoming / 等 derived selectors
@@ -122,7 +122,7 @@ FlowSprite/
     └── utils/
         ├── taskDefs.js            ← 編號 regex、connectionType 常數、工廠函式
         ├── elementTypes.js        ← `ELEMENT_TYPES` 8 種元件 catalog + `detectElementKind` / `makeTypeChange` / `applyRoleChange` / `syncTasksToRoles`
-        ├── storage.js             ← localStorage I/O + 載入時 5 個 migration（點→橫線 / 閘道 _g / 子流程 _s / merge type / 外部互動 shape）
+        ├── storage.js             ← localStorage I/O + 載入時 6 個 migration（點→橫線 / 閘道 _g / 子流程 _s / merge type / 外部互動 _e / type 對齊 L4 後綴 [PR-D10]）
         ├── excelImport.js         ← 解析 Excel → flow 物件 + validator + 軟警告
         ├── excelExport.js         ← 匯出 .xlsx
         └── drawioExport.js        ← 匯出 .drawio
@@ -132,7 +132,7 @@ FlowSprite/
 
 - `src/diagram/layout/` — 複雜度最高（PR-1 拆成 11 檔但總邏輯仍龐大）。負責把 flow 物件轉成 SVG 座標、計算連線路由。改前先讀 `HANDOVER.md §2.5`
 - `src/utils/taskDefs.js` — 所有編號 regex 的單一來源（修改編號規則只改這裡的常數）
-- `src/utils/storage.js` — localStorage 為唯一儲存層；載入時自動跑 5 個 migration
+- `src/utils/storage.js` — localStorage 為唯一儲存層；載入時自動跑 6 個 migration（含 PR-D10 的 type 對齊 L4 後綴）
 - `src/utils/excelImport.js` — Excel 匯入的 parser + validator，是業務規則落地的地方
 - `docs/business-spec.md` + `CLAUDE.md` — 業務規則完整版 + AI 工作流 SOP；動任何程式碼前建議先讀
 
