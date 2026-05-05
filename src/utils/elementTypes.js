@@ -183,7 +183,7 @@ function isLaneSensitive(task) {
  *                    validation 3e 跳 warning 讓使用者檢查）
  * Pass through stored shape when role.type would otherwise no-op the sync.
  * If role-id changes when l4Number is present (e.g. interaction with stored
- * `_w` moved to internal lane and shape stays interaction), strip l4Number
+ * `_e` moved to internal lane and shape stays interaction), strip l4Number
  * so computeDisplayLabels re-derives — keeps numbering aligned with shape.
  */
 function targetShapeFor(currentShape, role) {
@@ -198,7 +198,7 @@ export function applyRoleChange(task, newRoleId, roles) {
   const targetShape = targetShapeFor(task.shapeType, newRole);
   if (task.shapeType === targetShape && task.roleId === newRoleId) return task;
   // Shape changed — strip stored l4Number so display labels re-derive with
-  // the right suffix family (`_w` for interaction, plain L4 counter for task).
+  // the right suffix family (`_e` for interaction, plain L4 counter for task).
   const stripL4 = task.shapeType !== targetShape && task.l4Number;
   const next = { ...task, roleId: newRoleId, shapeType: targetShape };
   if (stripL4) delete next.l4Number;
@@ -223,7 +223,7 @@ export function syncTasksToRoles(tasks, roles) {
     if (t.shapeType === targetShape) return t;
     changed = true;
     const stripped = { ...t, shapeType: targetShape };
-    // Shape change → drop stored l4Number for re-derive (`_w` ↔ regular L4).
+    // Shape change → drop stored l4Number for re-derive (`_e` ↔ regular L4).
     if (stripped.l4Number) delete stripped.l4Number;
     return stripped;
   });

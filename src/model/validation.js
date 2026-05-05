@@ -56,7 +56,7 @@ export function validateFlow(flow) {
   // and validate merge-gateway arity.
   const incoming = getTaskIncoming(tasks);
   // Display labels — used to surface the L4 number (e.g. 1-1-5-3 / 1-1-5-2_g1
-  // / 1-1-5-2_w) inside warning messages so the user can locate the offending
+  // / 1-1-5-2_e) inside warning messages so the user can locate the offending
   // element on the diagram.
   const displayLabels = computeDisplayLabels(tasks, flow.l3Number);
 
@@ -152,7 +152,7 @@ export function validateFlow(flow) {
     // interaction (not blocked) but should be reviewed — typical use is on
     // external lanes; mixing reads as accidental. syncTasksToRoles only
     // force-converts internal→external (not the reverse), so this case
-    // can legitimately occur via TaskCard "外部互動" pick / Excel `_w` row.
+    // can legitimately occur via TaskCard "外部互動" pick / Excel `_e` row.
     if (t.shapeType === 'interaction' && t.type === 'task' && t.roleId) {
       const role = (flow.roles || []).find(r => r.id === t.roleId);
       if (role && role.type === 'internal') {
