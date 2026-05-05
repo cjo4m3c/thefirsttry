@@ -162,8 +162,10 @@ export function makeTypeChange(task, kind) {
  *   1. Task's roleId changes (user moves task between lanes) → applyRoleChange
  *   2. Role's type changes (user flips a lane internal↔external) → cascade
  *      via syncTasksToRoles over all tasks in that role
- *   3. Flow loaded from localStorage / Excel → one-time fixup via
- *      syncTasksToRoles inside storage.migrateFlow
+ *
+ * NOT a trigger: storage.migrateFlow no longer calls syncTasksToRoles on load
+ * (2026-05-05 — symmetric strict rule). Pre-existing mismatches stay visible
+ * as red-border violations rather than getting silently auto-fixed on load.
  *
  * Scope: only flips between shapeType 'task' ↔ 'interaction'. type stays
  * 'task' in both cases (interaction is just a shape variant of a task,
@@ -177,18 +179,20 @@ function isLaneSensitive(task) {
 }
 
 /**
- * Asymmetric sync rule (2026-04-30 update per user spec)：
- *   external lane → 強制 interaction（外部角色「不能用任務」，必須是 interaction）
- *   internal lane → preserve current shape（internal 允許 interaction，由
- *                    validation 3e 跳 warning 讓使用者檢查）
- * Pass through stored shape when role.type would otherwise no-op the sync.
- * If role-id changes when l4Number is present (e.g. interaction with stored
- * `_e` moved to internal lane and shape stays interaction), strip l4Number
- * so computeDisplayLabels re-derives — keeps numbering aligned with shape.
+ * Symmetric strict rule (2026-05-05 update per user spec):
+ *   external lane → force interaction (外部角色不能用一般任務)
+ *   internal lane → force task         (內部角色不能用外部互動)
+ *
+ * Both directions cascade-convert when role.type flips or task moves to a
+ * lane of different type. Standalone violations (user manually picks the
+ * wrong shapeType in TaskCard, or legacy data) are NOT silently fixed —
+ * they're surfaced as red-border warnings on the diagram (see
+ * flowSelectors.getLaneShapeViolations).
  */
-function targetShapeFor(currentShape, role) {
+function targetShapeFor(_currentShape, role) {
   if (role?.type === 'external') return 'interaction';
-  return currentShape;  // internal / unspecified — preserve user's choice
+  if (role?.type === 'internal') return 'task';
+  return _currentShape;  // role unspecified — preserve user's choice
 }
 
 /** Move a task to a new role; auto-sync shapeType based on the role's type. */

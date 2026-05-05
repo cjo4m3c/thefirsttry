@@ -147,16 +147,21 @@ export function validateFlow(flow) {
       warnings.push(`${label}：闘道未指定泳道角色`);
     }
 
-    // 3e (restored 2026-04-30 後段): warn when shapeType=interaction sits
-    // on an internal-role lane. Per updated user spec, internal lanes ALLOW
-    // interaction (not blocked) but should be reviewed — typical use is on
-    // external lanes; mixing reads as accidental. syncTasksToRoles only
-    // force-converts internal→external (not the reverse), so this case
-    // can legitimately occur via TaskCard "外部互動" pick / Excel `_e` row.
-    if (t.shapeType === 'interaction' && t.type === 'task' && t.roleId) {
+    // 3e (symmetric strict, 2026-05-05): warn on lane / element-shape mismatch.
+    // Internal lanes only allow type='task' shapeType='task'; external lanes
+    // only allow type='task' shapeType='interaction'. Other element kinds
+    // (gateway / start / end / l3activity / interaction-as-event) are lane-
+    // agnostic. Cascade auto-converts on explicit role.type / roleId flips,
+    // so a violation reaching save-time means: (a) legacy data loaded without
+    // cascade fixup, (b) Excel import flagged a mixed-role inconsistency
+    // (rule 8), or (c) user manually picked the wrong shape in TaskCard.
+    if (t.type === 'task' && t.roleId
+        && (t.shapeType === 'task' || t.shapeType === 'interaction')) {
       const role = (flow.roles || []).find(r => r.id === t.roleId);
-      if (role && role.type === 'internal') {
-        warnings.push(`${label}：外部互動任務「${t.name || '（未命名）'}」放在內部角色泳道「${role.name || '（未命名）'}」，建議改放外部角色泳道（仍可儲存）`);
+      if (role && role.type === 'internal' && t.shapeType === 'interaction') {
+        warnings.push(`${label}：外部互動「${t.name || '（未命名）'}」放在內部角色泳道「${role.name || '（未命名）'}」（畫面上有紅框；仍可儲存）`);
+      } else if (role && role.type === 'external' && t.shapeType === 'task') {
+        warnings.push(`${label}：L4 任務「${t.name || '（未命名）'}」放在外部角色泳道「${role.name || '（未命名）'}」（畫面上有紅框；仍可儲存）`);
       }
     }
 
