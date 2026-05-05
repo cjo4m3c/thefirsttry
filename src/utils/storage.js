@@ -1,4 +1,3 @@
-import { syncTasksToRoles } from './elementTypes.js';
 import { ensureMeta } from './auxFieldDefs.js';
 
 const FLOWS_KEY = 'bpm_flows_v1';
@@ -232,12 +231,12 @@ function migrateFlow(flow) {
   tasks = migrateMergeConnectionType(tasks);
   tasks = migrateTaskMeta(tasks);
   tasks = cleanStaleOverrides(tasks);
-  // 2026-04-30: one-time fixup so tasks living in external-role lanes use
-  // shapeType='interaction' and tasks in internal lanes use shapeType='task'.
-  // After this, the auto-sync runs on every roleId / role.type edit so
-  // mismatches don't reappear. Idempotent — returns same array when already
-  // in sync (most loads after the first).
-  tasks = syncTasksToRoles(tasks, flow.roles || []);
+  // 2026-05-05 (symmetric strict rule): no longer cascade-fix shape on load.
+  // Pre-existing mismatches (e.g. internal-lane interaction from the old
+  // asymmetric era) stay as data; the diagram surfaces them via red-border
+  // violations (flowSelectors.getLaneShapeViolations) so the user can decide
+  // whether to fix. Cascade still runs on explicit role.type / roleId edits
+  // (Wizard / DrawerContent / TaskCard / ContextMenu).
   return { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks };
 }
 

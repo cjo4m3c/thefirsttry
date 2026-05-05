@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D2：外部互動 / 外部角色對稱 cascade（internal lane → task 也強制）',
+    items: [
+      '**緣由**：PR-D1 完成 `_w → _e` rename 後，使用者進一步明確：外部角色泳道「不能用任務」、內部角色泳道「不能用外部互動」（規則 2 + 4）。原本 `targetShapeFor` 只強制 external→interaction（不對稱），internal lane 允許 interaction（由 validation 3e 跳 warning）— 不符合新規格。本 PR 切到對稱規則：兩邊 lane 都強制對應 shape，cascade 在使用者顯式切換 role.type / roleId 時觸發。',
+      '**`utils/elementTypes.js` `targetShapeFor`**：external → `interaction` / **internal → `task`**（新增）/ unspecified → preserve。註解更新為「Symmetric strict rule」。`applyRoleChange` / `syncTasksToRoles` 邏輯不變（純函式），自動套用對稱規則 — strip `l4Number` 讓 `computeDisplayLabels` 重推（`_e` ↔ regular L4）。',
+      '**`utils/storage.js` `migrateFlow`**：拿掉 load-time 的 `syncTasksToRoles` 呼叫（連同 import）。原本是給「不對稱時代」的 fixup（避免 external lane 殘留 task），現在改成讓既有違規以「紅框警示」方式 surface（PR-D3 會落地紅框 UI），而非 silent auto-convert。Cascade 仍保留在使用者顯式編輯 role.type / roleId 的觸發點（Wizard / DrawerContent / TaskCard / ContextMenu）。',
+      '**`model/validation.js` rule 3e**：對稱化警示文字 — internal lane + interaction 與 external lane + task 雙向偵測，均跳 warning（仍可儲存）。原訊息「建議改放外部角色泳道」改為「畫面上有紅框」（前指 PR-D3）— 文字提示與紅框視覺 reinforce。',
+      '**Edge case 行為**：(F) 載入舊 localStorage 資料若有違規 → 不自動修，保持資料原貌等使用者決定（紅框 in PR-D3）(B) external→internal cascade 後 `_e1/_e2/_e3` 重編成正式 L4 順號 → 後續任務編號自然 shift，使用者已確認接受 (C) TaskCard 元件類型 picker 仍允許自由選擇（不擋）— 違規由紅框提醒。',
+      '**驗證**：`npm run build` 通過，bundle size 不變。隔離保證 — `applyRoleChange` / `syncTasksToRoles` 都是純函式，存量 callers 不需要改動（觸發點 audit 確認 Wizard / DrawerContent / TaskCard / ContextMenu 走相同 API）。',
+      '**動到的檔案（4 個）**：`src/utils/elementTypes.js`（targetShapeFor 對稱）/ `src/utils/storage.js`（migrateFlow drop syncTasksToRoles）/ `src/model/validation.js`（rule 3e 對稱）/ `src/data/changelog/current.js`（本條）。',
+      '**接下來**：PR-D3 加紅框違規顯示（含 PNG / drawio export 過濾） + FlowTable 紅框（backlog AJ）/ PR-D4 `[外部角色]` 前綴自動補 + 儲存檢核（規則 5/6/I）/ PR-D5 Excel 智慧角色 type 偵測（規則 7/8）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '外部關係人互動編號後綴 `_w` → `_e` 全 codebase rename + 凍結 c24',
     items: [
       '**緣由**：使用者：「外部互動、外部角色重構」— 2026-04-30 引入時用 `_w`（取自 external 一字「w」rld 的隨意命名），但 `_e` 更直觀對應 external interaction，且跟其他後綴（`_g` gateway / `_s` subprocess）的字母縮寫邏輯一致。趁輔助欄位 PR-A/B/C 落地後 codebase 相對穩定，把 `_w` 全面改名為 `_e`，避免日後越積越多 reference 難改。',
