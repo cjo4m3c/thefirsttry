@@ -1,4 +1,5 @@
 import { ensureMeta } from './auxFieldDefs.js';
+import { applyExternalPrefixToRoles } from './elementTypes.js';
 
 const FLOWS_KEY = 'bpm_flows_v1';
 
@@ -237,7 +238,10 @@ function migrateFlow(flow) {
   // violations (flowSelectors.getLaneShapeViolations) so the user can decide
   // whether to fix. Cascade still runs on explicit role.type / roleId edits
   // (Wizard / DrawerContent / TaskCard / ContextMenu).
-  return { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks };
+  // PR-D4: ensure `[外部角色]` prefix on legacy external roles missing it.
+  // Idempotent — same-ref when already prefixed.
+  const roles = applyExternalPrefixToRoles(flow.roles || []);
+  return { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks, roles };
 }
 
 export function loadFlows() {

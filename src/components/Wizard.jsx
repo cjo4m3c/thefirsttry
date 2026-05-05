@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { generateId } from '../utils/storage.js';
 import { ReorderButtons, moveItem } from './reorderButtons.jsx';
-import { syncTasksToRoles } from '../utils/elementTypes.js';
+import { syncTasksToRoles, ensureExternalPrefix } from '../utils/elementTypes.js';
 import {
   makeRole, makeTask,
   applySequentialDefaults,
@@ -103,12 +103,26 @@ function Step2({ data, onChange }) {
     onChange({ roles: data.roles.filter(r => r.id !== id) });
   }
   function updateRole(id, field, val) {
-    const newRoles = data.roles.map(r => r.id === id ? { ...r, [field]: val } : r);
+    let newRoles = data.roles.map(r => r.id === id ? { ...r, [field]: val } : r);
+    // PR-D4: switching to external auto-adds `[外部角色]` prefix to the role
+    // name. Switching back to internal keeps name as-is (user may want to
+    // strip the prefix manually — onBlur won't re-add it for internal roles).
+    if (field === 'type' && val === 'external') {
+      newRoles = newRoles.map(r => r.id === id ? ensureExternalPrefix(r) : r);
+    }
+    const patch = { roles: newRoles };
     // Cascade-sync shapeType when a role flips internal↔external (no-op for
     // other field changes since syncTasksToRoles only looks at roles[].type).
-    const patch = { roles: newRoles };
     if (field === 'type') patch.tasks = syncTasksToRoles(data.tasks || [], newRoles);
     onChange(patch);
+  }
+  function onRoleNameBlur(id) {
+    // Rule I: re-add `[外部角色]` if the user manually deleted it.
+    const role = data.roles.find(r => r.id === id);
+    if (!role) return;
+    const fixed = ensureExternalPrefix(role);
+    if (fixed === role) return;
+    onChange({ roles: data.roles.map(r => r.id === id ? fixed : r) });
   }
 
   return (
@@ -130,6 +144,7 @@ function Step2({ data, onChange }) {
             <span className="text-sm text-gray-400 w-4 flex-shrink-0">#{i + 1}</span>
             <input type="text" placeholder="角色名稱" value={role.name}
               onChange={e => updateRole(role.id, 'name', e.target.value)}
+              onBlur={() => onRoleNameBlur(role.id)}
               className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-blue-400" />
             <select value={role.type}
               onChange={e => updateRole(role.id, 'type', e.target.value)}

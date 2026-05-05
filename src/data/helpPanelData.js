@@ -288,6 +288,16 @@ export const VALIDATION = [
   },
   {
     tier: 'warning',
+    rule: '外部角色名稱必須有「[外部角色]」前綴',
+    detail: [
+      '`role.type === "external"` 的角色名稱開頭沒有「[外部角色]」字樣時跳 warning',
+      '一般情況下使用者不會看到此 warning — UI 會自動補前綴：建立角色或切到外部時補上、欄位失焦（onBlur）後若被刪掉會自動補回',
+      'Excel 匯入 + localStorage 載入時也會自動補（migration / 解析後 fixup）',
+      '此 warning 是給特殊路徑（程式化匯入 / 未來的 JSON import 等）的兜底保護',
+    ],
+  },
+  {
+    tier: 'warning',
     rule: '迴圈返回必須指定目標',
     detail: '`connectionType=loop-return` 的任務必須在 `nextTaskIds[0]` 指向上游某任務。沒指定跳 warning。（編輯器已不再提供新增 loop-return 入口，舊資料仍會檢查）',
   },

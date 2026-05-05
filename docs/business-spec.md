@@ -262,6 +262,7 @@ FlowEditor 儲存前跑 `validateFlow` 兩層檢核。
 | 閘道未指定泳道角色 | 閘道應該綁定一個角色 |
 | L3 活動未連接 | L3 活動沒有前後連線時跳 warning（提示：可能流向另一張流程圖） |
 | 線段跨過任務矩形 | 違反規則 2，建議重拖端點避開 |
+| 外部角色名稱缺少「[外部角色]」前綴 | UI 自動補（onBlur / role.type 改 external / Excel 匯入 / localStorage 載入），此 warning 兜底 |
 
 ### 7.3 Excel 匯入專屬檢核
 

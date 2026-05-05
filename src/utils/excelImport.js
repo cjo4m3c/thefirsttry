@@ -7,6 +7,7 @@ import {
   computeDisplayLabels,
 } from './taskDefs.js';
 import { AUX_FIELD_DEFS } from './auxFieldDefs.js';
+import { applyExternalPrefixToRoles } from './elementTypes.js';
 import {
   parseConnection,
   detectGatewayFromText,
@@ -243,8 +244,13 @@ function buildFlow(rows, auxColMap = {}) {
   finalTasks.push(...taskList);
   if (syntheticEnd) finalTasks.push(syntheticEnd);
 
+  // PR-D4: ensure `[外部角色]` prefix on external roles. Currently buildFlow
+  // marks every role as internal — this is a no-op until PR-D5 wires up
+  // role.type detection from `_e` row distribution. Pre-wiring here so
+  // PR-D5 doesn't have to touch the return shape.
   return {
-    id: generateId(), l3Number, l3Name, roles,
+    id: generateId(), l3Number, l3Name,
+    roles: applyExternalPrefixToRoles(roles),
     tasks: finalTasks,
   };
 }
