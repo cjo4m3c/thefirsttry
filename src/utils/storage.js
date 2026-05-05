@@ -221,11 +221,51 @@ function migrateInteractionSuffix(tasks) {
   });
 }
 
+/**
+ * PR-D10 (2026-05-05): align task.type to L4 suffix when they disagree.
+ * L4 suffix is the SOT for element type. Catches legacy localStorage data
+ * where a manually-edited task.type drifted from its number (e.g. user
+ * edited L4 to add `_g` but type still 'task'). Idempotent.
+ *
+ * Direction: L4 suffix → task.type (sibling of migrateGatewaySuffix which
+ * goes the opposite direction for task.type='gateway' but missing suffix).
+ */
+function migrateTypeFromL4Suffix(tasks) {
+  if (!Array.isArray(tasks)) return tasks;
+  let changed = false;
+  const next = tasks.map(t => {
+    if (!t || !t.l4Number) return t;
+    const l4 = String(t.l4Number);
+    // Only re-classify generic 'task' rows; never override an explicit
+    // start/end/gateway/l3activity type (those came from editor / spec).
+    if (t.type !== 'task') return t;
+    if (/_g\d*$/.test(l4)) {
+      changed = true;
+      return { ...t, type: 'gateway', gatewayType: t.gatewayType || 'xor', conditions: t.conditions || [] };
+    }
+    if (/_s\d*$/.test(l4)) {
+      changed = true;
+      return { ...t, type: 'l3activity', connectionType: 'subprocess' };
+    }
+    if (/-0$/.test(l4) && t.shapeType !== 'interaction') {
+      changed = true;
+      return { ...t, type: 'start', connectionType: 'start' };
+    }
+    if (/-99$/.test(l4)) {
+      changed = true;
+      return { ...t, type: 'end', connectionType: 'end' };
+    }
+    return t;
+  });
+  return changed ? next : tasks;
+}
+
 function migrateFlow(flow) {
   if (!flow) return flow;
   let tasks = Array.isArray(flow.tasks)
     ? flow.tasks.map(t => (t && t.l4Number ? { ...t, l4Number: normalizeNumber(t.l4Number) } : t))
     : flow.tasks;
+  tasks = migrateTypeFromL4Suffix(tasks);  // PR-D10: L4 suffix → type
   tasks = migrateGatewaySuffix(tasks);
   tasks = migrateSubprocessSuffix(tasks);
   tasks = migrateInteractionSuffix(tasks);

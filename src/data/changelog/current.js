@@ -6,6 +6,22 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D10：元件類型判斷改為「L4 編號為 SOT」，加跨訊號 cross-check + OR 詞彙容忍清單擴充',
+    items: [
+      '**緣由**：使用者上傳 Excel 出現「`_g` 編號 + `[包容閘道]` 名稱 + `條件分支至` 任務關聯說明」的三訊號矛盾情境，系統判為 XOR、但名稱寫包容閘道 → 視覺上「辨識錯誤」。Trace 後確認系統現行設計**只看任務關聯說明**做 type 判斷，名稱跟編號後綴都被忽略。經跟使用者討論 8 個情境後決定改為「L4 編號是 SOT、name + body 是輔助訊號」。',
+      '**Step 1：L4 編號變主訊號（`utils/excelImport.js buildFlow`）**：新增 `detectKindFromL4(l4Num)` 純函式 — `-0` → start / `-99` → end / `_g\\d*` → gateway / `_s\\d*` → l3activity / 其他 → task。`buildFlow` 改成先看 L4 後綴決定 type，body 詞彙只剩「補閘道子型」(`xor`/`and`/`or`) 一個用途。Body 缺 fork keyword 時 gateway 預設 XOR（decision 2 / B2）。',
+      '**Step 2：OR 詞彙容忍清單擴充（`model/connectionFormat.js`）**：`RE_OR_FORK` 跟 `detectGatewayFromText` 加「包含分支至」（BPM 業界同義詞，decision 3）。原有「包容/可能分支至」維持。',
+      '**Step 3：cross-check blocking errors（`validateNumbering`，decision 4）**：3 條新檢核 — (a) L4 `_g` + body「調用子流程」→ 衝突 block (b) L4 `_s` + body 任一 fork keyword → 衝突 block (c) L4 `_s` 但 body 缺「調用子流程 X-Y-Z」→ block（沒 L3 編號無法呼叫子流程）。',
+      '**Step 4：cross-check warnings（新 `collectCrossCheckWarnings`，decision 2 + 6）**：4 條軟提醒 — (a) L4 `_g` + body 缺 fork keyword → 「預設 XOR」warning (b) name `[XX閘道]` 與 body 詞彙不一致 → 「以 body 為準」warning (c) L4 `-0` + name 沒「開始事件」→ 建議補前綴 (d) L4 `-99` + name 沒「結束事件」→ 建議補前綴。',
+      '**Step 5：localStorage migration（`storage.js migrateTypeFromL4Suffix`，decision 1）**：load 時 task.type = "task" 但 L4 後綴另有所指 → 強制改 type 跟 L4 對齊。`_g` → gateway (默 xor)、`_s` → l3activity、`-0` → start、`-99` → end。Idempotent，跟既有 `migrateGatewaySuffix`（type→L4 反方向）共存。',
+      '**Step 6：localStorage 載入維持寬鬆（decision 5 / E2+E3）**：不要求 conditions 已填、不要求 body 詞彙必有 — 信任本地 model（task.type / task.gatewayType 是編輯器存的）。Excel 匯入才走嚴格 cross-check。',
+      '**Step 7：規格文件（`docs/business-spec.md §3` 新增 SOT 規則段落）**：明確標註元件類型由 L4 後綴決定、name / body 是輔助訊號。',
+      '**驗證**：`npm run build` 通過。Sanity test 7 個典型情境（含使用者原 case）→ kind 判定正確、cross-check 該擋的擋、該 warn 的 warn。',
+      '**動到的檔案（4 個）**：`src/utils/excelImport.js`（detectKindFromL4 + detectGatewayFromName + collectCrossCheckWarnings + buildFlow 改用 L4-first + validateNumbering 新 3 條 blocking）/ `src/model/connectionFormat.js`（OR 詞彙加「包含分支至」）/ `src/utils/storage.js`（migrateTypeFromL4Suffix）/ `docs/business-spec.md` §3（SOT 規則段落）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D7：修連線解析 regex 漏 `_e` 後綴（造成閘道目標解錯、`_e` 互動連線斷）',
     items: [
       '**緣由**：使用者回報「辨識包容閘道、排他閘道、並行閘道會有錯誤」。Trace 後發現 `model/connectionFormat.js` 的 NUM 系列 regex 只認 `_g` / `_s` 後綴，**`_e` 沒在 regex 裡** — 所有任務關聯說明文字裡的 `_e` 互動編號 reference 解析時都被截成 base 號碼。',
