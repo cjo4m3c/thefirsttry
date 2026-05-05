@@ -116,28 +116,30 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 | 並行閘道（AND） | 菱形（內含 `+`） | `#D1FAE5` 綠框 | 並行分支，同時啟動所有路徑（**不評估條件**） |
 | 包容閘道（OR） | 菱形（內含 `○`） | `#FEF9C3` 黃框 | 包容分支，獨立評估每個條件，可同時觸發 1~N 條 |
 
-### 3.1 外部關係人互動 — 不對稱 sync + `_e` 編號（2026-04-30 後段更新）
+### 3.1 外部關係人互動 — 對稱 cascade + `_e` 編號（2026-05-05 改為對稱規則）
 
 外部關係人互動 = `shapeType === 'interaction'`，編號用 `_e` 後綴（不佔順號，跟 `_g` / `_s` 同類）。
 
-**Sync 規則（不對稱）**：
+**Sync 規則（對稱）**：
 
 | 觸發 | 結果 |
 |---|---|
-| 任務移到 external 泳道 | `shapeType` 強制 = `interaction`（外部角色「不能用任務」）+ 重新編號為 `_e` |
-| 任務移到 internal 泳道 | `shapeType` **保留現狀**（internal 允許 interaction，由 validation 3e 跳 warning） |
-| 角色泳道 internal → external 切換 | 該泳道所有 lane-sensitive 任務 cascade 變 interaction + 重新編號 |
-| 角色泳道 external → internal 切換 | 任務 shape 保留，由 validation 警示使用者檢查 |
-| 載入舊 localStorage 資料 | `storage.migrateInteractionSuffix` 一次性 strip 舊編號讓 computeDisplayLabels 重推 `_e` |
-| TaskCard / ContextMenu「外部互動」轉換 | 一律 honor 使用者選擇，shape 設成 interaction（不依 lane） |
+| 任務移到 external 泳道 | `shapeType` 強制 = `interaction`（外部角色不能用一般任務）+ 重新編號為 `_e` |
+| 任務移到 internal 泳道 | `shapeType` 強制 = `task`（內部角色不能用外部互動）+ 重新編號為一般 L4（會 shift 後續順號） |
+| 角色泳道 internal → external 切換 | 該泳道所有 lane-sensitive 任務 cascade → interaction + 重編 `_e` |
+| 角色泳道 external → internal 切換 | 該泳道所有 lane-sensitive 任務 cascade → task + 重編一般 L4 |
+| 載入舊 localStorage 資料 | **不自動 cascade**，違規元件保留資料原貌 + 在流程圖 / 表格上亮紅色邊框 |
+| TaskCard / ContextMenu「外部互動 ⇄ 任務」手動切換 | 一律 honor 使用者選擇，但若違反 lane 規則則紅框警示 |
 
 **範圍限制**：只有 `type === 'task'` 才會 lane-sensitive。閘道 / 開始 / 結束 / L3 活動可放任何泳道，sync 不動它們。
 
-**Excel 匯入**：parser 偵測 `_e\d*$` 的 L4 編號 → set `shapeType=interaction`，**不強制翻角色 type**（不 cascade）；若該 row 角色為 internal，validation 3e 跳 warning 讓使用者檢查（仍可儲存）。
+**紅框警示（PR-D3）**：違規元件（內部泳道的 interaction、外部泳道的 task）會在流程圖元件外圍套一層紅色 stroke + FlowTable row 也加紅色 outline。**僅介面 warning**，下載 PNG / drawio 都不會帶紅框 — PNG 透過 `data-export-skip="1"` 屬性 + html-to-image `filter` callback 過濾；drawio 由 `drawioExport.js` 自行構造 XML，本來就不渲染紅框 overlay。
+
+**Excel 匯入**：parser 偵測 `_e\d*$` 的 L4 編號 → set `shapeType=interaction`。角色 type 由 PR-D5 智慧偵測（`_e` 多數 → external、混用 → internal + 紅框）。
 
 **流程圖顯示**：`_e*` 編號**不顯示在流程圖任務元件上**（同 `_g*` / `_s*` / `-0` / `-99` 規則）；編輯器 + 表格仍顯示完整 `_e` 編號（含後綴）。
 
-**對應實作**：`src/utils/elementTypes.js`（`applyRoleChange` / `syncTasksToRoles` / `targetShapeFor` 不對稱 sync）、`src/utils/taskDefs.js`（`L4_INTERACTION_PATTERN`）、`src/model/flowSelectors.js`（`computeDisplayLabels` `_e` derivation）、`src/components/DiagramRenderer/TasksLayer.jsx`（hide regex 含 `_e*`）、`src/utils/storage.js`（`migrateInteractionSuffix`）、`src/utils/excelImport.js`（`isInteraction = /_e\d*$/`）、`src/model/validation.js`（rule 3e）。
+**對應實作**：`src/utils/elementTypes.js`（`applyRoleChange` / `syncTasksToRoles` / `targetShapeFor` 對稱 sync）、`src/utils/taskDefs.js`（`L4_INTERACTION_PATTERN`）、`src/model/flowSelectors.js`（`computeDisplayLabels` `_e` derivation + `getLaneShapeViolations`）、`src/components/DiagramRenderer/{TasksLayer,shapes,index}.jsx`（hide regex 含 `_e*` + 紅框 overlay + PNG export filter）、`src/components/FlowTable.jsx`（row 紅框）、`src/utils/storage.js`（`migrateInteractionSuffix`，不再 cascade load-time）、`src/utils/excelImport.js`（`isInteraction = /_e\d*$/`）、`src/model/validation.js`（rule 3e 對稱化）。
 
 **對應實作**：`src/diagram/`（`constants` 顏色 / 尺寸）、`src/components/DiagramRenderer/`（`shapes` 5 種元件繪製）、`src/components/`（`HelpPanel` ELEMENTS array）
 

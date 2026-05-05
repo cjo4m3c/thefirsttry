@@ -46,7 +46,7 @@ export function EndShape({ pos, l4Number, task, isHovered }) {
   );
 }
 
-export function TaskShape({ task, pos, l4Number, isHovered }) {
+export function TaskShape({ task, pos, l4Number, isHovered, isViolation }) {
   const { cx, cy } = pos;
   const x = cx - NODE_W / 2;
   const y = cy - NODE_H / 2;
@@ -60,6 +60,13 @@ export function TaskShape({ task, pos, l4Number, isHovered }) {
       <rect x={x} y={y} width={NODE_W} height={NODE_H}
         fill={fill} stroke={stroke} strokeWidth={strokeW} rx={3} />
       <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={7} lineH={24} />
+      {/* Lane / shape violation marker — UI only, excluded from export
+          via data-export-skip filter passed to html-to-image toPng(). */}
+      {isViolation && (
+        <rect data-export-skip="1"
+          x={x - 1.5} y={y - 1.5} width={NODE_W + 3} height={NODE_H + 3}
+          fill="none" stroke="#EF4444" strokeWidth={2.5} rx={4} pointerEvents="none" />
+      )}
     </>
   );
 }

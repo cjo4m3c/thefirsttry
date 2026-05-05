@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 're
 import { toPng } from 'html-to-image';
 import { computeLayout, routeArrow } from '../../diagram/layout.js';
 import { detectOverrideViolations } from '../../diagram/violations.js';
+import { getLaneShapeViolations } from '../../model/flowSelectors.js';
 import { LAYOUT, COLORS } from '../../diagram/constants.js';
 import { exportDrawio } from '../../utils/drawioExport.js';
 import { exportFlowToExcel } from '../../utils/excelExport.js';
@@ -15,6 +16,14 @@ import {
 import { useDragEndpoint } from './useDragEndpoint.js';
 
 const { LANE_HEADER_W, TITLE_H } = LAYOUT;
+
+// PR-D3: html-to-image filter — drop nodes flagged with `data-export-skip="1"`
+// so UI-only overlays (lane / element-shape violation red borders, future
+// hover affordances) don't appear in PNG output. Applies to both manual and
+// auto-export paths.
+function pngExportFilter(node) {
+  return !(node?.dataset && node.dataset.exportSkip === '1');
+}
 
 // Geometric midpoint of a polyline by cumulative segment length. Returns
 // {x, y} on the actual line at exactly half its total length — what the
@@ -78,7 +87,7 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   useEffect(() => {
     if (!autoExportPng || !exportRef.current) return;
     resetStickyForExport();
-    toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' })
+    toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', filter: pngExportFilter })
       .then(dataUrl => {
         const a = document.createElement('a');
         a.download = `${flow.l3Number}-${flow.l3Name}-${todayYmd()}.png`;
@@ -139,6 +148,10 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   //   - IN+OUT mix on same port  (rule 1, blocking at save time)
   //   - line crosses other task  (rule 2, warning at save time)
   const { violatingConnIdx } = detectOverrideViolations(flow);
+  // PR-D3: lane / element-shape mismatches (internal lane + interaction,
+  // external lane + task). Surfaced as a red overlay rect on the offending
+  // shape — display only, excluded from PNG / drawio export.
+  const laneShapeViolationIds = getLaneShapeViolations(flow.tasks, flow.roles);
 
   // Drag-endpoint state machine (extracted hook). Owns dragInfo + handlers.
   const { dragInfo, setDragInfo, startDrag, moveDrag, endDrag } = useDragEndpoint({
@@ -215,7 +228,7 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
     const prevZoom = exportRef.current.style.zoom;
     exportRef.current.style.zoom = 1;
     try {
-      const dataUrl = await toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
+      const dataUrl = await toPng(exportRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', filter: pngExportFilter });
       const a = document.createElement('a');
       a.download = `${flow.l3Number}-${flow.l3Name}-${todayYmd()}.png`;
       a.href = dataUrl;
@@ -315,6 +328,7 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
           <TasksLayer tasks={flow.tasks} positions={positions} l4Numbers={l4Numbers}
             hoveredId={hoveredId} hoveredConnEndpoints={hoveredConnEndpoints}
             highlightedTaskId={highlightedTaskId}
+            violationIds={laneShapeViolationIds}
             setHoveredId={setHoveredId} setTooltip={setTooltip}
             onTaskClick={onTaskClick} />
 

@@ -11,7 +11,7 @@ import {
  * (onTaskClick) are passed in so this layer remains a pure render.
  */
 export function TasksLayer({ tasks, positions, l4Numbers, hoveredId, hoveredConnEndpoints,
-  highlightedTaskId, setHoveredId, setTooltip, onTaskClick }) {
+  highlightedTaskId, violationIds, setHoveredId, setTooltip, onTaskClick }) {
   return tasks.map(task => {
     const pos = positions[task.id];
     if (!pos) return null;
@@ -27,7 +27,8 @@ export function TasksLayer({ tasks, positions, l4Numbers, hoveredId, hoveredConn
     const isHovered = hoveredId === task.id
       || (hoveredConnEndpoints?.has(task.id) ?? false)
       || highlightedTaskId === task.id;
-    const props = { pos, l4Number: num, task, isHovered };
+    const isViolation = violationIds?.has(task.id) ?? false;
+    const props = { pos, l4Number: num, task, isHovered, isViolation };
     let shape;
     if (task.type === 'start')           shape = <StartShape {...props} />;
     else if (task.type === 'end')        shape = <EndShape {...props} />;
