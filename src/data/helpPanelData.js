@@ -307,7 +307,7 @@ export const VALIDATION = [
     detail: [
       '外部角色泳道只能放外部互動；內部角色泳道只能放 L4 任務',
       '違規元件在流程圖上亮紅色邊框（介面 warning，下載 PNG / drawio 不會帶紅框）',
-      '表格對應的 row 也亮紅色邊框（同一份 SOT）',
+      '表格對應 row 的 L4 編號 cell 文字變成紅色加粗（同一份 SOT）',
       '儲存時跳 warning 讓使用者確認（仍可儲存）',
       '切換角色類型 internal ↔ external 時自動 cascade 轉換 shape + 編號（`_e` ↔ 一般 L4）',
       '其他元件（開始 / 結束 / 閘道 / L3 活動）不受泳道限制',

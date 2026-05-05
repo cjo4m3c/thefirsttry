@@ -97,14 +97,19 @@ function EditCell({ value, onChange, placeholder = '', wide = false, sticky = nu
   );
 }
 
-function ReadCell({ value, muted = false, wide = false, sticky = null }) {
+function ReadCell({ value, muted = false, wide = false, sticky = null, danger = false, title = undefined }) {
   const widthCls = sticky ? '' : (wide ? 'min-w-[260px]' : 'min-w-[140px]');
   const bg = muted ? 'bg-gray-50' : 'bg-gray-50';
-  const text = muted ? 'text-gray-400' : 'text-gray-700';
+  // PR-D6 (rule 6): violation cells colour the L4 number text red instead of
+  // outlining the row — only the diagram keeps the red border.
+  const text = danger ? 'text-red-600 font-semibold'
+    : muted ? 'text-gray-400'
+    : 'text-gray-700';
   return (
     <td
       className={`border border-gray-200 px-2 py-1.5 text-base whitespace-pre-wrap align-top ${bg} ${text} ${widthCls}`}
       style={cellStickyStyle(sticky)}
+      title={title}
     >
       {value}
     </td>
@@ -282,12 +287,12 @@ export default function FlowTable({ flow, onUpdateTask }) {
               const annotation = generateFlowAnnotation(task, tasks, l4Map);
               const isViolation = violationIds.has(task.id);
               return (
-                <tr key={task.id}
-                  className={`hover:bg-blue-50 transition-colors ${isViolation ? 'outline outline-2 -outline-offset-2 outline-red-500' : ''}`}
-                  title={isViolation ? '泳道角色類型與元件形狀不符（外部泳道應為外部互動，內部泳道應為 L4 任務）' : undefined}>
+                <tr key={task.id} className="hover:bg-blue-50 transition-colors">
                   {showL3 && <ReadCell value={flow.l3Number} muted sticky={stickyMap[0]} />}
                   {showL3 && <ReadCell value={flow.l3Name} muted sticky={stickyMap[1]} />}
-                  <ReadCell value={l4Map[task.id] || ''} sticky={stickyMap[2]} />
+                  <ReadCell value={l4Map[task.id] || ''} sticky={stickyMap[2]}
+                    danger={isViolation}
+                    title={isViolation ? '泳道角色類型與元件形狀不符（外部泳道應為外部互動，內部泳道應為 L4 任務）' : undefined} />
                   <EditCell wide
                     value={task.name || ''}
                     onChange={v => updateField(task.id, 'name', v)}

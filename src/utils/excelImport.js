@@ -132,12 +132,19 @@ function buildFlow(rows, auxColMap = {}) {
     else if (isSubprocess)  taskType = 'l3activity';  // 調用子流程 → render as bookend rectangle
     else                    taskType = 'task';
 
+    // PR-D6: always set shapeType explicitly for type='task' rows so
+    // detectRoleTypes (and getLaneShapeViolations) can count them — leaving
+    // shapeType undefined caused regular tasks to be skipped, which made
+    // mixed-role detection wrongly mark internal+_e roles as external.
+    const taskShapeType = taskType === 'task'
+      ? (isInteraction ? 'interaction' : 'task')
+      : undefined;
     const task = {
       id: generateId(),
       name: l4Name || l4Num,
       type: taskType,
       roleId,
-      ...(isInteraction && taskType === 'task' ? { shapeType: 'interaction' } : {}),
+      ...(taskShapeType ? { shapeType: taskShapeType } : {}),
       ...(taskType === 'gateway'
         ? { gatewayType: gType, conditions: [] }
         : { nextTaskIds: [] }),
