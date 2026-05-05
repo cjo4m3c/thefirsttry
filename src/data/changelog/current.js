@@ -5,6 +5,19 @@
  */
 export default [
   {
+    date: '2026-05-05',
+    title: 'HelpPanel 編號規則改列點呈現 + 用 logo 做 favicon',
+    items: [
+      '**緣由 1**：使用者：「我希望首頁右上角點開的規則說明中，編號邏輯這個區塊，不要用程式語言有「`」這樣的符號，請改為列點說明」。原本「編號規則 Numbering」表格的「規則」欄塞滿 Markdown 反引號（如 `\\d+-\\d+-\\d+`、`_g`、`_s`、`_w`），對非工程背景的使用者像是雜訊。',
+      '**緣由 2**：使用者：「我希望用現在網頁首頁左上角的 logo 做 Favicon icon」。先前 `index.html` 完全沒設 `<link rel="icon">`，分頁顯示的是瀏覽器預設地球圖示。',
+      '**改法（`src/data/helpPanelData.js` NUMBERING）**：每個 entry 的 `rule` 從單句字串改成 string[]（列點），整體去掉所有反引號，改用全形書名號「」標標識符；`example` 同步改成 string[]，render 時用「、」串接，仍保留 mono 字體呈現範例編號。',
+      '**改法（`src/components/HelpPanel.jsx`）**：編號規則區塊從三欄 `<table>` 換成跟「流程圖元件定義」一致的 card 列表 — 左欄「類型」、右欄上方用 `Content` 元件 render 列點規則、下方一行「範例：」+ mono 範例字串。同步把區塊尾巴提示文字裡殘留的 `_g` 反引號改成純文字。',
+      '**改法（favicon）**：用 Pillow 把 `public/logo.png`（518×467 RGBA）以 alpha bbox 裁緊後 padding 成 427×427 正方形（透明底），降採樣產出 `favicon.ico`（16/32/48 多解析度）/ `favicon-16x16.png` / `favicon-32x32.png` / `apple-touch-icon.png`（180×180），全部放 `public/`（會被 Vite 直接 copy 到 dist）。`index.html` `<head>` 加 4 條 `<link rel="icon">`，路徑用 `%BASE_URL%` 讓 Vite build 時注入 `/FlowSprite/` base，不會在 GitHub Pages 子路徑下 404。',
+      '**驗證**：`npm run build` 通過，bundle size 不變。dist HTML head 確認 favicon link 都解析為 `/FlowSprite/favicon*`。32×32 favicon 仍可辨識美人魚輪廓 + 水彩底色。',
+      '**動到的檔案（8 個）**：`src/data/helpPanelData.js`（NUMBERING 重寫）/ `src/components/HelpPanel.jsx`（render 改 card + bullets）/ `index.html`（4 條 favicon link）/ `public/favicon.ico`（新檔，10KB）/ `public/favicon-16x16.png`（新檔，1KB）/ `public/favicon-32x32.png`（新檔，3KB）/ `public/apple-touch-icon.png`（新檔，66KB）/ `src/data/changelog/current.js`（本條）。業務規則本身沒變，`docs/business-spec.md` 不用動。',
+    ],
+  },
+  {
     date: '2026-05-04',
     title: 'Routing 大討論交接文件 + cleanup unused alias (PR #152)',
     items: [
