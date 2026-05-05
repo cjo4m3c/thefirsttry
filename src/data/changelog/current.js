@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-05',
+    title: '輔助欄位 PR-A：AUX_FIELDS schema + task.meta migration（infra-only）',
+    items: [
+      '**緣由**：使用者規劃在 FlowTable 加 20 個輔助欄位（任務描述用），需求是預設隱藏、可自由編輯、完全不影響流程圖 / 編號 / 連線解析。為了讓後續的 Excel I/O（PR-B）與 UI toggle（PR-C）可以乾淨落地，先做純基建：定 schema + 補 task.meta migration + 確認流程邏輯與輔助欄位徹底隔離。本 PR 不動 UI、不動匯入匯出、使用者看不到任何變化。',
+      '**新檔 `src/utils/auxFieldDefs.js`**：定 `AUX_FIELDS` 常數，欄序對應 Excel K~AD 視覺排版 — 4 欄主體系統實體 + 〔分組空白×2〕+ 5 欄單一性判定 + 〔分組空白〕+ 5 欄動詞名詞字典檢核 + 〔分組空白〕+ 2 欄額外標記，共 16 個有 key 的欄位 + 4 個 `{ separator: true }` 視覺空白。實際欄名：執行主體 / 操作系統 / 涉及的業務實體 / 操作後業務實體生命週期 / (1-實體)(2-分配) / 單一角色執行 / 連續執行不中斷 / 對應單一業務產出 / 目的具體完整 IPO / 動詞_中文 / 名詞_中文 / 檢核動詞_中文 / 檢核名詞_中文 / 是否完成字典檢核 / Key 傳遞斷點處 / 找 SO 釐清。同檔 export `AUX_FIELD_DEFS`（過濾 separator）/ `AUX_FIELD_KEYS` / `ensureMeta(task)` helper。',
+      '**`src/utils/storage.js` 加 `migrateTaskMeta`**：跟現有 `migrateGatewaySuffix` / `migrateInteractionSuffix` 等同套路，跑在 loadFlows migrate chain 裡（`migrateMergeConnectionType` 之後、`cleanStaleOverrides` 之前）。對沒 `meta` 或 meta 是 null/array 的 task 補 `meta: {}`。idempotent — 已正常的不重做。',
+      '**隔離驗證**（grep audit）：`parseConnection(flowText)` 只吃 col 8 字串、`validateNumbering` 只讀 col 0/2/8、`computeDisplayLabels` 只看 task.l4Number / type / shapeType — 全部不接觸 `task.meta`。整個 src/ 只有新檔 + storage migration 出現 `task.meta` 字樣，符合「meta 對流程邏輯不可見」的設計目標。',
+      '**下一步**：PR-B 會把 Excel import/export 擴成 30 欄（核心 10 維持位置硬編、輔助 20 走 header mapping），PR-C 會在 FlowTable 加「⊕ 顯示輔助欄位」toggle 與向右展開的 cell 編輯 UI。`AUX_FIELDS` 的 placeholder header 可在那兩個 PR 落地後或之前任意時間替換成實際業務欄名。',
+      '**動到的檔案（3 個）**：`src/utils/auxFieldDefs.js`（新檔，1.6KB）/ `src/utils/storage.js`（import + migrate function + chain hook，3 處）/ `src/data/changelog/current.js`（本條）。`npm run build` 通過，bundle size 不變。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'HelpPanel 編號規則改列點呈現 + 用 logo 做 favicon',
     items: [
       '**緣由 1**：使用者：「我希望首頁右上角點開的規則說明中，編號邏輯這個區塊，不要用程式語言有「`」這樣的符號，請改為列點說明」。原本「編號規則 Numbering」表格的「規則」欄塞滿 Markdown 反引號（如 `\\d+-\\d+-\\d+`、`_g`、`_s`、`_w`），對非工程背景的使用者像是雜訊。',
