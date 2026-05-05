@@ -344,32 +344,46 @@ FlowEditor 儲存前跑 `validateFlow` 兩層檢核。
 |---|---|---|---|
 | PNG | `.png` | 圖片檢視器 / Word / PowerPoint | 高解析度圖片，不可再編輯節點。從流程編輯頁上方按鈕匯出，或首頁卡片「↓ PNG」 |
 | Draw.io | `.drawio` | diagrams.net / VS Code Draw.io 擴充 | 可重新編輯節點、調整版面，mxGraph XML 格式。從流程編輯頁上方按鈕匯出，或首頁卡片「↓ draw.io」 |
-| Excel | `.xlsx` | Excel / LibreOffice / Google Sheets | L4 任務明細共 30 欄：核心 10 欄（A~J）+ 輔助 20 欄（K~AD，§10.1） |
+| Excel | `.xlsx` | Excel / LibreOffice / Google Sheets | L4 任務明細共 31 欄：核心 10 欄（A~J）+ 輔助 21 欄（K~AE，§10.1） |
 
-### 10.1 Excel 30 欄結構（2026-05-05 起）
+### 10.1 Excel 31 欄結構（2026-05-05 起，PR-AUX-RELABEL 後）
 
 **核心 10 欄（A~J，位置硬編、流程圖辨識用）**：L3 編號 / L3 名稱 / L4 編號 / 任務名稱 / 重點說明 / 重要輸入 / 負責角色 / 產出成品 / 關聯說明 / 參考資料
 
-**輔助 20 欄（K~AD，header mapping、不影響流程圖）**：
+**輔助 21 欄（K~AE，header mapping、不影響流程圖）**：
 
 | Excel 欄 | # | header | 用途 |
 |---|---|---|---|
-| K~N | 1-4 | 執行主體 / 操作系統 / 涉及的業務實體 / 操作後業務實體生命週期 | 主體 / 系統 / 實體 |
-| O~P | 5-6 | 〔空白分組欄〕 | 視覺分隔 |
-| Q~U | 7-11 | (1-實體)(2-分配) / 單一角色執行 / 連續執行不中斷 / 對應單一業務產出 / 目的具體完整 IPO | 單一性 / 完整性判定 |
-| V | 12 | 〔空白分組欄〕 | 視覺分隔 |
-| W~AA | 13-17 | 動詞_中文 / 名詞_中文 / 檢核動詞_中文 / 檢核名詞_中文 / 是否完成字典檢核 | 動詞名詞字典檢核 |
-| AB | 18 | 〔空白分組欄〕 | 視覺分隔 |
-| AC~AD | 19-20 | Key 傳遞斷點處 / 找 SO 釐清 | 額外標記 |
+| K | 1 | 執行主體 | 主體 |
+| L | 2 | 操作系統 | 系統 |
+| M | 3 | 涉及的業務實體 | 實體 |
+| N | 4 | 操作後業務實體生命週期 | 生命週期 |
+| O | 5 | 備註 | 自由說明 |
+| P | 6 | 牽涉實體或分配（1-實體、2-分配） | 分類碼 |
+| Q | 7 | 單一角色執行 | 單一性判定 |
+| R | 8 | 連續執行不中斷 | 同上 |
+| S | 9 | 對應單一業務產出 | 同上 |
+| T | 10 | 目的具體完整 IPO | 完整性判定 |
+| U | 11 | 動詞_中文 | 字典檢核 |
+| V | 12 | 名詞_中文 | 字典檢核 |
+| W | 13 | 檢核動詞_中文 | 字典檢核 |
+| X | 14 | 檢核名詞_中文 | 字典檢核 |
+| Y | 15 | 是否完成字典檢核 | 字典檢核 |
+| Z | 16 | Key 傳遞斷點處 | 額外標記 |
+| AA | 17 | 找 SO 釐清 | SO 互動 |
+| AB | 18 | SO 釐清狀況 | SO 互動 |
+| AC | 19 | 找 User 釐清 | User 互動 |
+| AD | 20 | 合併場次 | User 互動 |
+| AE | 21 | User 釐清狀況 | User 互動 |
 
 **辨識規則**：
 - 核心 10 欄走位置硬編（`COL_*` 常數），使用者調序會錯讀 → 不允許動
-- 輔助 20 欄走 header mapping（讀 row 0 找各 `header` 字串位置），使用者可調序 / 缺欄 / 拼錯，匯入時 graceful（找不到 header → `task.meta[key]` 不存）
-- 4 個視覺分組欄（O / P / V / AB）匯出空字串、匯入略過
+- 輔助 21 欄走 header mapping（讀 row 0 找各 `header` 字串位置），使用者可調序 / 缺欄 / 拼錯，匯入時 graceful（找不到 header → `task.meta[key]` 不存）
+- 不再有視覺分組空白欄（PR-AUX-RELABEL 前有 4 個 separator，現在 21 欄連續）
 
 **檢核**：輔助欄位**完全不做任何檢核**，沒有必填、沒有格式驗證；自由文字儲存。
 
-**UI**：FlowTable 預設只顯示核心 10 欄；點「⊕ 顯示輔助欄位」按鈕後在右側展開 20 欄編輯（separator 顯示為窄分隔欄）。toggle 狀態跨 session 記得（localStorage `bpm_flow_table_show_aux`）。Excel 匯出**不受 UI toggle 影響**，永遠包含 30 欄。
+**UI**：FlowTable 預設只顯示核心 10 欄（隱藏 L3 + 隱藏輔助欄位）；點「隱藏輔助欄位」toggle 解除後在右側展開 21 欄編輯。toggle 狀態跨 session 記得（localStorage `bpm_flow_table_show_aux`）。Excel 匯出**不受 UI toggle 影響**，永遠包含 31 欄。
 
 **對應實作**：`src/utils/auxFieldDefs.js`（`AUX_FIELDS` SOT）/ `src/utils/excelExport.js`（CORE_HEADERS + AUX_HEADERS）/ `src/utils/excelImport.js`（`buildAuxColMap` / `readAuxMeta`）/ `src/components/FlowTable.jsx`（aux toggle + 渲染）/ `src/utils/storage.js`（`migrateTaskMeta`）
 

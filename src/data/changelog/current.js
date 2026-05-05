@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-05',
+    title: '輔助欄位 schema 改版：新增 5 欄 / 改寫 1 個 header / 移除 4 個 separator + FlowTable toolbar 三鍵改版',
+    items: [
+      '**緣由**：使用者要求調整輔助欄位資訊（保留辨識規則）— 新增 5 個欄位（備註 / SO 釐清狀況 / 找 User 釐清 / 合併場次 / User 釐清狀況）、改寫一個 header（「(1-實體)(2-分配)」→「牽涉實體或分配（1-實體、2-分配）」）、移除原本 4 個視覺 separator 改為 21 欄連續排列。同時要求 FlowTable toolbar 三鍵改順序、改純文字標籤、確認預設值。',
+      '**Schema（`utils/auxFieldDefs.js`）**：AUX_FIELDS 從「16 keyed + 4 separator = 20 欄」變「21 keyed = 21 欄」。新欄位 keys：`note` / `soClarifyStatus` / `userClarify` / `mergedSession` / `userClarifyStatus`。既有 keys（executor / system / entityAllocType 等 16 個）保留 — 既有 localStorage 資料 task.meta 不需要 migrate。Excel 範圍從 K~AD 變 K~AE。',
+      '**Excel 匯入相容**：buildAuxColMap 走 header mapping，舊 Excel 用「(1-實體)(2-分配)」header 不再被認得（找不到該 header → entityAllocType 欄位空白），但**不會擋下匯入**（容錯設計）。使用者拿舊 Excel 可手動更新 header 文字後重匯入，或直接在 FlowTable 重填。',
+      '**FlowTable toolbar 改版**：三顆按鈕由左至右順序「適應內容高度 / 隱藏輔助欄位 / 隱藏L3欄位」。純文字標籤（移除 ⊕ ⊖ ⇕ ▲ ▼ icon）。Active 狀態深藍底白字、Inactive 白底藍邊。預設：適應內容高度 OFF、隱藏輔助欄位 ON、隱藏L3欄位 ON（首次造訪兩鍵 active、一鍵 inactive，後續使用者偏好持續化）。',
+      '**文件三件組同步**：(a) `docs/business-spec.md §10`：30 欄 → 31 欄；§10.1 詳細表從「分組四段（K~N / O-P / Q~U / V / W~AA / AB / AC~AD）」改為連續 21 欄表（K~AE 每欄一條） (b) `src/data/helpPanelData.js`：EDITABLE_ACTIONS toggle 條目重寫對應新標籤 + 預設值；EXPORTS Excel 條目從 30→31 欄 (c) `src/utils/excelExport.js` 註解 K~AD → K~AE。',
+      '**驗證**：`npm run build` 通過，bundle size +400 bytes（新增 5 個 header 字串）。功能驗證點：(a) 新匯入 Excel 含 21 個 header 全部對到 task.meta (b) 舊 Excel 帶 20 欄 → 19 欄正確匯入、entityAllocType 因 header 變動空白（容錯不報錯） (c) FlowTable 三鍵 toggle / active 樣式 / 預設值正確 (d) Excel 匯出 31 欄 + AB~AE 新欄位內容正確。',
+      '**動到的檔案（5 個）**：`src/utils/auxFieldDefs.js`（rewrite AUX_FIELDS）/ `src/components/FlowTable.jsx`（toolbar 三鍵改版）/ `docs/business-spec.md` §10（30→31 欄、表格重寫）/ `src/data/helpPanelData.js`（EDITABLE_ACTIONS + EXPORTS 同步）/ `src/utils/excelExport.js`（doc comment K~AD→K~AE）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D12：Excel 匯入警示加 Excel 列號 + 重生 stored flowAnnotation + FlowEditor 流程上方 banner + 持續化',
     items: [
       '**緣由**：使用者回報 (a) 匯入訊息「`[排他閘道]判斷客戶確認結果」5-1-2-7_g → 5-1-2-6_g`」只有元件名跟編號、沒列號，800 行 Excel 找不到要修哪一列 (b) 想確保 normalize 後 stored data 完全一致（task.flowAnnotation 不殘留 Excel 原始字串） (c) 想要使用者點進流程圖時頂部也能看到匯入時的提醒、可主動 dismiss。',
