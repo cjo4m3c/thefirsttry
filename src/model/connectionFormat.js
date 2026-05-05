@@ -227,8 +227,10 @@ export function formatConnection(task, tasks, l4Map) {
 // ────────────────────────────────────────────────────────────────────────────
 
 // Number-fragment matcher: digits/dots/dashes, optional `_g` / `_s` suffix
-// (single or with consecutive index — `_g`, `_g1`, `_g2`, `_s`, `_s1`, `_s2`…)
-const NUM = '([\\d.-]+(?:_g\\d*|_s\\d*)?)';
+// (single or with consecutive index — `_g`, `_g1`, `_g2`, `_s`, `_s1`, `_s2`,
+// `_e`, `_e1`, `_e2`…). PR-D7: `_e` added so flow text references to external-
+// interaction tasks survive parse-side regex without being truncated to base.
+const NUM = '([\\d.-]+(?:_g\\d*|_s\\d*|_e\\d*)?)';
 
 const RE_SEQUENCE       = new RegExp(`${PHRASE.SEQUENCE_FLOW}\\s*${NUM}`, 'g');
 const RE_RETURN         = new RegExp(`${PHRASE.RETURN_FLOW}\\s*${NUM}`, 'g');
@@ -245,9 +247,9 @@ const RE_OR_MERGE       = new RegExp(`${PHRASE.OR_MERGE_PFX}(?:來自)?[^，,\\n
 const RE_SUBPROCESS     = new RegExp(`${PHRASE.SUBPROCESS_CALL}\\s*(\\d+-\\d+-\\d+)`);
 // 迴圈返回，序列流向 X / 迴圈返回至 X / 迴圈返回：X / 迴圈返回 X
 const RE_LOOP_BACK      = new RegExp(`${PHRASE.LOOP_RETURN}(?:[，,]\\s*${PHRASE.SEQUENCE_FLOW}|至|：|:)?[\\s\\u3000]*${NUM}`, 'g');
-const RE_LOOP_LEGACY    = /若未通過則返回\s*([\d.-]+(?:_g\d*|_s\d*)?)[^若]*若通過則序列流向\s*([\d.-]+(?:_g\d*|_s\d*)?)/;
+const RE_LOOP_LEGACY    = /若未通過則返回\s*([\d.-]+(?:_g\d*|_s\d*|_e\d*)?)[^若]*若通過則序列流向\s*([\d.-]+(?:_g\d*|_s\d*|_e\d*)?)/;
 
-const NUM_HEAD = /^([\d.-]+(?:_g\d*|_s\d*)?)/;
+const NUM_HEAD = /^([\d.-]+(?:_g\d*|_s\d*|_e\d*)?)/;
 const LABEL_PAREN = /[（(]([^）)]+)[）)]/;
 
 function splitForkEntries(section) {
