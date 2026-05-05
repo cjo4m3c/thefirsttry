@@ -133,7 +133,7 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 
 **範圍限制**：只有 `type === 'task'` 才會 lane-sensitive。閘道 / 開始 / 結束 / L3 活動可放任何泳道，sync 不動它們。
 
-**紅框警示（PR-D3）**：違規元件（內部泳道的 interaction、外部泳道的 task）會在流程圖元件外圍套一層紅色 stroke + FlowTable row 也加紅色 outline。**僅介面 warning**，下載 PNG / drawio 都不會帶紅框 — PNG 透過 `data-export-skip="1"` 屬性 + html-to-image `filter` callback 過濾；drawio 由 `drawioExport.js` 自行構造 XML，本來就不渲染紅框 overlay。
+**紅框警示**：違規元件（內部泳道的 interaction、外部泳道的 task）會在流程圖元件外圍套一層紅色 stroke（PR-D3）；FlowTable 對應 row 的 L4 編號 cell 文字變成紅色加粗（PR-D6 改，原本是 row outline）。**僅介面 warning**，下載 PNG / drawio 都不會帶紅框 — PNG 透過 `data-export-skip="1"` 屬性 + html-to-image `filter` callback 過濾；drawio 由 `drawioExport.js` 自行構造 XML，本來就不渲染紅框 overlay。
 
 **Excel 匯入**：parser 偵測 `_e\d*$` 的 L4 編號 → set `shapeType=interaction`。角色 type 由 `excelImport.detectRoleTypes` 智慧偵測：
 

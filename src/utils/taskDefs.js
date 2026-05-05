@@ -167,7 +167,12 @@ export function applyEventPrefix(name, kind) {
 export function normalizeTask(task) {
   if (task.connectionType) return migrateLoopReturn(task);
   let connectionType = 'sequence';
-  let shapeType = 'task';
+  // PR-D6: preserve existing shapeType so Excel-imported `_e` rows
+  // (type='task' shapeType='interaction') don't get reset to 'task'
+  // when the editor opens. Pre-PR #111 legacy `type='interaction'` data
+  // still gets fixed by the explicit `task.type === 'interaction'` branch
+  // below (overrides preserved value).
+  let shapeType = task.shapeType || 'task';
   if (task.type === 'start') { connectionType = 'start'; }
   else if (task.type === 'end') { connectionType = 'end'; }
   else if (task.type === 'interaction') { connectionType = 'sequence'; shapeType = 'interaction'; }

@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'PR-D6：修 Excel 匯入 `_e` shapeType 被洗掉的串連 bug + FlowTable 紅框改紅字',
+    items: [
+      '**緣由**：使用者回報「匯入 _e 後綴編號的會被認為是 L4 任務並畫紅框」+「同角色同時有任務和 _e，被認為是外部角色了」。Trace 後發現是兩個 bug 串連觸發，加上規則 6「表格紅框移除、改成 L4 編號變紅色」。',
+      '**Bug 1（核心）**：`utils/taskDefs.js normalizeTask` 第 170 行 `let shapeType = "task"` — 永遠 default 重設，line 173 只認舊 model 的 `task.type === "interaction"`，不認新 model 的 `task.shapeType === "interaction"`。Excel 進來的 `_e` row 是 `type="task" shapeType="interaction"`（PR #111 後新模型），FlowEditor 開啟時 `normalizeTask` 跑過 → shapeType 從 `interaction` 被重設成 `task`。**修法**：line 170 改 `let shapeType = task.shapeType || "task"`（preserve existing），下方 type-specific 分支仍可覆寫（legacy `type="interaction"` migration 還是過得去）。',
+      '**Bug 2（連動）**：`excelImport.buildFlow` line 140 `...(isInteraction && taskType === "task" ? { shapeType: "interaction" } : {})` — 一般 task 沒設 shapeType key（undefined）。`detectRoleTypes` line 276 `if (t.shapeType !== "task" && t.shapeType !== "interaction") return;` 跳過 undefined → 一般 task 全部不算數，混用角色被誤判為「全 interaction」→ 推為 external。**修法**：buildFlow 對所有 `taskType === "task"` 顯式設 `shapeType`（task 或 interaction），不留 undefined。',
+      '**串連劇本**：(1) detectRoleTypes 漏掉一般 task → 角色推為 external (2) applyExternalPrefixToRoles 補 `[外部角色]` 前綴 (3) FlowEditor 開啟 → normalizeTask 把 `_e` row shapeType 從 interaction 洗成 task (4) external lane + shapeType=task → getLaneShapeViolations 命中 → 紅框出現在原本的 `_e` row 上。Bug 1 修完 (3) 不再發生；Bug 2 修完 (1) 不再發生。兩個都得修，獨立修任一個都會留另一個 bug。',
+      '**規則 6（FlowTable 紅框 → 紅字）**：使用者要求「表格的紅框移除，改成 L4 任務編號那欄的編號變成紅色即可」。`FlowTable.jsx ReadCell` 加 `danger` prop（紅 + bold），`tasks.map` 的 `<tr>` 拿掉 `outline outline-red-500`，改在 L4 編號 ReadCell 傳 `danger={isViolation}` + `title=...`。流程圖紅框（PR-D3）保持不變。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) Excel 匯入「全 _e」角色 → 推 external + 補前綴（PR-D5 行為，Bug 2 修完才正確） (b) Excel 匯入「混用 task + _e」角色 → 推 internal、_e row 流程圖紅框 + 表格 L4 編號紅字 (c) 進編輯器 _e row shapeType 維持 interaction（不被 normalizeTask 洗掉） (d) 規則 1「`_e` 必為外部互動」end-to-end 守住。',
+      '**動到的檔案（5 個）**：`src/utils/taskDefs.js`（normalizeTask preserve shapeType）/ `src/utils/excelImport.js`（buildFlow 顯式 shapeType）/ `src/components/FlowTable.jsx`（ReadCell danger prop）/ `docs/business-spec.md` §3.1（紅框 → 紅字描述）/ `src/data/helpPanelData.js`（VALIDATION 同步）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'PR-D5：Excel 匯入智慧推導角色類型（純看 row 分布、不讀「角色類型」欄）',
     items: [
       '**緣由**：使用者規則 7 + 8 + E&G — Excel 匯入時依該角色 row 的元件分布自動判斷 internal / external，不依賴 Excel 任何「角色類型」欄位。完成「外部互動 / 外部角色重構」最後一支 PR。',
