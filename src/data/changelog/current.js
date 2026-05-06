@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-06',
+    title: '拆 Dashboard.jsx（27KB）→ 1 shim + 1 orchestrator + 5 子檔（皆 <13KB）',
+    items: [
+      '**緣由**：使用者「希望每次改動不會遇到檔案太大的 timeout 問題」。`Dashboard.jsx` 27KB 排第二大 source 檔，超過 20KB 硬上限。混合了 state（11 個 useState + 1 個 useEffect + sortFlows useMemo）/ banner（3 種 import banner 全 inline）/ bulk toolbar（含格式 checkbox + delete + download）/ flow card（80 行 grid item JSX）/ duplicate-L3 modal（50 行 confirm modal）等多個 concern。',
+      '**拆檔結構（`src/components/Dashboard/`）**：(1) `sortFlows.js`（2.8KB）— `SORT_OPTIONS` 常數 + `sortFlows` + `fmtDateTime` 純 helper (2) `Banners.jsx`（3.1KB）— `ImportErrorBanner` / `ImportSuccessBanner` / `ImportWarningsBanner`（3 個獨立 banner，最後者含 expand / collapse / clipboard copy 邏輯）(3) `BulkToolbar.jsx`（3.4KB）— `BulkToolbar`（含 select-all / format-checkbox / delete / download）+ `PngProgressBanner`（PNG queue 進度條）(4) `FlowCard.jsx`（4.9KB）— 單張 grid 卡片，含 pinned star / role chips / 5 個 action button (5) `DuplicateImportModal.jsx`（3.1KB）— L3 重複 modal（取消 / 都保留 / 覆蓋 三選一）(6) `index.jsx`（12.4KB）— 主 component，state hub + handler + page layout，組裝上面 5 個 sub-component。',
+      '**Shim 保留（`src/components/Dashboard.jsx` 0.3KB）**：`export { default } from \'./Dashboard/index.jsx\';` — 唯一 importer `App.jsx` 路徑不變。',
+      '**捎帶清掉一處 SOT 違規**：`FlowCard.jsx` 卡片 role chip 顏色從拆檔前 hardcoded `#009900` / `#0066CC` 換成 `COLORS.EXTERNAL_BG` / `INTERNAL_BG` import — 跟前一個 PR-B 同一動。原本 PR-B 已改 Dashboard.jsx line 432，這次拆檔搬到 FlowCard 維持改法。',
+      '**沒動的 logic**：純 mechanical refactor。所有 banner / toolbar / modal / card 行為跟拆檔前一致（dialog 文字、按鈕順序、disabled 條件、PNG queue 串行邏輯、bulk download 450ms 間隔等全部 1:1 移過去）。state 全留在 `index.jsx`，sub-components 透過 props 接 callback / 衍生狀態（`pngQueueActive` / `selectedCount` 等）。',
+      '**驗證**：`npm run build` 通過，bundle size 不變。每個子檔皆 < 13KB，遠在 15KB 軟上限內。',
+      '**動到的檔案（8 個）**：`src/components/Dashboard.jsx`（27KB → 0.3KB shim）/ 新增 6 個子檔在 `src/components/Dashboard/`（sortFlows / Banners / BulkToolbar / FlowCard / DuplicateImportModal / index）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: '拆 excelImport.js（33KB）→ 1 shim + 6 子檔（皆 <11KB），降低未來 timeout 風險',
     items: [
       '**緣由**：使用者「希望每次改動不會遇到檔案太大的 timeout 問題」。`excelImport.js` 33KB 是 codebase 最大的 source 檔，遠超 15KB 軟上限 / 20KB 硬上限。動到 Excel 匯入邏輯時 Read / Edit 工具吃 context、改完 PR 推不上去。本 PR 走 shim+子目錄 pattern 拆檔，外部 import 路徑不變。',
