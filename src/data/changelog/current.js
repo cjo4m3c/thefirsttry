@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-05',
+    title: 'TaskCard 任務名稱 ↔ 元件類型欄位交換：name 拿 Row 2 雙欄寬編輯空間',
+    items: [
+      '**緣由**：使用者：「把任務名稱欄位跟任務元件欄位交換，這樣使用者才有比較大空間可以編輯任務名稱」。原 layout：Row 1 col 4 是 name input（單欄寬）/ Row 2 col 3+4 跨欄 span 是 element-type select。任務名稱常常很長（含閘道前綴或長描述），擠在單欄不夠。',
+      '**改法**：把兩個欄位位置交換。Row 1 col 4 改放 element-type select（select 自帶 dropdown，內容可 truncate）。Row 2 改放 name input + 跨 col 3+4 雙欄寬。Row 2 label 從「元件類型」改成「任務名稱」。',
+      '**新 layout**：',
+      '  • Row 1：reorder | col2 chip+num | role select | **element-type select** | ▼ ✕',
+      '  • Row 2：spacer | spacer | **任務名稱 label** | **name input（col 3+4 雙欄寬）**',
+      '  • Row 3：ConnectionSection 不變',
+      '**驗證**：`npm run build` 通過。8 種元件 element-type select 在 Row 1 單欄寬可顯示主標題（"L3 流程（子流程調用）" 等長 label 由 native select truncate / 滑動）。',
+      '**動到的檔案（2 個）**：`src/components/FlowEditor/TaskCard.jsx`（Row 1 / Row 2 欄位交換 + label 文字改）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'TaskCard col 2 重新設計：彩色 chip 在上 + L4 編號在下 + ℹ tooltip 改 CSS group-hover 即時顯示',
     items: [
       '**緣由**：使用者回報 (1) ℹ icon hover 沒反應 — 之前用 `title` 屬性給 native browser tooltip，但 native title 觸發延遲長、不同瀏覽器對 `\\n` 行為不一致、12px 細字命中區小 (2) 元件名稱應該在編號上方、配合區塊色塊做出明顯樣式。',
