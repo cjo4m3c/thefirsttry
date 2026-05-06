@@ -45,7 +45,7 @@ export function ImportWarningsBanner({ warnings, expanded, onToggleExpand, onDis
           className="text-amber-400 hover:text-amber-600 font-bold">×</button>
       </div>
       <div className={expanded ? 'max-h-96 overflow-y-auto pr-1' : ''}>
-        <ul className="ml-5 space-y-0.5 text-xs">
+        <ul className="ml-5 space-y-0.5 text-xs list-disc">
           {visible.map((w, i) => (<li key={i}>{w}</li>))}
         </ul>
       </div>

@@ -154,21 +154,33 @@ export function parseExcelToFlow(arrayBuffer) {
     }
   });
 
-  // 2026-05-05 per user: drop the line-crossing-task summary from Excel
-  // import banner / per-flow importWarnings — only relevant in the editor
-  // (where user can immediately fix overrides). Banner stays focused on
-  // structural format / data issues.
-  const isLineCrossingSummary = (msg) => /連線被任務矩形擋住/.test(msg);
+  // 2026-05-06 per user: drop ALL connection-violation messages from Excel
+  // import banner. They surface in the editor (red borders + save modal),
+  // but on the upload screen the user can't act on them — the banner stays
+  // focused on data / structural issues.
+  // Connection violations come from `detectOverrideViolations` and surface
+  // as either:
+  //   blocking: 端點不混用 (Rule 1) — `「name」的 X 端點同時有進出連線`
+  //   warning:  視覺重疊 (Rule 2 summary) — `連線被任務矩形擋住`
+  //   warning:  視覺重疊 (per-line) — `連線「A」→「B」穿過任務「C」`
+  // 2026-05-05 already filtered the summary; 2026-05-06 expanded to also
+  // drop the per-line variant + the IN+OUT-mix blocking text.
+  const isConnectionViolation = (msg) =>
+    /連線被任務矩形擋住/.test(msg)
+    || /端點同時有進出連線/.test(msg)
+    || /違反規則 1：端點不混用/.test(msg)
+    || /穿過任務 「.*」（違反規則 2/.test(msg);
   const validationLines = [];
   flows.forEach(flow => {
     const { blocking: vB, warnings: vW } = validateFlow(flow);
-    const filteredW = vW.filter(w => !isLineCrossingSummary(w));
+    const filteredB = vB.filter(b => !isConnectionViolation(b));
+    const filteredW = vW.filter(w => !isConnectionViolation(w));
     const pfx = flows.length > 1 ? `[L3 ${flow.l3Number}] ` : '';
-    const blocked = vB.map(b => `${pfx}❌ ${b}`);
+    const blocked = filteredB.map(b => `${pfx}❌ ${b}`);
     const warned  = filteredW.map(w => `${pfx}${w}`);
     validationLines.push(...blocked, ...warned);
-    if (vB.length || filteredW.length) {
-      flow.importWarnings.push(...vB.map(b => `❌ ${b}`), ...filteredW);
+    if (filteredB.length || filteredW.length) {
+      flow.importWarnings.push(...filteredB.map(b => `❌ ${b}`), ...filteredW);
     }
   });
 
