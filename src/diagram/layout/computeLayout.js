@@ -18,10 +18,13 @@ const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 export function computeLayout(flow) {
   const { roles, tasks, l3Number, staggerLanes } = flow;
 
-  // Per-lane horizontal stagger offset (preview feature 2026-05-06):
+  // Per-lane horizontal stagger offset:
   // odd-indexed rows shift right by COL_W/2 so tasks across adjacent
   // swimlanes interleave instead of stacking on the same column.
-  // OFF by default — enabled via flow.staggerLanes toggle in Header.
+  // 邏輯保留但 Header toggle 暫時隱藏（2026-05-06，使用者「先不要出現任何
+  // 按鈕，這是還沒有確定要的功能」）。flow.staggerLanes 仍可從 stored data
+  // 讀進來（早期 preview 已開過的 flow 會 honor 這個 flag），未來決定 ship
+  // 時把 Header 按鈕加回來即可。
   const laneXOffset = roles.map((_, r) =>
     staggerLanes && (r % 2 === 1) ? COL_W / 2 : 0
   );
