@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-06',
+    title: 'SOT 清理：泳道角色顏色 hex 改 import COLORS / KIND_BADGE 加 vs CONN_BADGE 範圍註解',
+    items: [
+      '**緣由**：使用者要求「同一個事情每次改動只要改一個地方，不會漏改」。先做兩處低風險 SOT 違規清理：(1) external/internal 泳道顏色 hex 在 3 個 component 裡寫死、改色得跑 3 處 (2) `KIND_BADGE` 跟 `taskDefs.js CONN_BADGE` 鍵有交集容易誤以為是 duplicate。',
+      '**泳道顏色 import 統一**：`#009900`（external）/ `#0066CC`（internal）原本 hardcoded 在 3 個 view component（`Wizard.jsx:155,175` / `Dashboard.jsx:432` / `FlowEditor/DrawerContent.jsx:293`，共 4 處）。canonical source 一直都在 `src/diagram/constants.js COLORS.{EXTERNAL_BG, INTERNAL_BG, EXTERNAL_TEXT}`（DiagramRenderer / sticky header 已正確使用）。把 4 處 hex 全換成 `COLORS.EXTERNAL_BG` / `COLORS.INTERNAL_BG`、白字換成 `COLORS.EXTERNAL_TEXT`。3 個檔加 `import { COLORS } from \'<path>/diagram/constants.js\'`。改一次 `COLORS.EXTERNAL_BG` 全網頁同步：泳道 header / Dashboard 卡片 role chip / Wizard 設定列 / FlowEditor 抽屜 role select。',
+      '**`elementTypes.js` 加 KIND_BADGE vs CONN_BADGE 範圍註解**：兩份 BADGE map 鍵有交集（`task` / `gateway-xor` 等）但 axis 不同 — KIND_BADGE 對應元件類型（chip on TaskCard col 2 + ContextMenu header），CONN_BADGE 對應連線型（連線 row 底色）。註解明寫「不是 duplicate、不要 silently sync」，提醒之後 PR 改色時不要誤把另一邊也改了。',
+      '**沒動的部分**：`model/validation.js describeElement()` 也維護一份元件類型中文 mapping，但跟 KIND_SHORT_LABEL 故意不同（warning 用 verbose「L4 任務」/「外部關係人互動」/「L3 流程」、chip 用 compact「任務」/「外部互動」/「子流程」）。要不要強制統一是 UX 決定（會改 user-facing warning 文字），留給使用者單獨判斷後再做。',
+      '**驗證**：`npm run build` 通過。視覺驗證點：(a) Dashboard 卡片 role chip 顏色不變 (b) Wizard 角色設定列 type select 底色不變 (c) FlowEditor 抽屜 role select 底色不變 (d) 流程圖 sticky lane header 底色仍由 COLORS 控制（沒動）。',
+      '**動到的檔案（5 個）**：`src/components/Wizard.jsx`（COLORS import + 2 處 hex 替換）/ `src/components/Dashboard.jsx`（COLORS import + 1 處）/ `src/components/FlowEditor/DrawerContent.jsx`（COLORS import + 1 處）/ `src/utils/elementTypes.js`（KIND_BADGE 註解擴充）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: 'changelog 日期校正 + 加 §4 PR-merge 日期對照規則 + 凍結 c25',
     items: [
       '**緣由**：使用者：「我發現很常在更新 changelog 的時候寫錯日期，請重新檢查每個 log 對應的 PR 與日期，並且把這個檢查納入規則中每次遵循」。早上連續 merge 一批 PR 跨 UTC 日界（#175 / #176 / #178~#183 實際 merged on 2026-05-06，但 changelog 寫成 2026-05-05），需要校正並把對照流程立規則。',

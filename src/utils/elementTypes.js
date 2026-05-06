@@ -67,6 +67,17 @@ export function getElementType(kind) {
 // KIND_SHORT_LABEL — compact label echoing the user's mental categories
 // (任務 / 包容閘道 / 外部互動) rather than verbose ELEMENT_TYPES.label.
 // KIND_BADGE       — { bg, text } per kind, mirrors the diagram palette.
+//
+// Scope vs `taskDefs.js CONN_BADGE` (axis distinction, NOT a duplicate):
+//   - KIND_BADGE keys = element kinds (`task` / `gateway-xor` / `interaction` / ...).
+//     Used to colour element-type chips on TaskCard col 2 and the ContextMenu
+//     header (one chip per element).
+//   - CONN_BADGE keys = connection types (`sequence` / `subprocess` / `conditional-branch` / ...).
+//     Used to colour connection-row backgrounds in TaskCard / ConnectionSection.
+//   Some keys overlap visually (e.g. CONN_BADGE.sequence ≈ KIND_BADGE.task) but
+//   they're independent palettes — change one without expecting the other to
+//   follow. If you need a unified element-vs-connection palette, refactor both
+//   together; don't silently sync values across the two.
 export const KIND_SHORT_LABEL = {
   task:           '任務',
   interaction:    '外部互動',

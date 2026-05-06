@@ -7,6 +7,7 @@ import {
   applySequentialDefaults,
   L3_NUMBER_PATTERN,
 } from '../utils/taskDefs.js';
+import { COLORS } from '../diagram/constants.js';
 
 // The wizard is a 2-step kickoff (L3 info → roles) that seeds a minimal
 // flow (start + one task + end) and hands off to FlowEditor for the full
@@ -152,7 +153,7 @@ function Step2({ data, onChange }) {
             <select value={role.type}
               onChange={e => updateRole(role.id, 'type', e.target.value)}
               className="px-2 py-1.5 border border-gray-300 rounded text-base focus:outline-none"
-              style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
+              style={{ background: role.type === 'external' ? COLORS.EXTERNAL_BG : COLORS.INTERNAL_BG, color: COLORS.EXTERNAL_TEXT }}>
               <option value="internal">內部角色</option>
               <option value="external">外部角色</option>
             </select>
@@ -172,7 +173,7 @@ function Step2({ data, onChange }) {
         <div className="flex flex-col gap-1">
           {data.roles.filter(r => r.name).map((r, i) => (
             <div key={r.id} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm" style={{ background: r.type === 'external' ? '#009900' : '#0066CC' }} />
+              <div className="w-3 h-3 rounded-sm" style={{ background: r.type === 'external' ? COLORS.EXTERNAL_BG : COLORS.INTERNAL_BG }} />
               <span className="text-sm font-medium text-gray-700">泳道 {i + 1}：{r.name}</span>
               <span className="text-sm text-gray-400">（{r.type === 'external' ? '外部' : '內部'}）</span>
             </div>
