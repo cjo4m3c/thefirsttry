@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-06',
+    title: '`/ship-feature` skill 加 changelog 日期 audit step（CLAUDE.md §4 規則 5 補實作）',
+    items: [
+      '**緣由**：CLAUDE.md §4 第 5 條規則寫「`/ship-feature` skill 收尾步驟會跑 audit script 比對最新一條 changelog `date` 是否等於剛 merge 的 PR `merged_at`，不一致直接 fail」— 規則文字 PR-A 立過了，但 skill 本身沒實作。本 PR 補上。',
+      '**`.claude/skills/ship-feature.md` 加步驟 6.5「Changelog 日期 audit」**：插在步驟 6（同步 local）之後、步驟 7（回報使用者）之前。流程 — (1) 從步驟 4 / 5 拿 PR number，呼叫 `mcp__github__pull_request_read` action `get` 取 `merged_at[:10]` (2) 讀 sync 後的 `src/data/changelog/current.js` 第一筆 entry 的 `date` (3) 比對 — 一致就通過、不一致 print 錯誤訊息含兩個日期 + 提示開 follow-up PR 修正、**不**繼續到步驟 7 回報。',
+      '**為什麼不自動修**：main 通常 branch-protected 不接受直接 push；且違反一 PR 一變更慣例。讓使用者自己開 follow-up PR 比較乾淨（PR-A 校正 8 個歷史錯誤就是這個 pattern）。',
+      '**`CLAUDE.md` §4 規則 5 文字微調**：原「會跑 audit script」改寫成「步驟 6.5（2026-05-06 補實作）會自動 audit ... 不一致就 fail + 提示開 follow-up PR 修正」— 反映實作落地。',
+      '**驗證**：規則 audit 是 skill markdown 步驟，無 build 影響。功能驗證點：(a) 下次 ship 一個跨 UTC 日界 merge 的 PR → skill 步驟 6.5 應該抓到 changelog date 跟 merged_at 不一致並停下來 (b) 一致時應該無聲通過、繼續到步驟 7 回報。',
+      '**動到的檔案（3 個）**：`.claude/skills/ship-feature.md`（加步驟 6.5）/ `CLAUDE.md`（§4 規則 5 文字微調）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: 'Excel 匯入 banner 雙重 bullet 修正（list-disc + 文字「•」前綴重疊）',
     items: [
       '**緣由**：使用者「我發現匯入提醒事項列點後，有些原本有列點的現在就會有兩個點」。前一個 PR-I 在 banner 的 `<ul>` 加 `list-disc` 後，凡是訊息文字本身已含 `• ` 前綴的（例如「• 第 85 列「name」 X → Y」）就變成 disc bullet + 文字 bullet 兩顆連在一起。',
