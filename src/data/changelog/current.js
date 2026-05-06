@@ -5,6 +5,18 @@
  */
 export default [
   {
+    date: '2026-05-06',
+    title: '流程圖 ContextMenu header 改成 [元件類型 chip] + L4 編號（取代「編輯元件」標題）',
+    items: [
+      '**緣由**：使用者：「希望在點開流程圖上的 tooltip 時，也可以顯示閘道的編號」→ 經 layout 提案討論後改向：「可以顯示在編輯元件那裡嗎，不要在 hover tooltip 內」+「請用 A，所有的元件都用同版型」。把 ContextMenu 標題列從靜態「編輯元件」改成 `[排他閘道] 1-1-5-2_g` 樣式（chip + mono L4 編號），所有 8 種元件類型同版型。',
+      '**`utils/elementTypes.js` 抽 KIND 常數**：把原本只在 `FlowEditor/TaskCard.jsx` inline 的 `KIND_SHORT_LABEL`（任務 / 外部互動 / 排他閘道 / 並行閘道 / 包容閘道 / 子流程 / 開始事件 / 結束事件）+ `KIND_BADGE`（{bg, text} 8 組）+ `KIND_BADGE_FALLBACK` 抽到 elementTypes.js export，給 TaskCard 跟 ContextMenu 共用同一份 source — 改 chip palette 只動 1 個地方。',
+      '**`ContextMenu/index.jsx` header 改寫**：原 `<span>編輯元件</span>` → IIFE 跑 `detectElementKind(task)` → 取 `KIND_SHORT_LABEL` + `KIND_BADGE` + `displayLabels[task.id]`，render `[chip 1.5px round, font-bold] + [mono L4 編號 truncate]`。Layout：`[☰] [chip] [編號 ─→]  [✕]`，閘道 / 子流程 / 任務 / 互動 / 開始 / 結束 / 包容 / 並行 全套同一個版型。',
+      '**`FlowEditor/TaskCard.jsx`**：移除 inline `KIND_SHORT_LABEL` / `KIND_BADGE` 常數定義，改 import 自 elementTypes.js。`kindBadge` fallback 改用共用的 `KIND_BADGE_FALLBACK`（行為不變）。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) 點任一閘道（XOR / AND / OR）→ header 顯示對應 chip 顏色 + `1-X-X-X_g` (b) 點子流程 → 紫色 `子流程` chip + `1-X-X-X_s` (c) 點外部互動 → 灰色 chip + `1-X-X-X_e` (d) 點開始 / 結束 → 綠 / 紅 chip + `1-X-X-X-0` / `-99` (e) TaskCard col 2 chip 視覺不變。',
+      '**動到的檔案（4 個）**：`src/utils/elementTypes.js`（KIND_SHORT_LABEL / KIND_BADGE / KIND_BADGE_FALLBACK export）/ `src/components/FlowEditor/TaskCard.jsx`（改 import）/ `src/components/ContextMenu/index.jsx`（header 改寫）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
     date: '2026-05-05',
     title: '驗證規則重整 + 流程斷點訊息肅清 + 子流程元件文字精簡',
     items: [

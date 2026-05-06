@@ -2,7 +2,10 @@ import { useState } from 'react';
 import ConnectionSection from '../ConnectionSection.jsx';
 import { ReorderButtons } from '../reorderButtons.jsx';
 import { CONN_ROW_BG } from '../../utils/taskDefs.js';
-import { ELEMENT_TYPES, detectElementKind, makeTypeChange, applyRoleChange } from '../../utils/elementTypes.js';
+import {
+  ELEMENT_TYPES, detectElementKind, makeTypeChange, applyRoleChange,
+  KIND_SHORT_LABEL, KIND_BADGE, KIND_BADGE_FALLBACK,
+} from '../../utils/elementTypes.js';
 import { formatConnection } from '../../model/connectionFormat.js';
 
 // Card background per element category. PR (2026-05-05): row colour now
@@ -13,33 +16,8 @@ import { formatConnection } from '../../model/connectionFormat.js';
 // connectionType-driven palette via CONN_ROW_BG.
 const INTERACTION_ROW_BG = '#F1F5F9';   // slate-100, mirrors diagram's `#A0A0A0` interaction fill in a lighter form
 
-// PR (2026-05-05): short kind label shown under the L4 number in col 2.
-// Mirrors the user's mental categories (任務 / 包容閘道 / 外部互動 etc.)
-// rather than the verbose ELEMENT_TYPES.label ("L4 任務" / "包容閘道（OR）").
-const KIND_SHORT_LABEL = {
-  task:           '任務',
-  interaction:    '外部互動',
-  'gateway-xor':  '排他閘道',
-  'gateway-and':  '並行閘道',
-  'gateway-or':   '包容閘道',
-  l3activity:     '子流程',
-  start:          '開始事件',
-  end:            '結束事件',
-};
-
-// PR (2026-05-05): chip background / text colour per element kind. Echoes
-// the diagram + CONN_BADGE palette so each editor card carries the same
-// visual identity as its diagram shape.
-const KIND_BADGE = {
-  task:           { bg: '#E5E7EB', text: '#374151' },
-  interaction:    { bg: '#A0A0A0', text: '#FFFFFF' },
-  'gateway-xor':  { bg: '#FEF3C7', text: '#92400E' },
-  'gateway-and':  { bg: '#D1FAE5', text: '#065F46' },
-  'gateway-or':   { bg: '#FEF9C3', text: '#854D0E' },
-  l3activity:     { bg: '#EDE9FE', text: '#5B21B6' },
-  start:          { bg: '#D1FAE5', text: '#065F46' },
-  end:            { bg: '#FEE2E2', text: '#991B1B' },
-};
+// KIND_SHORT_LABEL / KIND_BADGE moved to utils/elementTypes.js (PR 2026-05-06)
+// — shared with ContextMenu header so the chip + colour stays in sync.
 
 // PR (2026-05-05): description shown on hover over the ℹ icon. Replaces
 // the gray inline notes that used to live at the bottom of each
@@ -66,7 +44,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
   const nameOptional = ct === 'start' || ct === 'end';
   const currentKind = detectElementKind(task);
   const kindLabel = KIND_SHORT_LABEL[currentKind] || '';
-  const kindBadge = KIND_BADGE[currentKind] || { bg: '#E5E7EB', text: '#374151' };
+  const kindBadge = KIND_BADGE[currentKind] || KIND_BADGE_FALLBACK;
   const kindDescription = KIND_DESCRIPTION[currentKind] || '';
   const annotation = formatConnection(task, allTasks || [], displayLabels || {});
   const [expanded, setExpanded] = useState(false);
