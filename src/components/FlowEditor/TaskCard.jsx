@@ -27,6 +27,20 @@ const KIND_SHORT_LABEL = {
   end:            '結束事件',
 };
 
+// PR (2026-05-05): chip background / text colour per element kind. Echoes
+// the diagram + CONN_BADGE palette so each editor card carries the same
+// visual identity as its diagram shape.
+const KIND_BADGE = {
+  task:           { bg: '#E5E7EB', text: '#374151' },
+  interaction:    { bg: '#A0A0A0', text: '#FFFFFF' },
+  'gateway-xor':  { bg: '#FEF3C7', text: '#92400E' },
+  'gateway-and':  { bg: '#D1FAE5', text: '#065F46' },
+  'gateway-or':   { bg: '#FEF9C3', text: '#854D0E' },
+  l3activity:     { bg: '#EDE9FE', text: '#5B21B6' },
+  start:          { bg: '#D1FAE5', text: '#065F46' },
+  end:            { bg: '#FEE2E2', text: '#991B1B' },
+};
+
 // PR (2026-05-05): description shown on hover over the ℹ icon. Replaces
 // the gray inline notes that used to live at the bottom of each
 // ConnectionSection variant.
@@ -52,17 +66,14 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
   const nameOptional = ct === 'start' || ct === 'end';
   const currentKind = detectElementKind(task);
   const kindLabel = KIND_SHORT_LABEL[currentKind] || '';
+  const kindBadge = KIND_BADGE[currentKind] || { bg: '#E5E7EB', text: '#374151' };
+  const kindDescription = KIND_DESCRIPTION[currentKind] || '';
   const annotation = formatConnection(task, allTasks || [], displayLabels || {});
-  const tooltipText = [
-    `[${kindLabel}]`,
-    KIND_DESCRIPTION[currentKind] || '',
-    annotation ? `\n任務關聯說明：\n${annotation}` : '',
-  ].filter(Boolean).join('\n');
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div
-      className="rounded-lg border border-gray-200 overflow-hidden select-none"
+      className="rounded-lg border border-gray-200 select-none"
       style={{ background: rowBg }}>
 
       {/* All three rows share the same 5-column flex layout so columns
@@ -78,21 +89,41 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
       <div className="flex items-center gap-2 px-2 pt-2 min-w-0">
         <ReorderButtons canUp={canMoveUp} canDown={canMoveDown} onUp={onMoveUp} onDown={onMoveDown} />
 
-        {/* col 2: L4 number (top) + kind short label + ℹ tooltip (bottom).
-            Stacked vertical; tooltip on the ℹ icon shows the kind's
-            description + auto-derived 任務關聯說明 (replaces the four gray
-            inline notes that used to live at the bottom of each
-            ConnectionSection variant). */}
-        <div className="w-24 flex-shrink-0 flex flex-col items-start min-w-0">
-          <span className="text-sm font-mono text-gray-600 font-semibold whitespace-nowrap truncate w-full">
-            {num || ''}
-          </span>
+        {/* col 2: kind chip (top, coloured pill) + ℹ tooltip + L4 number
+            (bottom, mono). PR (2026-05-05):
+            - Name moved ABOVE number per user
+            - Chip pill background colour echoes the diagram / CONN_BADGE
+              palette per element kind so each card visually identifies
+              itself without reading text
+            - ℹ tooltip switched from `title` (unreliable native) to a
+              CSS `group-hover` popover for instant + multi-line + styled
+              behaviour. Popover wraps below-the-icon, max-w 280px, dark
+              background for contrast. */}
+        <div className="w-24 flex-shrink-0 flex flex-col items-start gap-0.5 min-w-0">
           {kindLabel && (
-            <div className="flex items-center gap-1 mt-0.5 w-full min-w-0">
-              <span className="text-xs text-gray-500 truncate">{kindLabel}</span>
-              <span title={tooltipText} className="text-xs text-gray-400 cursor-help flex-shrink-0">ℹ</span>
+            <div className="flex items-center gap-1 w-full min-w-0">
+              <span className="px-1.5 py-0.5 rounded text-xs font-bold whitespace-nowrap"
+                style={{ background: kindBadge.bg, color: kindBadge.text }}>
+                {kindLabel}
+              </span>
+              <span className="relative group flex-shrink-0 cursor-help text-gray-400 hover:text-gray-600 text-xs leading-none">
+                ℹ
+                <span className="invisible group-hover:visible absolute z-50 top-full left-0 mt-1 p-2 bg-gray-800 text-white text-xs rounded shadow-lg whitespace-pre-wrap w-[280px] pointer-events-none">
+                  <span className="block font-bold mb-1">{kindLabel}</span>
+                  {kindDescription && <span className="block">{kindDescription}</span>}
+                  {annotation && (
+                    <>
+                      <span className="block mt-1.5 font-semibold text-gray-300">任務關聯說明：</span>
+                      <span className="block">{annotation}</span>
+                    </>
+                  )}
+                </span>
+              </span>
             </div>
           )}
+          <span className="text-xs font-mono text-gray-500 whitespace-nowrap truncate w-full">
+            {num || ''}
+          </span>
         </div>
 
         {/* col 3: Role — applyRoleChange auto-syncs shapeType when moving
