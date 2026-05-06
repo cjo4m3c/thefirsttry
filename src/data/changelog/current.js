@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-06',
+    title: '（preview）columnAssign idx-monotonic 守則 / min-align 兩方案，Header 三段切換',
+    items: [
+      '**緣由**：使用者在 g1(idx 0) → g2(idx 1) + 發起專案(idx 3) 並行 + g3(idx 2) 孤立 的場景下，發現視覺順序變成 g1 → g3 → g2，而不是 idx 期待的 g1 → g2 → g3。',
+      '**Root cause**：`computeColumnMap` step 2 parallel override 用 `max(siblings.col)` 對齊，當 sibling 之一 idx 比中間孤立任務還大時，sibling 被拉到孤立任務後面 → leapfrog bug。',
+      '**方案 1（idx-monotonic 守則）**：parallel override 後加一個 `enforceIdxMonotonicPerLane` pass。每泳道按 idx 排序，後 idx 的 col 必須 > 前 idx 的 col；違反則右推。',
+      '**方案 2（min-align 拉左）**：parallel override 改用 `min(siblings.col)`，把 idx 大的 sibling 拉左對齊到最小 sibling 的 col。流程圖最緊湊。',
+      '**Header 多一顆「欄位」按鈕**：3 段循環 預設 → S1 → S2 → 預設，per-flow persistent，方便 A/B 比較。',
+      '**動到的檔案（4 個）**：`src/diagram/layout/columnAssign.js`（mode 參數 + enforceIdxMonotonicPerLane export）/ `src/diagram/layout/computeLayout.js`（傳 mode + 條件 call scheme1）/ `src/components/FlowEditor/Header.jsx`（3-way toggle button）/ `src/components/FlowEditor/index.jsx`（cycleColAssign + props 傳遞）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: '（preview）錯落排列 toggle — 奇數泳道右移半格，跨泳道任務交錯',
     items: [
       '**緣由**：使用者：「我希望跨泳道的元件可以錯落排列⋯⋯第二個角色的元件位置會在上一列角色的一半的位置開始⋯⋯這樣連線可以從第一角色的兩個任務中間穿過。」',

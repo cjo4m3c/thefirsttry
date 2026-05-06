@@ -4,7 +4,7 @@ import {
   NODE_VOFFSET, ROUTE_MARGIN, ROUTE_SLOT_H, ROUTE_BOTTOM_PAD,
   minLaneH, halfExtent,
 } from './helpers.js';
-import { computeColumnMap, resolveRowCollisions } from './columnAssign.js';
+import { computeColumnMap, resolveRowCollisions, enforceIdxMonotonicPerLane } from './columnAssign.js';
 import { getGatewayExitEntry } from './gatewayRouting.js';
 import { runPhase1And2 } from './phase1and2.js';
 import { runPhase3 } from './phase3.js';
@@ -15,7 +15,7 @@ import { runPhase3e } from './phase3e.js';
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
 export function computeLayout(flow) {
-  const { roles, tasks, l3Number, staggerLanes } = flow;
+  const { roles, tasks, l3Number, staggerLanes, colAssignMode = 'default' } = flow;
 
   // Per-lane horizontal stagger offset (preview feature 2026-05-06):
   // odd-indexed rows shift right by COL_W/2 so tasks across adjacent
@@ -35,8 +35,11 @@ export function computeLayout(flow) {
   tasks.forEach(task => { taskRowOf[task.id] = roleIndexMap[task.roleId] ?? 0; });
 
   // ── 3. Graph-based column assignment (parallel = same col) ────
-  const colOf = computeColumnMap(tasks);
+  const colOf = computeColumnMap(tasks, colAssignMode);
   resolveRowCollisions(tasks, colOf, taskRowOf);
+  if (colAssignMode === 'scheme1') {
+    enforceIdxMonotonicPerLane(tasks, colOf, taskRowOf);
+  }
   const taskColOf = {};
   tasks.forEach(task => { taskColOf[task.id] = colOf[task.id]; });
 

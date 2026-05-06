@@ -17,8 +17,15 @@
  *
  * `resolveRowCollisions` 仍會處理「並行 override 後同 lane 同 col」的衝突，
  * 把後來的 task 推右 + 沿 graph 傳播。
+ *
+ * `mode` (preview branch 2026-05-06):
+ *   - 'default'  — 原 max-align 行為（含 leapfrog bug）
+ *   - 'scheme1'  — max-align + 後置「idx-monotonic per lane」守則，把被
+ *                  leapfrog 的孤立任務推到 sibling 之後
+ *   - 'scheme2'  — min-align：parallel override 改用 min(siblings.col)，
+ *                  把 idx 大的 sibling 拉左對齊到最小 sibling 的 col
  */
-export function computeColumnMap(tasks) {
+export function computeColumnMap(tasks, mode = 'default') {
   const taskIdSet = new Set(tasks.map(t => t.id));
   const arrayIdxOf = {};
   tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
@@ -41,16 +48,56 @@ export function computeColumnMap(tasks) {
       id && taskIdSet.has(id) && arrayIdxOf[id] > arrayIdxOf[task.id]
     );
     if (fwdTargets.length < 2) return;   // single target = sequential, no override
-    const sharedCol = Math.max(
-      colOf[task.id] + 1,
-      ...fwdTargets.map(id => colOf[id])
-    );
-    fwdTargets.forEach(id => {
-      colOf[id] = Math.max(colOf[id], sharedCol);
-    });
+
+    if (mode === 'scheme2') {
+      // Min-align: pull later siblings LEFT to the smallest sibling's col
+      const sharedCol = Math.max(
+        colOf[task.id] + 1,
+        Math.min(...fwdTargets.map(id => colOf[id]))
+      );
+      fwdTargets.forEach(id => { colOf[id] = sharedCol; });
+    } else {
+      // Default / scheme1: max-align (original behavior)
+      const sharedCol = Math.max(
+        colOf[task.id] + 1,
+        ...fwdTargets.map(id => colOf[id])
+      );
+      fwdTargets.forEach(id => {
+        colOf[id] = Math.max(colOf[id], sharedCol);
+      });
+    }
   });
 
   return colOf;
+}
+
+/**
+ * Scheme 1: per-lane idx-monotonic enforcement. After parallel override may
+ * have leapfrogged a sibling past a non-sibling task at intermediate idx,
+ * walk each lane in idx order and push later-idx tasks rightward so col
+ * order matches idx order within each lane.
+ *
+ * Mutates colOf in place. Caller passes the same colOf returned from
+ * computeColumnMap; safe to no-op when mode !== 'scheme1'.
+ */
+export function enforceIdxMonotonicPerLane(tasks, colOf, taskRowOf) {
+  const arrayIdxOf = {};
+  tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
+  const byLane = {};
+  tasks.forEach(t => {
+    const r = taskRowOf[t.id];
+    if (r === undefined) return;
+    (byLane[r] ||= []).push(t.id);
+  });
+  Object.values(byLane).forEach(ids => {
+    ids.sort((a, b) => arrayIdxOf[a] - arrayIdxOf[b]);
+    for (let i = 1; i < ids.length; i++) {
+      const cur = ids[i], prev = ids[i - 1];
+      if (colOf[cur] <= colOf[prev]) {
+        colOf[cur] = colOf[prev] + 1;
+      }
+    }
+  });
 }
 
 /**

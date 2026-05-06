@@ -76,6 +76,14 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   function toggleStagger() {
     patch({ staggerLanes: !liveFlow.staggerLanes });
   }
+  // Column-assign mode 3-way cycle (preview branch 2026-05-06):
+  // default (current behavior with leapfrog bug) → scheme1 (idx-monotonic
+  // per lane) → scheme2 (min-align parallel siblings) → default.
+  function cycleColAssign() {
+    const cur = liveFlow.colAssignMode || 'default';
+    const next = cur === 'default' ? 'scheme1' : cur === 'scheme1' ? 'scheme2' : 'default';
+    patch({ colAssignMode: next });
+  }
   // Ref to DiagramRenderer's imperative export API (forwardRef +
   // useImperativeHandle exposes exportPng / exportDrawio / exportExcel).
   // Used by the Header download dropdown — each item calls
@@ -292,7 +300,8 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         canUndo={canUndoStack(undoStack)} canRedo={canRedoStack(undoStack)}
         savePulse={pulseMode} saveCelebrate={saveCelebrate}
         densityMode={densityMode} onCycleDensity={cycleDensity}
-        staggerLanes={!!liveFlow.staggerLanes} onToggleStagger={toggleStagger} />
+        staggerLanes={!!liveFlow.staggerLanes} onToggleStagger={toggleStagger}
+        colAssignMode={liveFlow.colAssignMode || 'default'} onCycleColAssign={cycleColAssign} />
 
       <main className="px-4 py-6 w-full max-w-full">
         {/* PR-D12: Excel import warnings banner — shows the auto-fix /

@@ -34,7 +34,8 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
   onUndo, onRedo, canUndo = false, canRedo = false,
   savePulse = 'none', saveCelebrate = false,
   densityMode = 'default', onCycleDensity,
-  staggerLanes = false, onToggleStagger }) {
+  staggerLanes = false, onToggleStagger,
+  colAssignMode = 'default', onCycleColAssign }) {
   const densityLabel =
     densityMode === 'compact'  ? '⊟ 緊密' :
     densityMode === 'spacious' ? '⊞ 寬鬆' :
@@ -129,6 +130,26 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
               : 'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10'
           }`}>
           錯落
+        </button>
+        {/* Column assign mode 3-way cycle (preview branch 2026-05-06):
+            default → scheme1 → scheme2 → default.
+            Used to A/B test the parallel-override leapfrog bug fixes —
+            scheme1 = idx-monotonic per lane, scheme2 = min-align siblings. */}
+        <button
+          onClick={onCycleColAssign}
+          title={
+            colAssignMode === 'scheme1'
+              ? '欄位分配：方案 1（idx 順序守則）— 點切到方案 2'
+              : colAssignMode === 'scheme2'
+              ? '欄位分配：方案 2（min-align 拉左）— 點切回預設'
+              : '欄位分配：預設（含 leapfrog bug）— 點切到方案 1'
+          }
+          className={`px-3 py-1.5 text-base rounded border transition-colors ${
+            colAssignMode === 'default'
+              ? 'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10'
+              : 'border-white bg-white text-[#1E4677] font-semibold'
+          }`}>
+          {colAssignMode === 'scheme1' ? '欄位 S1' : colAssignMode === 'scheme2' ? '欄位 S2' : '欄位 預設'}
         </button>
         {/* Undo / Redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z). Stack clears
             after every save per spec — disabled while empty so users see
