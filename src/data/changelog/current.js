@@ -6,6 +6,23 @@
 export default [
   {
     date: '2026-05-05',
+    title: '同 lane skip-connection routing：偵測上 / 下 corridor 鄰近 lane 任務、走較乾淨那側、預設上方',
+    items: [
+      '**緣由**：使用者決策 7 情境 C — 同 lane skip-connection（A1 → A3 中間有 A2）目前由 Phase 3c 自動繞 corridor，但選擇 top 或 bottom 只看「port-mix」/「corridor 已被佔用」結構性檢核，沒看「鄰近 lane 是否有任務」這個視覺乾淨度判準。使用者：「偵測上下方式分有任務或其他元件，走沒有元件的那一側（沒有的話就預設走上方）」。',
+      '**改法（`src/diagram/layout/phase3bc.js`）**：',
+      '  • 加 `adjacentLaneHasTask(taskAt, adjRow, minCol, maxCol)` helper — 掃 adjRow 在 (minCol, maxCol) 區間是否有任何 task。adjRow < 0 視為空（topmost lane 上方無 lane）；taskAt 對 out-of-range row 回 undefined。',
+      '  • Phase 3b（同 lane backward）跟 Phase 3c（同 lane forward dc>1）兩處都加新判準：當 top 結構性檢核都過（!topMix && !topCross）但鄰近 lane 上方 (fr-1) 有任務、下方 (fr+1) 沒有 + bottom 沒 mix → 改走 bottom corridor。',
+      '  • 兩側都空 → 維持 top（使用者指定 default）',
+      '  • 兩側都有 → 維持 top（同 default 規則；不增加額外 fallback）',
+      '  • 結構性 topBad（mix/cross）→ 沿用既有「bottom mix-free 才用 bottom」，不被新判準干擾',
+      '**為什麼安全**：新判準只在「結構上 top OK」時介入，不會破壞 rule 1（port-mix）/ rule 2（線跨任務）的硬性檢核。最壞情況 fallback 還是回 top。',
+      '**驗證**：`npm run build` 通過。Phase 3c 邏輯本身已有單元 case（PR-1 拆檔時測過）。新增 case 由 user UI 實測驗證視覺改善。',
+      '**動到的檔案（2 個）**：`src/diagram/layout/phase3bc.js`（adjacentLaneHasTask helper + Phase 3b/3c 加 cleaner-side preference）/ `src/data/changelog/current.js`（本條）。',
+      '**對應使用者決策 7 情境 C 收尾完成**。決策 1-5 layout idx-driven 已 PR #177 落地、本條落地決策 7-C，整套「自動連線優化、閘道避開」backlog 條目可從待辦移除。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '編輯器再優化：col 2 stacked 編號+元件名+ℹ tooltip / 移除 4 個灰色 inline 說明 / pl-1 對齊修 / 流程斷點全面退役',
     items: [
       '**緣由**：使用者三項要求 — (1) 移除底部灰色 inline 說明、改用 ℹ icon + hover 顯示「元件功能說明 + 任務關聯說明完整文字」 (2) Row 2「元件類型」label 跟 Row 1 編號 / Row 3 ConnectionSection labels 對齊（去 pl-1） (3) 編輯區塊要看到編號**也**要看到元件名稱（例「任務」「包容閘道」「外部互動」）。順帶把已淡化的 breakpoint 流程斷點全面退役（保留 storage / model 相容、UI 入口砍光）。',

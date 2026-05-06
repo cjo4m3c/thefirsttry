@@ -3,6 +3,21 @@ import {
   isColInsideTopRange, registerTopCorridor,
 } from './corridor.js';
 
+// PR (2026-05-05) — same-lane skip-connection corridor side preference.
+// User: 「走沒有元件的那一側（沒有的話就預設走上方）」. Inspect the lane
+// directly above (top corridor) or directly below (bottom corridor) the
+// source's row for any task between minCol and maxCol — picking the side
+// with no neighbour task makes the routed line look less crowded.
+//   - adjRow < 0 → no lane above topmost lane → treat as empty
+//   - adjRow ≥ lane count → ctx.taskAt returns undefined, also empty
+function adjacentLaneHasTask(taskAt, adjRow, minCol, maxCol) {
+  if (adjRow < 0) return false;
+  for (let c = minCol + 1; c < maxCol; c++) {
+    if (taskAt(adjRow, c)) return true;
+  }
+  return false;
+}
+
 /**
  * Phase 3b — non-gateway backward edge corridor decision.
  *
@@ -17,7 +32,7 @@ import {
  * Mutates: ctx.taskBackwardRouting, ctx.topCorridorByRow, ctx.portIn, ctx.portOut
  */
 export function runPhase3b(ctx) {
-  const { tasks, taskRowOf, taskColOf, taskIdSetAll, taskBackwardRouting } = ctx;
+  const { tasks, taskRowOf, taskColOf, taskAt, taskIdSetAll, taskBackwardRouting } = ctx;
 
   tasks.forEach(task => {
     if (task.type === 'end' || task.type === 'gateway' || task.type === 'start') return;
@@ -37,14 +52,24 @@ export function runPhase3b(ctx) {
       const row = Math.min(fr, tr);
       const minCol = Math.min(fc, tc);
       const maxCol = Math.max(fc, tc);
-      // Priority: rule 1 (no port-mix) > rule 2 (no visual crossing).
-      //   top clean → top; top bad but bottom mix-free → bottom;
-      //   both bad → top (crossing is visual-only; mix violates stricter rule 1).
+      // Priority: rule 1 (no port-mix) > rule 2 (no visual crossing) >
+      // user preference (走沒有元件的那一側).
+      //   top clean structurally + top side empty → top
+      //   top clean but adjacent-lane has task, bottom mix-free + cleaner → bottom
+      //   top bad but bottom mix-free → bottom (existing)
+      //   both bad → top (crossing is visual-only; bottom mix violates stricter rule 1)
       const topMix    = hasIn(ctx, task.id, 'top')    || hasOut(ctx, toId, 'top');
       const bottomMix = hasIn(ctx, task.id, 'bottom') || hasOut(ctx, toId, 'bottom');
       const topCross  = isColInsideTopRange(ctx, row, fc) || isColInsideTopRange(ctx, row, tc);
       const topBad    = topMix || topCross;
-      const useBottom = topBad && !bottomMix;
+      // Cleaner-side check: backward edges sit at row=min(fr,tr), so adjacent
+      // lanes are row-1 (above) and row+1 (below).
+      const topAdjHasTask = adjacentLaneHasTask(taskAt, row - 1, minCol, maxCol);
+      const botAdjHasTask = adjacentLaneHasTask(taskAt, row + 1, minCol, maxCol);
+      let useBottom = topBad && !bottomMix;
+      if (!useBottom && !topBad && topAdjHasTask && !botAdjHasTask && !bottomMix) {
+        useBottom = true;
+      }
       if (useBottom) {
         taskBackwardRouting.set(`${task.id}::${toId}`, { exitSide: 'bottom', entrySide: 'bottom' });
         useOut(ctx, task.id, 'bottom'); useIn(ctx, toId, 'bottom');
@@ -72,7 +97,7 @@ export function runPhase3b(ctx) {
  * Mutates: ctx.taskForwardRouting, ctx.topCorridorByRow, ctx.portIn, ctx.portOut
  */
 export function runPhase3c(ctx) {
-  const { tasks, taskRowOf, taskColOf, taskIdSetAll, taskBackwardRouting, taskForwardRouting } = ctx;
+  const { tasks, taskRowOf, taskColOf, taskAt, taskIdSetAll, taskBackwardRouting, taskForwardRouting } = ctx;
 
   tasks.forEach(task => {
     if (task.type === 'end' || task.type === 'gateway' || task.type === 'start') return;
@@ -94,16 +119,26 @@ export function runPhase3c(ctx) {
       const row = fr;
       const minCol = Math.min(fc, tc);
       const maxCol = Math.max(fc, tc);
-      // Priority: rule 1 (no port-mix) > rule 2 (no visual crossing).
-      //   top clean                → top
-      //   top has issue, bottom mix-free → bottom
-      //   both have issue          → top (crossing is visual-only; bottom mix
-      //                              violates stricter rule 1)
+      // Priority: rule 1 (no port-mix) > rule 2 (no visual crossing) >
+      // user preference (走沒有元件的那一側，沒有的話就預設走上方).
+      //   top clean structurally + top side empty → top
+      //   top clean but adjacent-lane has task, bottom cleaner → bottom
+      //   top bad but bottom mix-free → bottom (existing)
+      //   both bad → top (crossing visual-only; bottom mix violates stricter rule 1)
       const topMix    = hasIn(ctx, task.id, 'top')    || hasOut(ctx, toId, 'top');
       const bottomMix = hasIn(ctx, task.id, 'bottom') || hasOut(ctx, toId, 'bottom');
       const topCross  = isColInsideTopRange(ctx, row, fc) || isColInsideTopRange(ctx, row, tc);
       const topBad    = topMix || topCross;
-      const useBottom = topBad && !bottomMix;
+      // Cleaner-side check (PR-D-ROUTING 2026-05-05): same-lane skip can pick
+      // top or bottom corridor; if top has neighbour task in the span and
+      // bottom doesn't, prefer bottom. Default top covers both-empty AND
+      // both-have cases per user spec.
+      const topAdjHasTask = adjacentLaneHasTask(taskAt, fr - 1, minCol, maxCol);
+      const botAdjHasTask = adjacentLaneHasTask(taskAt, fr + 1, minCol, maxCol);
+      let useBottom = topBad && !bottomMix;
+      if (!useBottom && !topBad && topAdjHasTask && !botAdjHasTask && !bottomMix) {
+        useBottom = true;
+      }
       if (useBottom) {
         taskForwardRouting.set(`${task.id}::${toId}`, { exitSide: 'bottom', entrySide: 'bottom' });
         useOut(ctx, task.id, 'bottom'); useIn(ctx, toId, 'bottom');
