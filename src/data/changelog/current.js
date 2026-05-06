@@ -6,6 +6,21 @@
 export default [
   {
     date: '2026-05-05',
+    title: '外部角色 ↔ 內部角色 type 翻轉時自動 strip / 補 `[外部角色]` 前綴（對稱補完 PR-D4）',
+    items: [
+      '**緣由**：PR-D4 落地了「切到 external 自動加 `[外部角色]` 前綴」單向行為。使用者：「外部角色切回內部角色，[外部角色] 名稱要移除」— 補對稱 strip。',
+      '**新增 helper（`utils/elementTypes.js`）**：`stripExternalPrefix(role)` 純函式 idempotent — type=internal 且 name startsWith `[外部角色]` → strip 一次（mirror of ensure-add，不貪心 strip 多重）+ trim leading whitespace。`applyStripExternalPrefixToRoles(roles)` cascade helper（same-ref 短路）。',
+      '**觸發點**：',
+      '  • `Wizard.jsx updateRole`：`field === "type" && val === "internal"` → strip。已存在的「val=external → ensureExternalPrefix」對稱補。',
+      '  • `FlowEditor/DrawerContent.jsx` role.type select onChange：`newType === "internal"` → strip。',
+      '  • `excelImport.js buildFlow`：`detectRoleTypes` 推論完後跑 `applyExternalPrefixToRoles`（external 補）+ `applyStripExternalPrefixToRoles`（internal strip）。混用 case 推論 internal 但 Excel name 含 `[外部角色]` → 自動 strip 對齊。',
+      '**情境驗證**（Node 單元 7 case 全過）：(1) 標準 toggle external → internal → 客戶 (2) 純前綴 `[外部角色]` → 空字串 (3) 前綴後空格 trim → 客戶 (4) 客製多前綴 `[外部角色][合作夥伴]xxx` → `[合作夥伴]xxx` (5) 多重 `[外部角色]` strip 一次 (6) 純內部不動 (7) external type 不動。',
+      '**載入舊資料**：不 retro-fix（保留使用者意圖原貌）。strip 只在 user 顯式切 type 那一刻 / Excel 匯入推論時觸發。',
+      '**動到的檔案（4 個）**：`src/utils/elementTypes.js`（stripExternalPrefix + applyStripExternalPrefixToRoles）/ `src/components/Wizard.jsx`（updateRole 加 internal 分支）/ `src/components/FlowEditor/DrawerContent.jsx`（type select onChange 加 internal 分支）/ `src/utils/excelImport.js`（buildFlow return 鏈式 ensure → strip）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '流程圖文字 UI：L3 子流程行高跟任務統一 + 閘道標籤改 top-align 並加寬 1 字',
     items: [
       '**緣由**：使用者 (1)「子流程元件中行高太大、請做成跟任務元件一樣」(2)「閘道文字現在採段落置中，多行時會向上蓋住閘道元件，希望每行寬度多 1-2 字、多行時改置上對齊向下延伸」。',

@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import TaskCard from './TaskCard.jsx';
 import { ReorderButtons } from '../reorderButtons.jsx';
 import { makeRole, taskOptionLabel } from '../../utils/taskDefs.js';
-import { ELEMENT_TYPES, getElementType, syncTasksToRoles, ensureExternalPrefix } from '../../utils/elementTypes.js';
+import { ELEMENT_TYPES, getElementType, syncTasksToRoles, ensureExternalPrefix, stripExternalPrefix } from '../../utils/elementTypes.js';
 
 // InsertPicker — drawer-side equivalent of the diagram's ContextMenu, used
 // to add elements between TaskCards. Collapsed state looks identical to the
@@ -278,11 +278,14 @@ export function DrawerContent({ activeTab, liveFlow, displayLabels,
                 onChange={e => {
                   // Cascade-sync: flipping a role internal↔external swaps
                   // every L4 task in that lane between task / interaction.
-                  // Switching to external also auto-adds `[外部角色]` prefix.
+                  // Switching to external auto-adds `[外部角色]` prefix;
+                  // switching to internal auto-strips it (PR 2026-05-05).
                   const newType = e.target.value;
                   let newRoles = liveFlow.roles.map(r => r.id === role.id ? { ...r, type: newType } : r);
                   if (newType === 'external') {
                     newRoles = newRoles.map(r => r.id === role.id ? ensureExternalPrefix(r) : r);
+                  } else if (newType === 'internal') {
+                    newRoles = newRoles.map(r => r.id === role.id ? stripExternalPrefix(r) : r);
                   }
                   onPatch({ roles: newRoles, tasks: syncTasksToRoles(liveFlow.tasks, newRoles) });
                 }}
