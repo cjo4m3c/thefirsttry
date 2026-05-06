@@ -3,6 +3,7 @@
  * `current` (tip, edited per PR) with frozen archive chunks `c01`..`c24` (oldest).
  */
 import current from './current.js';
+import c25 from './c25.js';
 import c24 from './c24.js';
 import c23 from './c23.js';
 import c22 from './c22.js';
@@ -30,6 +31,7 @@ import c01 from './c01.js';
 
 export const CHANGELOG = [
   ...current,
+  ...c25,
   ...c24,
   ...c23,
   ...c22,
