@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-05',
+    title: '驗證規則重整 + 流程斷點訊息肅清 + 子流程元件文字精簡',
+    items: [
+      '**緣由**：使用者整體精簡 (1) 儲存 / 匯入規則的「流程斷點」字樣全清掉（已退役） (2) Warning 過於分散 — L3 / 一般任務分別敘述未連線；改成「除了結束事件外，任何元件沒連到下一步都跳提醒」+「除了開始事件外，任何元件沒上一個元件都跳提醒」(3) 角色泳道未指定從閘道擴到所有元件 (4) 線跨任務 warning 不再列每筆、改一行 summary、Excel 匯入完全不顯示此訊息 (5) 子流程元件不再顯示「[子流程]」inline label、文字每行 maxChars 8 → 7。',
+      '**`model/validation.js` blocking 改動**：(a) 「必須要有『流程結束』或『流程斷點』節點」→ 「必須要有『流程結束』節點」 (b) 「『流程結束』/『流程斷點』必須有其他任務連接到它」→ 「『流程結束』必須有其他任務連接到它」。',
+      '**`model/validation.js` warning 整併**：(a) 多端點訊息「流程有 X 個『流程結束 / 流程斷點』」→「流程有 X 個『流程結束』」 (b) Rule #1 forward outgoing 從「L3 活動 / 任務」分敘合併成「{label}：未連接下一步元件」 (c) Rule #4 incoming missing 從「L3 活動 / 任務」分敘合併成「{label}：沒有任何元件連接過來」 (d) Rule #3d 角色泳道從 gateway-only 擴到所有元件 — 「{label}：未指定泳道角色」 (e) 線跨任務從 N 條 per-violation push 改成單行 summary「畫面上仍有連線被任務矩形擋住，建議重新調整端點或元件位置」（rule blocking IN+OUT 仍個別列）。',
+      '**`utils/excelImport.js` 改動**：(a) `collectCrossCheckWarnings` 移除「流程斷點」字樣偵測（含 D / E / I 欄掃描，全砍） (b) 從 validateFlow 抽出的 Excel banner warnings 加 filter — 過濾掉「連線被任務矩形擋住」summary（使用者：「Excel 完全不需要提到」）。',
+      '**`DiagramRenderer/shapes.jsx L3ActivityShape` 文字精簡**：(a) 移除 `[子流程]` 那行 `<text>`，改成只有 task.name 一行（雙邊書擋矩形 + 上方 L3 編號已能傳達「子流程調用」）(b) maxChars 8 → 7、配合 NODE 寬度更舒服的 wrap (c) 移除 `isSubprocess` 變數（不再用）。',
+      '**`DiagramRenderer/shapes.jsx GatewayShape` 標籤 2 行 cap**：使用者：「排他閘道下方的字如果會被下方元件擋住，可以改成增加每行的字的數量，多於兩行的字就用…顯示」。SvgLabel maxChars 7 → 10（每行多 3 字，含 [XX閘道] 前綴更舒服）+ maxTotal=20 = 2×maxChars，超過 wrapText 自動 append `…`。標籤永遠 ≤2 行，不再蓋到下方元件。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) 儲存 modal 不再出現「流程斷點」字樣 (b) 任何元件沒連線會跳統一文字 warning (c) 任何元件沒角色都跳 (d) 連線跨任務只看到 1 行 summary (e) Excel 匯入 banner 沒「連線被擋住」、沒「流程斷點」(f) 子流程元件圖上不再有「[子流程]」、文字每行 7 字 (g) 閘道標籤 ≤2 行、超過用 `…` 截。',
+      '**動到的檔案（4 個）**：`src/model/validation.js`（5 處 rule 改寫）/ `src/utils/excelImport.js`（流程斷點偵測移除 + 線跨 filter）/ `src/components/DiagramRenderer/shapes.jsx`（L3 文字精簡 + 閘道標籤 cap）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '外部角色 ↔ 內部角色 type 翻轉時自動 strip / 補 `[外部角色]` 前綴（對稱補完 PR-D4）',
     items: [
       '**緣由**：PR-D4 落地了「切到 external 自動加 `[外部角色]` 前綴」單向行為。使用者：「外部角色切回內部角色，[外部角色] 名稱要移除」— 補對稱 strip。',

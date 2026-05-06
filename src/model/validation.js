@@ -62,7 +62,7 @@ export function validateFlow(flow) {
 
   // ── Blocking checks ───────────────────────────────────
   if (startTasks.length === 0) blocking.push('必須要有「流程開始」節點');
-  if (endTasks.length === 0)   blocking.push('必須要有「流程結束」或「流程斷點」節點');
+  if (endTasks.length === 0)   blocking.push('必須要有「流程結束」節點');
 
   startTasks.forEach(s => {
     const outs = (s.nextTaskIds || []).filter(Boolean);
@@ -75,7 +75,7 @@ export function validateFlow(flow) {
     }
   });
   endTasks.forEach(e => {
-    if (!(incoming[e.id] > 0)) blocking.push('「流程結束」/「流程斷點」必須有其他任務連接到它');
+    if (!(incoming[e.id] > 0)) blocking.push('「流程結束」必須有其他任務連接到它');
   });
 
   // ── Multi-start / multi-end warnings (2026-04-29) ──────────────
@@ -85,7 +85,7 @@ export function validateFlow(flow) {
     warnings.push(`流程有 ${startTasks.length} 個「流程開始」節點。BPMN 一般建議單一起點，請確認是否刻意設計多個入口`);
   }
   if (endTasks.length >= 2) {
-    warnings.push(`流程有 ${endTasks.length} 個「流程結束 / 流程斷點」節點。多個終點可接受（不同情境收尾），請確認是否刻意設計`);
+    warnings.push(`流程有 ${endTasks.length} 個「流程結束」節點。多個終點可接受（不同情境收尾），請確認是否刻意設計`);
   }
 
   // ── Warning-level checks ───────────────────────────────
@@ -93,17 +93,15 @@ export function validateFlow(flow) {
     const ct = t.connectionType || 'sequence';
     const label = `任務 ${i + 1}「${t.name || '未命名'}」`;
 
-    // 1. Non-end nodes must have next step.
+    // 1 (consolidated 2026-05-05): every non-end element must have a
+    // forward connection. Per user spec: 「除了結束事件外，任何元件沒有連到
+    // 下一步都要跳提醒」. One-line message regardless of element kind.
     if (!isEnd(t)) {
       const hasNext = t.type === 'gateway'
         ? (t.conditions || []).some(c => c.nextTaskId)
         : (t.nextTaskIds || []).some(Boolean);
       if (!hasNext) {
-        if (t.type === 'l3activity') {
-          warnings.push(`${label}（L3 活動 ${t.subprocessName || '未填編號'}）：未設定下一步。若該 L3 流向另一張流程圖可忽略此提醒，否則請補上連線`);
-        } else {
-          warnings.push(`${label}：未設定下一步`);
-        }
+        warnings.push(`${label}：未連接下一步元件`);
       }
     }
 
@@ -141,10 +139,12 @@ export function validateFlow(flow) {
       warnings.push(`${label}（${gtLabel}閘道）：閘道應有至少 2 條分支，目前只有 ${(t.conditions || []).length} 條`);
     }
 
-    // 3d. Gateway without roleId — soft warning. Since gateway is shown in
-    // dropdowns regardless of roleId, this catches the user before save.
-    if (t.type === 'gateway' && !t.roleId) {
-      warnings.push(`${label}：闘道未指定泳道角色`);
+    // 3d (expanded 2026-05-05): any element without a roleId — soft
+    // warning. Per user spec: 「任何元件未指定泳道角色都跳提醒」. Was
+    // gateway-only; now covers task / interaction / l3activity / start /
+    // end / gateway alike.
+    if (!t.roleId) {
+      warnings.push(`${label}：未指定泳道角色`);
     }
 
     // 3e (symmetric strict, 2026-05-05): warn on lane / element-shape mismatch.
@@ -165,14 +165,11 @@ export function validateFlow(flow) {
       }
     }
 
-    // 4. Every node except start must have incoming (already blocking for end,
-    //    this catches orphan middle nodes).
+    // 4 (consolidated 2026-05-05): every non-start element must have an
+    // incoming connection. Per user spec: 「除了開始事件外，任何元件沒有
+    // 上一個元件相連的話都要跳提醒」. One-line message regardless of kind.
     if (!isStart(t) && !(incoming[t.id] > 0)) {
-      if (t.type === 'l3activity') {
-        warnings.push(`${label}（L3 活動 ${t.subprocessName || '未填編號'}）：沒有任何任務連接到此節點。若該 L3 從另一張流程圖進入可忽略此提醒，否則請補上連線`);
-      } else {
-        warnings.push(`${label}：沒有任何任務連接到此節點`);
-      }
+      warnings.push(`${label}：沒有任何元件連接過來`);
     }
 
     // 5. Loop-return must specify target.
@@ -231,8 +228,14 @@ export function validateFlow(flow) {
   // Warning: line crosses another task. Auto-routing already avoids both,
   // so these only fire when a user override forces the condition.
   const { blocking: ovBlocking, warnings: ovWarnings } = detectOverrideViolations(flow);
+  // 2026-05-05 per user: line-crossing-task warnings are consolidated into
+  // a single summary line so the modal doesn't list every offending pair.
+  // Blocking IN+OUT mix violations stay individually listed (different rule).
+  const consolidatedOvWarnings = ovWarnings.length > 0
+    ? ['畫面上仍有連線被任務矩形擋住，建議重新調整端點或元件位置']
+    : [];
   return {
     blocking: [...blocking, ...ovBlocking],
-    warnings: [...warnings, ...ovWarnings],
+    warnings: [...warnings, ...consolidatedOvWarnings],
   };
 }
