@@ -134,10 +134,14 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           {roles.filter(r => r.name).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
 
-        {/* col 4: Name */}
-        <input type="text" placeholder={nameOptional ? '名稱（選填）' : '任務名稱 *'}
-          value={task.name} onChange={e => onUpdate({ ...task, name: e.target.value })}
-          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+        {/* col 4: Element-type select. PR (2026-05-05): swapped with name —
+            element-type 留 Row 1 較窄欄位（select 內可 truncate），讓 Row 2
+            的任務名稱能拿 col 3+4 雙欄寬度。 */}
+        <select value={currentKind}
+          onChange={e => onUpdate(makeTypeChange(task, e.target.value))}
+          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+          {ELEMENT_TYPES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
 
         {/* col 5: actions (expand / remove) */}
         <button onClick={() => setExpanded(v => !v)}
@@ -149,20 +153,17 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           className="w-6 flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-base">✕</button>
       </div>
 
-      {/* Row 2: unified 元件類型 select. PR (2026-05-05): pl-1 removed from
-          the label cell so 元件類型 starts at the same x as Row 1 col 2's
-          number / kind label and Row 3 ConnectionSection labels. */}
+      {/* Row 2: 任務名稱 input spans col 3+4 for breathing room (PR 2026-05-05
+          swap with Row 1's element-type field). Label sits in col 2 same
+          x-position as Row 1 col 2 chip / Row 3 ConnectionSection labels. */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
         <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
-        <div className="w-24 flex-shrink-0 text-sm text-gray-600">元件類型</div>
+        <div className="w-24 flex-shrink-0 text-sm text-gray-600">任務名稱</div>
 
-        {/* col 3 + col 4: element-type select stretches across both cols
-            so all 8 labels (some long: "L3 流程（子流程調用）") fit comfortably */}
-        <select value={currentKind}
-          onChange={e => onUpdate(makeTypeChange(task, e.target.value))}
-          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
-          {ELEMENT_TYPES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
+        {/* col 3 + col 4: name input spans both for ample edit room */}
+        <input type="text" placeholder={nameOptional ? '名稱（選填）' : '任務名稱 *'}
+          value={task.name} onChange={e => onUpdate({ ...task, name: e.target.value })}
+          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
       </div>
 
       {/* Row 3: Connection config — wrapper provides reorder spacer; the inner
