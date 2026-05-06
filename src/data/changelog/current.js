@@ -6,20 +6,25 @@
 export default [
   {
     date: '2026-05-06',
-    title: '（preview）改善排版 toggle — scheme3 + Phase 1 mixed priority + Phase 3f L1 retry 三件組',
+    title: '`/ship-feature` skill 加 changelog 日期 audit step（CLAUDE.md §4 規則 5 補實作）',
     items: [
-      '**緣由**：使用者實測 S1 / S2 / S3 對照後選定 S3（依 L4 編號排），並要求把 S3 跟 Phase 1 mixed priority + L1 retry 合成一顆 toggle 方便 A/B 比較。',
-      '**改善內容**：(1) scheme3 columnAssign — 改用 topological + L4 walk 演算法：按 L4 sortKey 順序走訪、`col[t] = max(predecessors.col + 1, l4Bound)`，l4Bound 對 parallel sibling 允許同 col、對非 sibling 強制 +1。同時滿足 (a) parallel siblings 連續 contiguous 時同 col 對齊、(b) 中間有孤立任務時嚴格 L4 順序、(c) compact 無空白 col。(2) Phase 1 mixed priority — 4-pass fallback：未被 sibling 用 + 路徑無障礙 + rule-1 OK → 路徑無障礙 → 未被 sibling 用 → priorities[0]。(3) Phase 3f L1 retry — 走完所有 phase 後對紅線連線試 16 種 (exit, entry) 組合、挑第一個 rule 1 + rule 2 都過的。Phase 3f 跳過使用者 override 連線（避免 auto-revert）。',
-      '**Header 改成 boolean toggle**：「改善排版」按鈕，跟「錯落」獨立，per-flow persistent。',
+      '**緣由**：CLAUDE.md §4 第 5 條規則寫「`/ship-feature` skill 收尾步驟會跑 audit script 比對最新一條 changelog `date` 是否等於剛 merge 的 PR `merged_at`，不一致直接 fail」— 規則文字 PR-A 立過了，但 skill 本身沒實作。本 PR 補上。',
+      '**`.claude/skills/ship-feature.md` 加步驟 6.5「Changelog 日期 audit」**：插在步驟 6（同步 local）之後、步驟 7（回報使用者）之前。流程 — (1) 從步驟 4 / 5 拿 PR number，呼叫 `mcp__github__pull_request_read` action `get` 取 `merged_at[:10]` (2) 讀 sync 後的 `src/data/changelog/current.js` 第一筆 entry 的 `date` (3) 比對 — 一致就通過、不一致 print 錯誤訊息含兩個日期 + 提示開 follow-up PR 修正、**不**繼續到步驟 7 回報。',
+      '**為什麼不自動修**：main 通常 branch-protected 不接受直接 push；且違反一 PR 一變更慣例。讓使用者自己開 follow-up PR 比較乾淨（PR-A 校正 8 個歷史錯誤就是這個 pattern）。',
+      '**`CLAUDE.md` §4 規則 5 文字微調**：原「會跑 audit script」改寫成「步驟 6.5（2026-05-06 補實作）會自動 audit ... 不一致就 fail + 提示開 follow-up PR 修正」— 反映實作落地。',
+      '**驗證**：規則 audit 是 skill markdown 步驟，無 build 影響。功能驗證點：(a) 下次 ship 一個跨 UTC 日界 merge 的 PR → skill 步驟 6.5 應該抓到 changelog date 跟 merged_at 不一致並停下來 (b) 一致時應該無聲通過、繼續到步驟 7 回報。',
+      '**動到的檔案（3 個）**：`.claude/skills/ship-feature.md`（加步驟 6.5）/ `CLAUDE.md`（§4 規則 5 文字微調）/ `src/data/changelog/current.js`（本條）。',
     ],
   },
   {
     date: '2026-05-06',
-    title: '（preview）錯落排列 toggle — 奇數泳道右移半格，跨泳道任務交錯',
+    title: 'Excel 匯入 banner 雙重 bullet 修正（list-disc + 文字「•」前綴重疊）',
     items: [
-      '**緣由**：使用者：「我希望跨泳道的元件可以錯落排列⋯⋯第二個角色的元件位置會在上一列角色的一半的位置開始⋯⋯這樣連線可以從第一角色的兩個任務中間穿過。」',
-      '**v1 預覽範圍（最小可視化）**：加 per-flow `staggerLanes` boolean toggle、Header 多一顆「錯落」按鈕、`computeLayout` 對奇數 row 平移 `COL_W/2 = 92px`。',
-      '**部署**：`.github/workflows/deploy-preview.yml` 把 main + 此分支併到單一 Pages deploy；preview 在 `https://cjo4m3c.github.io/FlowSprite/preview-stagger-layout/`。',
+      '**緣由**：使用者「我發現匯入提醒事項列點後，有些原本有列點的現在就會有兩個點」。前一個 PR-I 在 banner 的 `<ul>` 加 `list-disc` 後，凡是訊息文字本身已含 `• ` 前綴的（例如「• 第 85 列「name」 X → Y」）就變成 disc bullet + 文字 bullet 兩顆連在一起。',
+      '**修法**：把 8 處 `warnings.push` 開頭的 `• `（或 `  • `）字串前綴拿掉，讓視覺 bullet 完全由 `<ul list-disc>` CSS 提供。動到的位置 — `excelImport/warnings.js`：collectCrossCheckWarnings（4 處 `_g` 後綴 / 閘道型不一致 / `-0` start / `-99` end 訊息）+ collectGatewayChainWarnings（2 處：找不到前置 / 前置未指向）`excelImport/index.js`：normalizeL4Numbers fix line 2 種變體（含 / 不含 excelRow tag）。',
+      '**沒動的地方**：`validators.js` 內 `errors.push(\'• 第 N 列...\')` 是 `validateNumbering` throw 的 hard error 訊息（不是 warning array）— 這些訊息是用 `\\n` 串成大字串後 throw，最後在 import error banner 用 `whitespace-pre-line` 顯示為純文字（沒走 `<ul>`），所以 `• ` 就是視覺 bullet 必須保留。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) 上傳會自動調整 L4 編號的 Excel → banner 顯示「[L3 5-1-2] 已自動調整 1 個 L4 編號以符合規則：」（一個 disc）+「第 85 列「name」 X → Y」（一個 disc）— 不再重複 (b) 上傳含 cross-check warning 的 Excel → 同樣每行一個 disc (c) `validateNumbering` throw 的格式錯誤（紅色 banner）字樣不變、保留 `• ` 純文字 bullet。',
+      '**動到的檔案（3 個）**：`src/utils/excelImport/warnings.js`（6 處 strip）/ `src/utils/excelImport/index.js`（fix line 2 處 strip + 註解）/ `src/data/changelog/current.js`（本條）。',
     ],
   },
   {

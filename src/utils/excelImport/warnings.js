@@ -46,22 +46,22 @@ export function collectCrossCheckWarnings(allRows) {
 
     if (hasGTag && !gtFromText) {
       warnings.push(
-        `• 第 ${excelRow} 列：L4「${l4}」帶「_g」後綴但任務關聯說明沒寫分支詞彙，系統預設為「排他閘道（XOR）」— 若實際是 OR / AND，請在 I 欄補「條件分支至 / 並行分支至 / 包容分支至 ...」`
+        `第 ${excelRow} 列：L4「${l4}」帶「_g」後綴但任務關聯說明沒寫分支詞彙，系統預設為「排他閘道（XOR）」— 若實際是 OR / AND，請在 I 欄補「條件分支至 / 並行分支至 / 包容分支至 ...」`
       );
     }
     if (gtFromText && gtFromName && gtFromText !== gtFromName) {
       warnings.push(
-        `• 第 ${excelRow} 列閘道類型不一致：L4 名稱寫「[${labelOf(gtFromName)}]」但任務關聯說明用「${labelOf(gtFromText)}」的詞彙 — 系統依任務關聯說明判定為「${labelOf(gtFromText)}」，若不對請改 I 欄詞彙`
+        `第 ${excelRow} 列閘道類型不一致：L4 名稱寫「[${labelOf(gtFromName)}]」但任務關聯說明用「${labelOf(gtFromText)}」的詞彙 — 系統依任務關聯說明判定為「${labelOf(gtFromText)}」，若不對請改 I 欄詞彙`
       );
     }
     if (isStartL4 && !/開始事件/.test(l4Name)) {
       warnings.push(
-        `• 第 ${excelRow} 列：L4「${l4}」結尾「-0」（開始事件），建議名稱補「[開始事件]」前綴以利辨識`
+        `第 ${excelRow} 列：L4「${l4}」結尾「-0」（開始事件），建議名稱補「[開始事件]」前綴以利辨識`
       );
     }
     if (isEndL4 && !/結束事件/.test(l4Name)) {
       warnings.push(
-        `• 第 ${excelRow} 列：L4「${l4}」結尾「-99」（結束事件），建議名稱補「[結束事件]」前綴以利辨識`
+        `第 ${excelRow} 列：L4「${l4}」結尾「-99」（結束事件），建議名稱補「[結束事件]」前綴以利辨識`
       );
     }
   }
@@ -99,13 +99,13 @@ export function collectGatewayChainWarnings(allRows) {
     const predInfo = rowByL4[predecessor];
     if (!predInfo) {
       warnings.push(
-        `• 第 ${info.excelRow} 列閘道 ${l4}：找不到預期的前置元件 ${predecessor}（規則：${l4} 應接在 ${predecessor} 之後）`
+        `第 ${info.excelRow} 列閘道 ${l4}：找不到預期的前置元件 ${predecessor}（規則：${l4} 應接在 ${predecessor} 之後）`
       );
       continue;
     }
     if (!predInfo.flowText.includes(l4)) {
       warnings.push(
-        `• 第 ${info.excelRow} 列閘道 ${l4}：前置元件 ${predecessor}（第 ${predInfo.excelRow} 列）的任務關聯說明未指向 ${l4}（建議補「序列流向 ${l4}」或對應的分支標記）`
+        `第 ${info.excelRow} 列閘道 ${l4}：前置元件 ${predecessor}（第 ${predInfo.excelRow} 列）的任務關聯說明未指向 ${l4}（建議補「序列流向 ${l4}」或對應的分支標記）`
       );
     }
   }

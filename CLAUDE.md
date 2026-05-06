@@ -54,7 +54,7 @@
 - `current.js` **>7KB 就凍結**：rename 成 `c{next}.js`、reset `current.js`、`index.js` 加 import。歷史教訓：原 10KB 門檻，c13 衝到 17KB，下調到 7KB 留 buffer
 - `current.js` 陣列 **newest first**
 - 條目格式：`{ date: 'YYYY-MM-DD', title: '簡短標題', items: ['...'] }`
-- **`date` 必須對齊 PR `merged_at` UTC 日期**（2026-05-06 立，源於使用者：「很常在更新 changelog 的時候寫錯日期」）：寫條目時用 `mcp__github__pull_request_read get_pull_request` 取得目標 PR 的 `merged_at` ISO 日期前 10 字（不是「正在寫的時間」、不是「PR 開立日期」、不是「local 時區的今天」）。同一 session 還沒 merge → 暫填本地當天日期，merge 完後**回頭補正**（容易跨 UTC 日界誤差）。`/ship-feature` skill 收尾步驟會跑 audit script 比對最新一條 changelog `date` 是否等於剛 merge 的 PR `merged_at`，不一致直接 fail。
+- **`date` 必須對齊 PR `merged_at` UTC 日期**（2026-05-06 立，源於使用者：「很常在更新 changelog 的時候寫錯日期」）：寫條目時用 `mcp__github__pull_request_read get_pull_request` 取得目標 PR 的 `merged_at` ISO 日期前 10 字（不是「正在寫的時間」、不是「PR 開立日期」、不是「local 時區的今天」）。同一 session 還沒 merge → 暫填本地當天日期，merge 完後**回頭補正**（容易跨 UTC 日界誤差）。`/ship-feature` skill 步驟 6.5（2026-05-06 補實作）會自動 audit 比對最新一條 changelog `date` 是否等於剛 merge 的 PR `merged_at`，不一致就 fail + 提示開 follow-up PR 修正。
 - **一 PR 一條 changelog**：feature + bug fix + UI 調整合成同一筆，在 items 用 `**主題**：...` 分段
 - 引用使用者原話當錨點（例：「使用者：「不能讓端點同時有進有出」」）
 
