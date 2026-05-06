@@ -11,11 +11,18 @@ import { runPhase3 } from './phase3.js';
 import { runPhase3b, runPhase3c } from './phase3bc.js';
 import { runPhase3d } from './phase3d.js';
 import { runPhase3e } from './phase3e.js';
+import { runPhase3f } from './phase3f.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
 export function computeLayout(flow) {
-  const { roles, tasks, l3Number, staggerLanes, colAssignMode = 'default' } = flow;
+  const { roles, tasks, l3Number, staggerLanes, enhancedRouting } = flow;
+  // Enhanced routing bundles three preview improvements together:
+  //   1. scheme3 columnAssign (sort by L4 number, no parallel override)
+  //   2. Phase 1 mixed-priority (obstacle-aware port selection)
+  //   3. Phase 3f L1 retry (post-validation retry for red lines)
+  // OFF by default — enabled via flow.enhancedRouting toggle in Header.
+  const colAssignMode = enhancedRouting ? 'scheme3' : 'default';
 
   // Per-lane horizontal stagger offset (preview feature 2026-05-06):
   // odd-indexed rows shift right by COL_W/2 so tasks across adjacent
@@ -76,12 +83,13 @@ export function computeLayout(flow) {
     taskCrossLaneRouting:  new Map(),
   };
 
-  runPhase1And2(ctx);
+  runPhase1And2(ctx, !!enhancedRouting);
   runPhase3(ctx);
   runPhase3b(ctx);
   runPhase3c(ctx);
   runPhase3d(ctx);
   runPhase3e(ctx);
+  if (enhancedRouting) runPhase3f(ctx);
 
   const { condRouting, taskBackwardRouting, taskForwardRouting, taskCrossLaneRouting } = ctx;
 

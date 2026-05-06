@@ -1,4 +1,5 @@
 import { getExitPriority, inferEntrySide } from './gatewayRouting.js';
+import { isPathClear } from './corridor.js';
 
 /**
  * Phase 1+2 — per-gateway condition routing (smart distribution).
@@ -13,9 +14,16 @@ import { getExitPriority, inferEntrySide } from './gatewayRouting.js';
  *            bump the later ones to an alternate entry side where geometry
  *            allows.
  *
+ * `useMixedPriority` (preview branch 2026-05-06) — when true, replaces the
+ * single sibling-uniqueness filter with a 4-pass fallback chain:
+ *   1️⃣ not used by sibling AND path obstacle-free AND rule-1 OK
+ *   2️⃣ path obstacle-free AND rule-1 OK (sibling sharing allowed)
+ *   3️⃣ not used by sibling AND rule-1 OK (path may be blocked)
+ *   4️⃣ priorities[0] (legacy)
+ *
  * Mutates: ctx.condRouting, ctx.incomingByTarget
  */
-export function runPhase1And2(ctx) {
+export function runPhase1And2(ctx, useMixedPriority = false) {
   const { tasks, taskRowOf, taskColOf, condRouting, incomingByTarget } = ctx;
 
   tasks.forEach(task => {
@@ -43,8 +51,33 @@ export function runPhase1And2(ctx) {
     });
 
     prioritized.forEach(({ cond, dr, dc, priorities }) => {
-      let exitSide = priorities.find(p => !usedExits.has(p)) ?? priorities[0];
-      let entrySide = inferEntrySide(exitSide, dr, dc);
+      let exitSide;
+      if (useMixedPriority) {
+        const tr = taskRowOf[cond.nextTaskId], tc = taskColOf[cond.nextTaskId];
+        const trial = (p) => ({
+          exit: p,
+          entry: inferEntrySide(p, dr, dc),
+        });
+        const tryFilter = (filterFn) =>
+          priorities.find(p => filterFn(trial(p)));
+
+        // 1️⃣ not used + path clear (incl. rule 1)
+        exitSide = tryFilter(({ exit, entry }) =>
+          !usedExits.has(exit) &&
+          isPathClear(exit, entry, fr, fc, tr, tc, ctx, task.id, cond.nextTaskId)
+        );
+        // 2️⃣ path clear (sibling sharing OK)
+        if (!exitSide) exitSide = tryFilter(({ exit, entry }) =>
+          isPathClear(exit, entry, fr, fc, tr, tc, ctx, task.id, cond.nextTaskId)
+        );
+        // 3️⃣ not used (path may be blocked, but rule 1 still OK)
+        if (!exitSide) exitSide = tryFilter(({ exit }) => !usedExits.has(exit));
+        // 4️⃣ legacy fallback
+        if (!exitSide) exitSide = priorities[0];
+      } else {
+        exitSide = priorities.find(p => !usedExits.has(p)) ?? priorities[0];
+      }
+      const entrySide = inferEntrySide(exitSide, dr, dc);
       usedExits.add(exitSide);
       condRouting.set(`${task.id}::${cond.id}`, { exitSide, entrySide });
 

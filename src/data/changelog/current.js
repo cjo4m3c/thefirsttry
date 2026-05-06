@@ -6,15 +6,13 @@
 export default [
   {
     date: '2026-05-06',
-    title: '（preview）columnAssign 三方案 + scheme3 依 L4 編號排序，Header 四段切換',
+    title: '（preview）改善排版 toggle — scheme3 + Phase 1 mixed priority + Phase 3f L1 retry 三件組',
     items: [
-      '**緣由**：使用者在 g1(idx 0) → g2(idx 1) + 發起專案(idx 3) 並行 + g3(idx 2) 孤立 的場景下，發現視覺順序變成 g1 → g3 → g2，而不是 idx 期待的 g1 → g2 → g3。',
-      '**Root cause**：`computeColumnMap` step 2 parallel override 用 `max(siblings.col)` 對齊，當 sibling 之一 idx 比中間孤立任務還大時，sibling 被拉到孤立任務後面 → leapfrog bug。',
-      '**方案 1（idx-monotonic 守則）**：parallel override 後加一個 `enforceIdxMonotonicPerLane` pass。每泳道按 idx 排序，後 idx 的 col 必須 > 前 idx 的 col；違反則右推。',
-      '**方案 2（min-align 拉左）**：parallel override 改用 `min(siblings.col)`，把 idx 大的 sibling 拉左對齊到最小 sibling 的 col。流程圖最緊湊。',
-      '**方案 3（依 L4 編號排）**：使用者實測 S1 / S2 仍會有 idx 順序 ≠ L4 編號順序的反序情境（例：5-1-2-9 在 5-1-2-8 之前）。S3 用 L4 編號當 col 排序基準，sequence task 的數字、`_g` / `_s` / `_e` 後綴都做 sortKey 解析（offset 0.001 / 0.501 / 0.801）。`resolveRowCollisions` 接受 orderOf 參數，scheme3 傳 col-rank 進去讓 collision 解析也照 L4 順序。',
-      '**Header 改 4 段循環**：預設 → S1 → S2 → S3 → 預設，per-flow persistent，方便 A/B/C/D 比較。',
-      '**動到的檔案（4 個）**：`src/diagram/layout/columnAssign.js`（mode 參數 + enforceIdxMonotonicPerLane export）/ `src/diagram/layout/computeLayout.js`（傳 mode + 條件 call scheme1）/ `src/components/FlowEditor/Header.jsx`（3-way toggle button）/ `src/components/FlowEditor/index.jsx`（cycleColAssign + props 傳遞）。',
+      '**緣由**：使用者實測 S1 / S2 / S3 對照後選定 S3（依 L4 編號排），並要求把 S3 跟 Phase 1 mixed priority + L1 retry 合成一顆 toggle 方便 A/B 比較。',
+      '**改善內容**：(1) scheme3 columnAssign — 用 L4 編號 sortKey 排 col，不依 array idx；不做 parallel override 確保嚴格 L4 順序。(2) Phase 1 mixed priority — 4-pass fallback：未被 sibling 用 + 路徑無障礙 + rule-1 OK → 路徑無障礙 → 未被 sibling 用 → priorities[0]。(3) Phase 3f L1 retry — 走完所有 phase 後對紅線連線試 16 種 (exit, entry) 組合、挑第一個 rule 1 + rule 2 都過的。',
+      '**isPathClear helper**：`corridor.js` 新增、預測路徑 cells（top→top corridor / right→left Z 形 / top→left L 形 等）+ rule 1 port-mix 檢核。Phase 1 + Phase 3f 共用同一 predicate 確保兩階段判定一致。',
+      '**Header 改成 boolean toggle**：「改善排版」按鈕，一鍵開三件組 / 全關。per-flow persistent，跟「錯落」獨立 — 兩者可單獨用、合併用、全關，共 4 種測試組合。',
+      '**動到的檔案（5 個）**：`src/diagram/layout/corridor.js`（isPathClear + predictPathCells）/ `src/diagram/layout/phase1and2.js`（4-pass fallback）/ `src/diagram/layout/phase3f.js`（新檔，L1 retry）/ `src/diagram/layout/computeLayout.js`（enhancedRouting flag → scheme3 + Phase 1 useMixedPriority + Phase 3f）/ `src/components/FlowEditor/Header.jsx` + `index.jsx`（toggle button）。',
     ],
   },
   {
