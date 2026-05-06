@@ -18,6 +18,32 @@ export default [
   },
   {
     date: '2026-05-05',
+    title: 'TaskCard 任務名稱 ↔ 元件類型欄位交換：name 拿 Row 2 雙欄寬編輯空間',
+    items: [
+      '**緣由**：使用者：「把任務名稱欄位跟任務元件欄位交換，這樣使用者才有比較大空間可以編輯任務名稱」。原 layout：Row 1 col 4 是 name input（單欄寬）/ Row 2 col 3+4 跨欄 span 是 element-type select。任務名稱常常很長（含閘道前綴或長描述），擠在單欄不夠。',
+      '**改法**：把兩個欄位位置交換。Row 1 col 4 改放 element-type select（select 自帶 dropdown，內容可 truncate）。Row 2 改放 name input + 跨 col 3+4 雙欄寬。Row 2 label 從「元件類型」改成「任務名稱」。',
+      '**新 layout**：',
+      '  • Row 1：reorder | col2 chip+num | role select | **element-type select** | ▼ ✕',
+      '  • Row 2：spacer | spacer | **任務名稱 label** | **name input（col 3+4 雙欄寬）**',
+      '  • Row 3：ConnectionSection 不變',
+      '**驗證**：`npm run build` 通過。8 種元件 element-type select 在 Row 1 單欄寬可顯示主標題（"L3 流程（子流程調用）" 等長 label 由 native select truncate / 滑動）。',
+      '**動到的檔案（2 個）**：`src/components/FlowEditor/TaskCard.jsx`（Row 1 / Row 2 欄位交換 + label 文字改）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
+    title: 'TaskCard col 2 重新設計：彩色 chip 在上 + L4 編號在下 + ℹ tooltip 改 CSS group-hover 即時顯示',
+    items: [
+      '**緣由**：使用者回報 (1) ℹ icon hover 沒反應 — 之前用 `title` 屬性給 native browser tooltip，但 native title 觸發延遲長、不同瀏覽器對 `\\n` 行為不一致、12px 細字命中區小 (2) 元件名稱應該在編號上方、配合區塊色塊做出明顯樣式。',
+      '**Fix 1（ℹ tooltip）**：title 屬性改成 Tailwind `group / group-hover` CSS popover — 即時觸發、深色背景 + 白字、`whitespace-pre-wrap` 支援多行、固定 280px 寬度。內含粗體元件名 / 描述 / 任務關聯說明三段，hover ℹ 立即顯示在下方、moveaway 立即消失。`pointer-events-none` 避免 popover 自己擋住 hover。',
+      '**Fix 2（chip 上 + 編號下）**：col 2 從 stacked「mono num 上 / 灰字 label 下」翻轉成「彩色 chip 上 / mono num 下」。新增 `KIND_BADGE` 色票 — 任務 slate / 互動灰白 / 排他 amber / 並行 綠 / 包容 黃 / 子流程 紫 / 開始 綠 / 結束 紅，呼應流程圖 + CONN_BADGE 既有配色。chip 用 `px-1.5 py-0.5 rounded text-xs font-bold` 浮在 row bg 之上，視覺層次清楚。',
+      '**順帶**：拿掉 TaskCard 根 div 的 `overflow-hidden` — group-hover popover 用 absolute 定位、原本會被 overflow-hidden 截掉。`rounded-lg` 圓角下卡片內容沒有 bg 會超出，移除 overflow-hidden 視覺無 regression。',
+      '**驗證**：`npm run build` 通過。8 種元件 kind 各對應 chip 配色 + tooltip 內容。`group-hover` 機制比 native title 在 Chrome / Firefox / Safari 行為一致。',
+      '**動到的檔案（2 個）**：`src/components/FlowEditor/TaskCard.jsx`（KIND_BADGE 新增 + col 2 layout 翻轉 + tooltip 改 CSS popover + 移除 overflow-hidden）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '同 lane skip-connection routing：偵測上 / 下 corridor 鄰近 lane 任務、走較乾淨那側、預設上方',
     items: [
       '**緣由**：使用者決策 7 情境 C — 同 lane skip-connection（A1 → A3 中間有 A2）目前由 Phase 3c 自動繞 corridor，但選擇 top 或 bottom 只看「port-mix」/「corridor 已被佔用」結構性檢核，沒看「鄰近 lane 是否有任務」這個視覺乾淨度判準。使用者：「偵測上下方式分有任務或其他元件，走沒有元件的那一側（沒有的話就預設走上方）」。',
