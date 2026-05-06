@@ -81,16 +81,25 @@ export function validateFlow(flow) {
   // User decision: allow multiple start / end events but surface a save-time
   // notice so the user can confirm the topology was intentional.
   if (startTasks.length >= 2) {
-    warnings.push(`流程有 ${startTasks.length} 個「流程開始」節點。BPMN 一般建議單一起點，請確認是否刻意設計多個入口`);
+    warnings.push(`流程有 ${startTasks.length} 個「流程開始」節點。BPMN 一般建議單一起點，建議確認是否刻意設計多個入口`);
   }
   if (endTasks.length >= 2) {
-    warnings.push(`流程有 ${endTasks.length} 個「流程結束」節點。多個終點可接受（不同情境收尾），請確認是否刻意設計`);
+    warnings.push(`流程有 ${endTasks.length} 個「流程結束」節點。多個終點可接受（不同情境收尾），建議確認是否刻意設計`);
   }
 
   // ── Warning-level checks ───────────────────────────────
   tasks.forEach((t, i) => {
     const ct = t.connectionType || 'sequence';
-    const label = `任務 ${i + 1}「${t.name || '未命名'}」`;
+    // PR (2026-05-06): label uses the element's actual L4 number from the
+    // diagram (displayLabels) + element-kind name (describeElement) so
+    // warnings reference the SAME identifier the user sees on screen.
+    // Pre-2026-05-06 used「任務 N」 array index which didn't match the
+    // diagram. Fallback chain: displayLabels → task.l4Number → empty
+    // (kind name alone is enough to locate via name).
+    const dl = displayLabels[t.id] || t.l4Number || '';
+    const num = dl ? ` ${dl}` : '';
+    const namePart = t.name?.trim() ? `「${t.name}」` : '';
+    const label = `${describeElement(t)}${num}${namePart}`;
 
     // 1 (consolidated 2026-05-05): every non-end element must have a
     // forward connection. Per user spec: 「除了結束事件外，任何元件沒有連到

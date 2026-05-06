@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-06',
+    title: 'Excel 匯入提醒文字四項調整：元件用流程圖編號 + 調整 vs 建議確認 + 連線違規不顯示 + 全部列點',
+    items: [
+      '**緣由**：使用者四點需求 (1)「真的有修改的，才用『調整』這個詞」(2)「沒有修改只是『提醒使用者要檢查』，請寫『建議確認』」(3)「請不要使用任務 2、任務 3，要指出是哪個元件，就直接寫出現有流程圖上的編號」(4)「連線有違反規則（端點混用、被任務擋到）的情況，在上傳時不提醒」+「Excel 檢核的提示訊息全部列點」。',
+      '**`model/validation.js` label 格式改寫（核心修正）**：原 `任務 ${i + 1}「${t.name}」` 用陣列 index — 跟流程圖上實際 L4 編號不一致（流程圖顯示 1-1-5-3，warning 卻寫「任務 2」），使用者找不到對應元件。改成 `${describeElement(t)}${num}「${t.name}」` 用 `displayLabels[t.id]`（fallback `task.l4Number`）+ 元件類型中文名稱。Warning 範例：`L4 任務 1-1-5-3「彙整請購資料」：未連接下一步元件`。',
+      '**詞彙統一 — 多 start / end 警告改「建議確認」**：原「請確認是否刻意設計多個入口/收尾」改成「建議確認是否刻意設計多個入口/收尾」。對照規則：實際有改動 → 用「調整」（`已自動調整 X 個 L4 編號`）/ 沒改只提醒檢查 → 用「建議確認」。其他 warning 文字（「未連接下一步元件」/「沒有任何元件連接過來」/「未指定泳道角色」）本身就是純陳述，無需動。',
+      '**`utils/excelImport/index.js` 連線違規 filter 擴大**：原 `isLineCrossingSummary` 只 filter「連線被任務矩形擋住」 summary。擴大成 `isConnectionViolation`，同時 filter (a) blocking「端點同時有進出連線（違反規則 1：端點不混用）」(b) warning「連線「A」→「B」 穿過任務「C」（違反規則 2：視覺不重疊）」(c) summary「連線被任務矩形擋住」。三者都從 Excel banner + per-flow `importWarnings` 過濾掉。Save 時編輯器內仍會跳 modal（紅框 + blocking 仍然 block save），只是上傳當下不顯示。',
+      '**Bullet 列點（`Dashboard/Banners.jsx` + `FlowEditor/index.jsx`）**：兩個 ImportWarnings banner 的 `<ul>` 加 `list-disc` class — 原本沒有實心 bullet 點，使用者看到的是一行一行純文字，不像列表。加 class 後每筆訊息前面有 disc bullet「•」，視覺上清楚是列點。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) 上傳含未連接元件的 Excel → banner 顯示「L4 任務 1-1-5-3「name」：未連接下一步元件」（用 L4 編號不是任務 N）(b) 上傳含 IN+OUT 端點混用的 Excel → banner 不再顯示這條，但開編輯器後 save 仍會擋 (c) 多 start / end 警告改用「建議確認」 (d) 兩個 banner 訊息有 disc bullet。',
+      '**動到的檔案（5 個）**：`src/model/validation.js`（label 改 displayLabels-based + 多 start/end 詞彙）/ `src/utils/excelImport/index.js`（filter 擴大 + 重命名 isLineCrossingSummary → isConnectionViolation）/ `src/components/Dashboard/Banners.jsx`（`list-disc` class）/ `src/components/FlowEditor/index.jsx`（`list-disc` class）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: '元件類型中文標籤統一用全名（KIND_SHORT_LABEL 改 verbose）+ describeElement 改讀同一份',
     items: [
       '**緣由**：使用者：「我希望統一用全名」。原本 chip pill（TaskCard col 2 / ContextMenu header）用 compact 短名「任務」/「外部互動」/「子流程」，但 `validation.js describeElement()` warning 訊息用 verbose「L4 任務」/「外部關係人互動」/「L3 流程」— 同一個元件在 UI 三處顯示兩個名字，使用者混亂。改成單一份 SOT verbose 名稱。',
