@@ -23,11 +23,9 @@ import { useFlowActions } from './useFlowActions.js';
 import { Header } from './Header.jsx';
 import { DrawerContent } from './DrawerContent.jsx';
 import { SaveModal, ResetAllModal } from './SaveModals.jsx';
-import {
-  createStack as createUndoStack, push as pushUndo,
-  undo as popUndo, redo as popRedo,
-  canUndo as canUndoStack, canRedo as canRedoStack,
-} from '../../utils/undoStack.js';
+import { useUndoRedo } from './useUndoRedo.js';
+import { useSaveReminder } from './useSaveReminder.js';
+import { makeDrawerInsertHandlers } from './drawerInsertHandlers.js';
 
 export default function FlowEditor({ flow, onBack, onSave }) {
   const [liveFlow, setLiveFlow] = useState(() => ({
@@ -38,19 +36,6 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     }),
   }));
   const [hasChanges, setHasChanges] = useState(false);
-  // Undo/redo stack (50 steps, debounced 500ms, cleared on save).
-  // Snapshot-based — push current liveFlow before mutation, restore on undo.
-  const [undoStack, setUndoStack] = useState(createUndoStack);
-  // Save-reminder pulse: 'none' / 'brief' (8s burst) / 'continuous' (until
-  // user edits or saves). Two trigger paths drive it — see useEffects below.
-  const [pulseMode, setPulseMode] = useState('none');
-  // Tick counter — bumps on every patch so the idle-timer effect can react
-  // (hasChanges stays true throughout an edit session, so we need a finer
-  // signal to "user is still active").
-  const [editStamp, setEditStamp] = useState(0);
-  // Anchor for the 3-min / 5-min brief reminders: timestamp of the FIRST
-  // edit since last save. Cleared on save.
-  const editingStartRef = useRef(null);
   // Save success celebration — set true on every successful save for ~900ms
   // so the Header can run the flash + sparkle animation. Auto-clears.
   const [saveCelebrate, setSaveCelebrate] = useState(false);
@@ -93,6 +78,17 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   // PR I: confirm-before-clear modal for "重設所有手動端點" global reset.
   const [resetAllModal, setResetAllModal] = useState(false);
 
+  // Undo/redo stack (50 steps, debounced 500ms, cleared on save). Hook also
+  // installs the Ctrl+Z / Ctrl+Y keyboard listener.
+  const { pushSnapshot, clear: clearUndo, canUndo, canRedo, handleUndo, handleRedo } =
+    useUndoRedo({ liveFlow, setLiveFlow, setHasChanges, saveModal, resetAllModal });
+
+  // Save-reminder pulse: 'none' / 'brief' (8s burst) / 'continuous' (until
+  // user edits or saves). bumpEdit() is called from patch() on each edit;
+  // resetPulse() is called from doSave() on success.
+  const { pulseMode, bumpEdit, resetPulse } =
+    useSaveReminder({ hasChanges, saveModal, resetAllModal });
+
   useEffect(() => {
     if (!logoReaction) return;
     const timer = setTimeout(() => setLogoReaction(null), 900);
@@ -108,26 +104,10 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     // Snapshot current liveFlow into the undo stack BEFORE applying. The
     // stack helper drops pushes within DEBOUNCE_MS so a typing burst
     // collapses to a single undo step (the pre-burst state).
-    setUndoStack(prev => pushUndo(prev, structuredClone(liveFlow)));
+    pushSnapshot();
     setLiveFlow(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
-    setEditStamp(s => s + 1);  // resets the idle reminder timer
-  }
-
-  function handleUndo() {
-    const result = popUndo(undoStack, structuredClone(liveFlow));
-    if (!result) return;
-    setUndoStack(result.stack);
-    setLiveFlow(result.snapshot);
-    setHasChanges(true);
-  }
-
-  function handleRedo() {
-    const result = popRedo(undoStack, structuredClone(liveFlow));
-    if (!result) return;
-    setUndoStack(result.stack);
-    setLiveFlow(result.snapshot);
-    setHasChanges(true);
+    bumpEdit();  // resets the save-reminder idle timer
   }
 
   // Reorder via ▲ ▼ buttons (replaced HTML5 drag 2026-04-30 — see
@@ -155,6 +135,9 @@ export default function FlowEditor({ flow, onBack, onSave }) {
 
   // All graph mutations (addTask, addTaskAfter, insertGatewayAfter, ...)
   const actions = useFlowActions({ liveFlow, patch });
+  // Click-to-insert handlers for DrawerContent — resolve index into the
+  // appropriate before/after action call.
+  const drawerHandlers = makeDrawerInsertHandlers({ liveFlow, actions });
 
   function doSave(flow, onSuccess) {
     onSave(flow);
@@ -163,74 +146,15 @@ export default function FlowEditor({ flow, onBack, onSave }) {
     setSaveModal(null);
     // Per user spec 2026-05-03: clear undo + redo stacks on save. The saved
     // state is the new baseline — undo can't cross a save checkpoint.
-    setUndoStack(createUndoStack());
+    clearUndo();
     // Save-reminder reset — pulse stops, edit-duration anchor restarts on
     // next edit (so 3min/5min timers re-trigger from a fresh starting point).
-    setPulseMode('none');
-    editingStartRef.current = null;
+    resetPulse();
     // Trigger celebration animation (Header reads saveCelebrate prop).
     setSaveCelebrate(true);
     setTimeout(() => setSaveCelebrate(false), 900);
     onSuccess?.();
   }
-
-  // Ctrl+Z / Cmd+Z = undo; Ctrl+Y or Ctrl+Shift+Z = redo. Skip when focused
-  // in input/textarea/select (browser native text-undo) or when a modal is
-  // open (modal blocks user actions).
-  useEffect(() => {
-    function onKey(e) {
-      const tag = e.target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
-      if (saveModal || resetAllModal) return;
-      const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
-      if (e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-      } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
-        e.preventDefault();
-        handleRedo();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saveModal, resetAllModal, undoStack, liveFlow]);
-
-  // Save reminder — idle path: while there are unsaved changes, every edit
-  // resets a 2-min timer; if it fires the save button enters 'continuous'
-  // pulse until the user resumes editing or saves.
-  useEffect(() => {
-    if (!hasChanges || saveModal || resetAllModal) return;
-    // Any new edit → drop continuous pulse (user is active again).
-    setPulseMode(prev => (prev === 'continuous' ? 'none' : prev));
-    const t = setTimeout(() => setPulseMode('continuous'), 90 * 1000);
-    return () => clearTimeout(t);
-  }, [editStamp, hasChanges, saveModal, resetAllModal]);
-
-  // Save reminder — edit-duration path: anchored at first edit since last
-  // save, fire a brief 8-second pulse at the 3-min and 5-min marks. Brief
-  // doesn't override continuous (continuous is the more urgent state).
-  useEffect(() => {
-    if (!hasChanges) {
-      editingStartRef.current = null;
-      return;
-    }
-    if (editingStartRef.current == null) editingStartRef.current = Date.now();
-    const elapsed = Date.now() - editingStartRef.current;
-    const triggerBrief = () => {
-      setPulseMode(prev => (prev === 'continuous' ? prev : 'brief'));
-      setTimeout(() => {
-        setPulseMode(prev => (prev === 'brief' ? 'none' : prev));
-      }, 8000);
-    };
-    const timers = [];
-    const remain3 = 3 * 60 * 1000 - elapsed;
-    const remain5 = 5 * 60 * 1000 - elapsed;
-    if (remain3 > 0) timers.push(setTimeout(triggerBrief, remain3));
-    if (remain5 > 0) timers.push(setTimeout(triggerBrief, remain5));
-    return () => timers.forEach(clearTimeout);
-  }, [hasChanges]);
 
   // Shared validate-then-save flow used by both the header save button and
   // the three diagram export buttons (PNG / drawio / Excel). Callers pass
@@ -283,7 +207,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         onSave={handleSave} onResetAllConfirm={() => setResetAllModal(true)}
         downloadHandlers={downloadHandlers}
         onUndo={handleUndo} onRedo={handleRedo}
-        canUndo={canUndoStack(undoStack)} canRedo={canRedoStack(undoStack)}
+        canUndo={canUndo} canRedo={canRedo}
         savePulse={pulseMode} saveCelebrate={saveCelebrate}
         densityMode={densityMode} onCycleDensity={cycleDensity} />
 
@@ -348,50 +272,10 @@ export default function FlowEditor({ flow, onBack, onSave }) {
           onMoveTask={moveTask} onMoveRole={moveRole}
           onPatch={patch}
           onUpdateTask={actions.updateTask} onRemoveTask={actions.removeTask}
-          onAddTaskAt={(index) => {
-            // Click-to-insert plain L4 task at exact slot.
-            //   index 0           → before first task   = addTaskBefore(tasks[0])
-            //   index N (1..len)  → after tasks[N-1]    = addTaskAfter(tasks[N-1])
-            //   index >= len      → append at end       = addTask
-            const tasks = liveFlow.tasks || [];
-            if (index <= 0 && tasks[0]) actions.addTaskBefore(tasks[0].id);
-            else if (index >= tasks.length) actions.addTask();
-            else actions.addTaskAfter(tasks[index - 1].id);
-          }}
-          onAddOtherAt={(index, kind, name) => {
-            // start / end / interaction at exact slot:
-            //   index 0          → before tasks[0]   = addOtherBefore
-            //   index N (1..len) → after tasks[N-1]  = addOtherAfter
-            //   index >= len     → after last task   = addOtherAfter
-            const tasks = liveFlow.tasks || [];
-            if (!tasks[0]) return;
-            if (index <= 0) {
-              actions.addOtherBefore(tasks[0].id, kind, name || '');
-            } else {
-              const anchorIdx = index >= tasks.length ? tasks.length - 1 : index - 1;
-              actions.addOtherAfter(tasks[anchorIdx].id, kind, name || '');
-            }
-          }}
-          onAddL3At={(index, l3Number, l3Name) => {
-            const tasks = liveFlow.tasks || [];
-            if (!tasks[0]) return;
-            if (index <= 0) {
-              actions.addL3ActivityBefore(tasks[0].id, l3Number, l3Name);
-            } else {
-              const anchorIdx = index >= tasks.length ? tasks.length - 1 : index - 1;
-              actions.addL3ActivityAfter(tasks[anchorIdx].id, l3Number, l3Name);
-            }
-          }}
-          onAddGatewayAt={(index, gatewayType, branches) => {
-            const tasks = liveFlow.tasks || [];
-            if (!tasks[0]) return;
-            if (index <= 0) {
-              actions.insertGatewayBefore(tasks[0].id, gatewayType, branches);
-            } else {
-              const anchorIdx = index >= tasks.length ? tasks.length - 1 : index - 1;
-              actions.insertGatewayAfter(tasks[anchorIdx].id, gatewayType, branches);
-            }
-          }} />
+          onAddTaskAt={drawerHandlers.onAddTaskAt}
+          onAddOtherAt={drawerHandlers.onAddOtherAt}
+          onAddL3At={drawerHandlers.onAddL3At}
+          onAddGatewayAt={drawerHandlers.onAddGatewayAt} />
       </RightDrawer>
 
       {/* ContextMenu — shown when user clicks a shape on the diagram */}
