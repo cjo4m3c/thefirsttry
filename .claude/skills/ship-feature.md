@@ -80,6 +80,31 @@ git checkout main
 git reset --hard origin/main
 ```
 
+### 6.5. Changelog 日期 audit（新規 2026-05-06，CLAUDE.md §4 第 5 條對應實作）
+
+跨 UTC 日界 merge 容易踩到 changelog `date` 跟 PR `merged_at` 不一致的雷（例：使用者本地時間 11:00 寫條目 = 跑「今天日期」；merge 在 04:00 UTC = `merged_at` 是同一天；但若 23:30 寫條目然後跨日 merge → 日期會差一天）。每次 ship 自動跑 audit 防止漏。
+
+執行：
+
+1. 從步驟 5 的 `mcp__github__merge_pull_request` 回應 / 步驟 4 建 PR 的 PR number 取 `merged_at`：呼叫 `mcp__github__pull_request_read` action `get` 拿 `merged_at` ISO 字串前 10 字（`YYYY-MM-DD`）
+2. 讀 `src/data/changelog/current.js`，抓第一筆 entry（已 sync main，所以是剛 merge 的內容）的 `date: 'YYYY-MM-DD'`
+3. 比對：
+   - **一致**：✅ 通過，繼續步驟 7
+   - **不一致**：⚠️ 列出兩個日期 + 對應 PR 號，告訴使用者「請開一個 follow-up PR 修 changelog date：把第一筆 `date` 從 `<written>` 改成 `<merged_at>`」。**不要自動 push 到 main**（main 通常 protected；違反一 PR 一變更的慣例）；也**不要繼續步驟 7 的回報**直到使用者確認要不要開修正 PR
+
+實作提示：
+
+```
+PR_NUMBER = (從步驟 4 / 5 取得)
+merged_at = mcp__github__pull_request_read({ method: 'get', pullNumber: PR_NUMBER }).merged_at[:10]
+changelog_date = (Read src/data/changelog/current.js → 第一筆 date 欄位)
+if merged_at !== changelog_date:
+  output("⚠️ Changelog date mismatch: written `${changelog_date}`, PR merged at `${merged_at}`. 建議開 follow-up PR 修正。")
+  STOP — 不繼續到步驟 7
+else:
+  continue
+```
+
 ### 7. 回報使用者
 
 輸出以下資訊：
