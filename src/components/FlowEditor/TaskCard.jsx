@@ -1,17 +1,25 @@
 import { useState } from 'react';
 import ConnectionSection from '../ConnectionSection.jsx';
 import { ReorderButtons } from '../reorderButtons.jsx';
-import { CONN_BADGE, CONN_ROW_BG } from '../../utils/taskDefs.js';
+import { CONN_ROW_BG } from '../../utils/taskDefs.js';
 import { ELEMENT_TYPES, detectElementKind, makeTypeChange, applyRoleChange } from '../../utils/elementTypes.js';
-import { formatConnection } from '../../model/connectionFormat.js';
+
+// Card background per element category. PR (2026-05-05): row colour now
+// distinguishes external interaction (cool slate) from regular L4 task
+// (default light grey) — earlier they shared the same `sequence` row bg
+// and looked identical in the editor despite rendering differently on
+// the diagram. Gateways / start / end / l3activity keep their existing
+// connectionType-driven palette via CONN_ROW_BG.
+const INTERACTION_ROW_BG = '#F1F5F9';   // slate-100, mirrors diagram's `#A0A0A0` interaction fill in a lighter form
 
 // ── TaskCard ────────────────────────────────────────
 export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove,
   canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
   const ct = task.connectionType || 'sequence';
-  const badge = CONN_BADGE[ct];
   const num = displayLabels[task.id];
-  const rowBg = CONN_ROW_BG[ct] || '#FAFAFA';
+  const rowBg = ct === 'sequence' && task.shapeType === 'interaction'
+    ? INTERACTION_ROW_BG
+    : CONN_ROW_BG[ct] || '#FAFAFA';
   const nameOptional = ct === 'start' || ct === 'end' || ct === 'breakpoint';
   const currentKind = detectElementKind(task);
   // Show legacy 'breakpoint' option only when the task already is one (phased
@@ -20,11 +28,6 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
     ? [...ELEMENT_TYPES, { value: 'breakpoint', label: '流程斷點（停用，僅相容舊資料）' }]
     : ELEMENT_TYPES;
   const [expanded, setExpanded] = useState(false);
-  // Derived "任務關聯說明" — the BPMN sequence-flow text that appears in the
-  // FlowTable / Excel / diagram tooltip. Showing it here lets the user see
-  // exactly what gets auto-generated as they edit, without bouncing to the
-  // table below.
-  const annotation = formatConnection(task, allTasks || [], displayLabels || {});
 
   return (
     <div
@@ -34,26 +37,24 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
       {/* All three rows share the same 5-column flex layout so columns
           align vertically:
             col 1: ReorderButtons / spacer   (w-5)
-            col 2: badge / Row 3 label       (w-24)
+            col 2: L4 number                 (w-24)
             col 3: role / connection-type    (w-40)
             col 4: name / shape-type / target select (flex-1 min-w-0)
             col 5: action buttons / spacer   (w-14)  ← ▼ + ✕ 24+24+gap8 + safety
           ConnectionSection inherits this layout via the wrapper below. */}
 
-      {/* Row 1: reorder + badge + role + name + actions */}
+      {/* Row 1: reorder + L4 number + role + name + actions */}
       <div className="flex items-center gap-2 px-2 pt-2 min-w-0">
         <ReorderButtons canUp={canMoveUp} canDown={canMoveDown} onUp={onMoveUp} onDown={onMoveDown} />
 
-        {/* col 2: Badge / number */}
+        {/* col 2: L4 number — PR (2026-05-05): show for ALL element types
+            (was: gateway / start / end / subprocess showed coloured badge
+            label only, hiding the actual number). Mono font, truncates
+            if overflow. */}
         <div className="w-24 flex-shrink-0 flex items-center">
-          {ct === 'sequence' && num ? (
-            <span className="text-sm font-mono text-gray-500 font-semibold whitespace-nowrap">{num}</span>
-          ) : (
-            <span className="px-1.5 py-0.5 rounded text-sm font-bold whitespace-nowrap"
-              style={{ background: badge.bg, color: badge.text }}>
-              {badge.label || num}
-            </span>
-          )}
+          <span className="text-sm font-mono text-gray-600 font-semibold whitespace-nowrap truncate">
+            {num || ''}
+          </span>
         </div>
 
         {/* col 3: Role — applyRoleChange auto-syncs shapeType when moving
@@ -106,17 +107,10 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
         </div>
       </div>
 
-      {/* Auto-generated 任務關聯說明 preview — uses the same 5-col layout
-          (reorder spacer / badge col / role col + name col flex-1 / actions
-          col) so the text reads as "below the name column". Italic muted
-          gray makes it clear this is system-generated, not editable. */}
-      {annotation && (
-        <div className="flex items-start gap-2 px-2 pb-2 min-w-0">
-          <div className="w-5 flex-shrink-0" aria-hidden="true" />
-          <div className="w-24 flex-shrink-0 text-xs text-gray-400 italic pt-0.5">關聯說明</div>
-          <div className="flex-1 min-w-0 text-xs text-gray-500 italic break-words pt-0.5">{annotation}</div>
-        </div>
-      )}
+      {/* PR (2026-05-05): removed the auto-generated 「關聯說明」 preview row.
+          The same text still appears in FlowTable's 任務關聯說明 column and on
+          PNG / drawio / Excel export, so duplicating it under each TaskCard
+          was redundant noise. */}
 
       {/* Expandable detail fields */}
       {expanded && (

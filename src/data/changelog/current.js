@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-05',
+    title: '編輯器 TaskCard 三項優化：外部互動底色獨立 / 全元件類型顯示編號 / 移除底部關聯說明 preview',
+    items: [
+      '**緣由**：使用者要求 (1) 外部互動跟一般任務在編輯器中目前共用 sequence 底色 `#FAFAFA`，視覺上分不出 — 應該像閘道一樣有獨立底色 (2) col 2 的編號目前只在 sequence 顯示，閘道 / 開始 / 結束 / 子流程被彩色 badge 蓋掉 — 希望全部都顯示 L4 編號 (3) Card 底部的「關聯說明」preview 多餘（同樣文字已在 FlowTable / Excel / drawio 都有），請移除。',
+      '**Fix 1（外部互動底色）**：`TaskCard.jsx` rowBg 邏輯加分支 — `ct === "sequence" && task.shapeType === "interaction"` → 套 `INTERACTION_ROW_BG = "#F1F5F9"`（slate-100，呼應流程圖 `#A0A0A0` 互動填色但較淺）。其他元件繼續走 `CONN_ROW_BG[ct]`（閘道 / 開始 / 結束 / l3activity 各自不同色）。一般任務維持 `#FAFAFA`。',
+      '**Fix 2（全元件顯示編號）**：col 2 從原本「sequence 顯示 num / 其他顯示彩色 badge」改成統一「`text-sm font-mono text-gray-600 font-semibold`」直接顯示 `displayLabels[task.id]`。彩色 badge 移除（背景色已能傳達元件類別、與閘道 badge 標籤資訊重複）。閘道 / 開始 / 結束 / 子流程 / 外部互動現在全部能看到完整 L4 編號（`1-1-5-2_g` / `1-1-5-0` / `1-1-5-99` / `1-1-5-2_s` / `1-1-5-2_e1`）。',
+      '**Fix 3（移除底部 annotation preview）**：拿掉 `formatConnection` import + `annotation` 變數 + 整個底部 preview block（原 line 113-119）。FlowTable 跟 Excel 匯出都仍有同樣文字、不會丟失資訊。TaskCard 視覺更精簡。',
+      '**順手清 dead import**：`CONN_BADGE` 不再用，從 `import` 句移除。`badge` 變數整個移除（原本的色彩 badge 邏輯）。',
+      '**驗證**：`npm run build` 通過。對所有元件類型確認 col 2 都能讀到正確編號（依賴 `computeDisplayLabels` SOT，不需要新邏輯）。',
+      '**動到的檔案（2 個）**：`src/components/FlowEditor/TaskCard.jsx`（rowBg 邏輯 + col 2 重寫 + 移除 annotation preview + dead import 清理）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '輔助欄位 schema 改版：新增 5 欄 / 改寫 1 個 header / 移除 4 個 separator + FlowTable toolbar 三鍵改版',
     items: [
       '**緣由**：使用者要求調整輔助欄位資訊（保留辨識規則）— 新增 5 個欄位（備註 / SO 釐清狀況 / 找 User 釐清 / 合併場次 / User 釐清狀況）、改寫一個 header（「(1-實體)(2-分配)」→「牽涉實體或分配（1-實體、2-分配）」）、移除原本 4 個視覺 separator 改為 21 欄連續排列。同時要求 FlowTable toolbar 三鍵改順序、改純文字標籤、確認預設值。',
