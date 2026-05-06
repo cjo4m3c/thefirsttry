@@ -60,6 +60,37 @@ export function getElementType(kind) {
   return ELEMENT_TYPES.find(e => e.value === kind) || null;
 }
 
+// PR (2026-05-06): shared chip metadata for the editor (TaskCard col 2) and
+// the diagram ContextMenu header. Keeping the maps in one place ensures every
+// element kind shows the same short label + badge colour wherever it surfaces.
+//
+// KIND_SHORT_LABEL — compact label echoing the user's mental categories
+// (任務 / 包容閘道 / 外部互動) rather than verbose ELEMENT_TYPES.label.
+// KIND_BADGE       — { bg, text } per kind, mirrors the diagram palette.
+export const KIND_SHORT_LABEL = {
+  task:           '任務',
+  interaction:    '外部互動',
+  'gateway-xor':  '排他閘道',
+  'gateway-and':  '並行閘道',
+  'gateway-or':   '包容閘道',
+  l3activity:     '子流程',
+  start:          '開始事件',
+  end:            '結束事件',
+};
+
+export const KIND_BADGE = {
+  task:           { bg: '#E5E7EB', text: '#374151' },
+  interaction:    { bg: '#A0A0A0', text: '#FFFFFF' },
+  'gateway-xor':  { bg: '#FEF3C7', text: '#92400E' },
+  'gateway-and':  { bg: '#D1FAE5', text: '#065F46' },
+  'gateway-or':   { bg: '#FEF9C3', text: '#854D0E' },
+  l3activity:     { bg: '#EDE9FE', text: '#5B21B6' },
+  start:          { bg: '#D1FAE5', text: '#065F46' },
+  end:            { bg: '#FEE2E2', text: '#991B1B' },
+};
+
+export const KIND_BADGE_FALLBACK = { bg: '#E5E7EB', text: '#374151' };
+
 /** Subset filter for the OtherSubForm "新增其他" button row. */
 export function getOtherElementTypes() {
   return ELEMENT_TYPES.filter(e => e.inOther);
