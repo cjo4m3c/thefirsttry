@@ -79,8 +79,11 @@ export function runPhase3f(ctx) {
   // Gateway conditions
   tasks.forEach(task => {
     if (task.type !== 'gateway' || !task.conditions) return;
+    const overrides = task.connectionOverrides || {};
     task.conditions.forEach(cond => {
       if (!cond.nextTaskId) return;
+      // Phase 3e applied user overrides — don't auto-revert them.
+      if (overrides[cond.id]) return;
       const key = `${task.id}::${cond.id}`;
       const cur = condRouting.get(key);
       if (!cur) return;
@@ -92,11 +95,17 @@ export function runPhase3f(ctx) {
   // Non-gateway forwards (with or without explicit routing entry)
   tasks.forEach(task => {
     if (task.type === 'gateway' || task.type === 'end' || task.type === 'start') return;
+    const overrides = task.connectionOverrides || {};
     const nextIds = task.nextTaskIds?.length
       ? task.nextTaskIds
       : (task.nextTaskId ? [task.nextTaskId] : []);
     nextIds.forEach(toId => {
       if (!toId || taskRowOf[toId] === undefined) return;
+      // Skip connections the user manually overrode — their choice wins
+      // even if it produces a violation. Without this, Phase 3f would
+      // silently auto-revert the user's drag, making it look like the
+      // endpoint "can't be edited" when in fact it's being undone here.
+      if (overrides[toId]) return;
       const key = `${task.id}::${toId}`;
       const map = taskBackwardRouting.has(key)
         ? taskBackwardRouting
