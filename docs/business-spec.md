@@ -213,32 +213,122 @@ X-Y-Z-0  →  X-Y-Z-0_g  →  X-Y-Z-1
 **對應實作**：`src/utils/elementTypes.js`（`ELEMENT_TYPES` / `detectElementKind` / `makeTypeChange` 元件類型 → 連線型態衍生）、`src/components/ConnectionSection.jsx`（依連線型態渲染對應的目標 / 條件欄位）、`src/components/RightDrawer.jsx`（編輯器右側容器）、`src/utils/taskDefs.js`（`applyConnectionType` 連線型態變更副作用，內部呼叫）、`src/model/connectionFormat.js`（`formatConnection` 衍生關聯說明文字）、`src/model/flowSelectors.js`（`getTaskIncomingSources` 自動合併偵測）。HelpPanel 不再顯示連線規則段落（§4 完整內容仍在本文）。
 
 ---
+---
 
-## 5. 路由規則（核心三條）
+## 5. 路由規則（業務 + 工程 SOT）
 
-連線繪製順序與優先級。**違反規則 1（端點混用）比線段交叉更嚴重**。
+本章是流程圖排版 + 連線路由的單一規範來源。違反優先級：**規則 1（端點混用）> 規則 2（線段交叉）> 規則 3（slot 順序）**。
 
-### 規則 1：端點不混用
+### 5.1 三條核心紅線
 
-任一元件的 port 不可同時 IN + OUT。
+#### 規則 1：端點不混用（blocking）
 
-- **檢查方向**：新增 OUT 時檢查 `hasIn`（source 同 port 是否已有 IN）；新增 IN 時檢查 `hasOut`（target 同 port 是否已有 OUT）
-- **同方向多條並不算混用**：兩條 IN 共用同一端點 OK
-- **Corridor 降級也要再檢查一次**：top corridor 不行退到 bottom 之前要檢查 bottom 是否也會混用
+任一元件的 port（top / right / bottom / left）不可同時有 IN + OUT。
 
-### 規則 2：避免視覺重疊
+- 檢查方向：新增 OUT 時檢查 `hasIn`；新增 IN 時檢查 `hasOut`
+- 同方向多條並不算混用：兩條 IN 共用一端點 OK；兩條 OUT 共用也 OK
+- Corridor 降級也要再檢查一次：top 退到 bottom 之前要確認 bottom 也不會混用
 
-線段不可跨過任務矩形。**重疊時優先改端點（source / target 上下），其次改路徑**。
+#### 規則 2：避免視覺重疊（warning）
 
-### 規則 3：依 target 順序排列 slot
+線段不可跨過任何任務矩形。
+
+- 自動 routing 跑 8 個 phase（見 §5.3）每階段都檢查路徑、盡量避開
+- 使用者拖端點覆寫造成違反 → 紅線高亮 + 儲存時跳 modal（可選「仍然儲存」）
+
+#### 規則 3：依 target 順序排列 slot（視覺品質）
 
 多條連線並存時，按 target 欄位由左到右決定 slot 內外順序：
 
-- Top corridor：slot 0 最內（緊鄰 lane 上緣）
-- Bottom corridor：slot 0 最外（lane 底部往上堆）
+- Top corridor：slot 0 最內（緊鄰 lane 上緣）；越外越大
+- Bottom corridor：slot 0 最外（lane 底部往上堆）；越內越大
 - Tiebreaker：相同 target 時短 span 走內側
 
-**對應實作**：`src/diagram/layout/`（多個 phase 檔，每檔處理一種情境）、`HANDOVER.md` §2.5（dr/dc 表 / 8 個 phase / corridor slot 詳細規則）
+### 5.2 欄位（col）分配 — topological + L4 walk
+
+按 L4 編號 sortKey 順序走訪每個任務，計算 col：
+
+```
+col[t] = max(predBound, l4Bound, 0)
+predBound = max(forward predecessors.col) + 1   (topological 約束)
+l4Bound = (t 跟 prevTask 是同 parallel source 的 siblings)
+          ? prevTask.col              (同 col 允許，fork-out 對齊)
+          : prevTask.col + 1          (嚴格大於，L4 monotonic)
+```
+
+**sortKey 計算**：`5-1-2-N` → N、`5-1-2-N_g[K]` → N+0.001×K、`5-1-2-N_s[K]` → N+0.501×K、`5-1-2-N_e[K]` → N+0.801×K、start `-0` → 0、end `-99` → 99。
+
+同時滿足三個視覺需求：
+1. **parallel siblings 連續 contiguous**（5-1-5-7/8/9 都是同閘道 fork target）→ 同 col 對齊
+2. **中間有非 sibling 任務**（g1 → [g2, 發起專案]，g3 idx 在中間且孤立）→ 嚴格 L4 順序、不 leapfrog
+3. **compact** — 無空白 col
+
+取代舊 idx-driven 演算法（PR #177）。idx 順序跟 L4 編號順序在 Excel 匯入 + computeDisplayLabels.usedCounters skip 等場景下會分歧；新演算法直接以 L4 編號為 col 排序基準。
+
+### 5.3 連線路由 Pipeline（8 phase）
+
+`computeLayout` 依序跑：
+
+| Phase | 範圍 | 邏輯 |
+|---|---|---|
+| **Phase 1** | 閘道條件 | 4-pass mixed priority fallback：① 未被 sibling 用 + 路徑無障礙 + 規則 1 OK ② 路徑無障礙 + 規則 1 OK（sibling 共用）③ 未被 sibling 用 ④ priorities[0] |
+| **Phase 2** | 閘道 target | 多 incoming 時 entry 分散到不同 port |
+| **Phase 3** | 跨閘道衝突 | top corridor 衝突檢查 + sibling sharing fallback |
+| **Phase 3b** | 同 lane backward | 走 top corridor（迴圈返回）|
+| **Phase 3c** | 同 lane forward 跳欄 | 走 top corridor（dc>1）；上下 lane 都過結構檢核時走較乾淨那側 |
+| **Phase 3d** | 跨 lane forward 障礙 | Option A 改 target top/bottom entry → Option B 改 source top/bottom exit |
+| **Phase 3e** | 使用者 override | 把 `task.connectionOverrides` 寫進 routing maps |
+| **Phase 3f** | L1 post-validation retry | 走完所有 phase 後對紅線連線（含預設 right→left）試 16 種 (exit, entry) 組合，挑第一個規則 1 + 規則 2 都過的；**跳過使用者 override 連線** |
+
+### 5.4 dr / dc 決策表（無障礙時的預設選擇）
+
+`dr = 目標 row − 源 row`（+ 為下方）、`dc = 目標 col − 源 col`（+ 為右方）。
+
+| 條件 | 出口 → 入口 | 路徑形狀 |
+|---|---|---|
+| dr=0, dc=1（同列相鄰向右）| 右 → 左 | Z 形 midX 折線 |
+| dr=0, dc>1（同列跳欄向右）| 上 → 上 | top corridor 跳過中間元件 |
+| dr=0, dc<0（同列向前 / loop-back）| 上 → 上 | top corridor 回到前面任務 |
+| dr<0, dc=0 / 相鄰 | 上 → 對側 | 1-bend 折線 |
+| dr<0, dc>0（上方右側）| 右 → 左 | L 形繞上 |
+| dr>0, dc=0 / 相鄰 | 下 → 對側 | 1-bend 折線 |
+| dr>0, dc>0（下方右側）| 右 → 左 | L 形繞下 |
+| 閘道 backward loop | 左 → 右 | 走 title-bar 上方 corridor |
+
+### 5.5 Corridor slot 系統
+
+| 通道 | 適用情境 | Slot 規則 |
+|---|---|---|
+| 上方 corridor（top→top）| 閘道 top-skip / 同 lane backward / 同 lane forward 跳欄 | 每連線一個 y-level，最長 span 放最外側；row 0 動態預留空間避免壓到標題列 |
+| 下方 corridor（bottom→bottom）| 同 lane 跨欄下方繞行（少數情境）| lane 底部往上堆疊，最長 span 放最外側，泳道高度自動擴張 |
+| 平行走廊（left↔left / right↔right）| 罕見特殊反向連線 | 目前未做 slot，依 min/max 座標加固定偏移 |
+
+### 5.6 障礙偵測 — isPathClear
+
+Phase 1 mixed priority + Phase 3f L1 retry 共用 `isPathClear(exit, entry, fr, fc, tr, tc, ctx, fromId, toId)`。
+
+預測路徑經過的 (row, col) cells（依 (exit, entry) 形狀）+ 檢查規則 1：
+- 起 / 終 cell 排除（端點本身不算阻塞）
+- 路徑形狀 → cells：`right→left` 同列 = 中間所有 col；跨列 = row fr / row tr 各部分 + midCol 中間 row；`top→top` corridor = col fc + col tc 上方 row；其他形狀類推
+- 任一 cell 有任務 → 路徑被擋
+- source 出口 port 已有 IN（或 target 入口已有 OUT）→ 規則 1 違反
+
+### 5.7 使用者覆寫優先
+
+Phase 3e 寫入 `task.connectionOverrides` → Phase 3f **跳過**這條連線（不 auto-revert）。即使覆寫造成違反規則，仍保留使用者選擇（紅線提示 + 儲存時跳 modal 由使用者決定）。
+
+### 5.8 對應實作
+
+| 檔案 | 對應規則章節 |
+|---|---|
+| `src/diagram/layout/columnAssign.js` | §5.2 col 分配 |
+| `src/diagram/layout/phase1and2.js` | §5.3 Phase 1+2 |
+| `src/diagram/layout/phase3.js` / `phase3bc.js` / `phase3d.js` / `phase3e.js` | §5.3 Phase 3-3e |
+| `src/diagram/layout/phase3f.js` | §5.3 Phase 3f L1 retry + §5.7 使用者覆寫優先 |
+| `src/diagram/layout/corridor.js` | §5.5 corridor slot + §5.6 isPathClear |
+| `src/diagram/layout/gatewayRouting.js` | §5.4 dr/dc 決策表 |
+| `src/diagram/layout/computeLayout.js` | §5.3 pipeline orchestrator |
+| `src/diagram/violations.js` | 違規偵測（即時紅線 + 儲存時 modal）|
 
 ---
 

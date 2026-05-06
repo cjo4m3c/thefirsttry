@@ -61,12 +61,6 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   function toggleStagger() {
     patch({ staggerLanes: !liveFlow.staggerLanes });
   }
-  // Enhanced routing toggle (preview branch 2026-05-06): bundles scheme3
-  // columnAssign (L4 order) + Phase 1 mixed priority + Phase 3f L1 retry.
-  // Per-flow boolean, OFF by default.
-  function toggleEnhanced() {
-    patch({ enhancedRouting: !liveFlow.enhancedRouting });
-  }
   // Ref to DiagramRenderer's imperative export API (forwardRef +
   // useImperativeHandle exposes exportPng / exportDrawio / exportExcel).
   // Used by the Header download dropdown — each item calls
@@ -222,8 +216,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         canUndo={canUndo} canRedo={canRedo}
         savePulse={pulseMode} saveCelebrate={saveCelebrate}
         densityMode={densityMode} onCycleDensity={cycleDensity}
-        staggerLanes={!!liveFlow.staggerLanes} onToggleStagger={toggleStagger}
-        enhancedRouting={!!liveFlow.enhancedRouting} onToggleEnhanced={toggleEnhanced} />
+        staggerLanes={!!liveFlow.staggerLanes} onToggleStagger={toggleStagger} />
 
       <main className="px-4 py-6 w-full max-w-full">
         {/* PR-D12: Excel import warnings banner — shows the auto-fix /

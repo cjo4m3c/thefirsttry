@@ -122,45 +122,22 @@ FlowSprite/
         ├── excelExport.js         # 匯出 .xlsx
         └── drawioExport.js        # 匯出 .drawio
 ```
+### 2.5 routing 工程入口（開發者參考）
 
-### 2.5 routing 內部規則（開發者參考）
+> 這部分原本在 HelpPanel.jsx，後來改成讓使用者直接拖端點 / 換目標，所以搬到這裡作為內部技術參考。
 
-> 這段內容原本在 HelpPanel.jsx，後來改成讓使用者可以直接拖端點 / 換目標，所以從使用者面板搬到這裡作為內部技術參考。動 `src/diagram/layout/` 前要先讀懂這部分。
+**所有 routing 規則（業務 + 工程）已搬到 `docs/business-spec.md` §5（單一 SOT）**：
+- §5.1 三條核心紅線（端點不混用 / 視覺不重疊 / slot 順序）
+- §5.2 欄位（col）分配 — topological + L4 walk
+- §5.3 連線路由 Pipeline（8 phase）
+- §5.4 dr / dc 決策表
+- §5.5 Corridor slot 系統
+- §5.6 障礙偵測 — isPathClear
+- §5.7 使用者覆寫優先
+- §5.8 對應實作（檔案 → 章節對照）
 
-**dr / dc 定義**
-- `dr = 目標角色列 − 來源角色列`（正 = 下方角色, 負 = 上方角色）
-- `dc = 目標欄 − 來源欄`（正 = 右側往後, 負 = 左側往前）
+動 `src/diagram/layout/` 前先讀 spec §5。本節不重複內容、避免雙源頭漂移。
 
-**Routing 條件 → exit/entry 決策表**
-
-| 條件 | 出口 → 入口 | 備註 |
-|---|---|---|
-| dr=0, dc=1（同列相鄰向右）| 右 → 左 | 主要順向連線，水平 midX 折線 |
-| dr=0, dc>1（同列跳欄向右）| 上 → 上 | 走上方 corridor 跳過中間元件；slot 系統分配不同 y-level |
-| dr=0, dc<0（同列往前 / loop-back）| 上 → 上 | 走上方 corridor 回到前面任務；slot 系統避免與其他 top 連線重疊 |
-| dr<0, dc=0 / 相鄰（目標在上方同欄）| 上 → 對側 | 簡單 1-bend 折線 |
-| dr<0, dc>0（上方右側）| 右 → 左 | L 形繞上 |
-| dr>0, dc=0 / 相鄰（目標在下方同欄）| 下 → 對側 | 簡單 1-bend 折線 |
-| dr>0, dc>0（下方右側）| 右 → 左 | L 形繞下 |
-| 同閘道多出口衝突 | 依優先順序分散 | Phase 1：每條件挑第一個未被 sibling 佔用的側；4 條件以上會補上未列側邊避免同 port 重疊 |
-| 目標閘道有多條 incoming | 入口分散 | Phase 2：按來源方向把 entry 分到 4 個 port |
-| 閘道自身 incoming 端點已被佔用 | 避開 | outgoing 會跳過 incoming 已佔的側，避免共用 port |
-| 跨列 forward 預設路徑會穿過任務矩形 | 改端點避障 | Phase 3d：優先改 target 上/下端點（垂直段放 target 欄）；失敗改 source 上/下端點（垂直段放 source 欄）|
-| Top / bottom corridor 回退衝突 | 擇優先 rule 1 | Top 交叉時退到 bottom 前先檢查是否會混用；若 top 和 bottom 都有問題，優先 top（視覺交叉屬規則 2、端點混用屬規則 1）|
-
-**Corridor slot 系統**
-
-| 通道 | 適用情境 | Slot 規則 |
-|---|---|---|
-| 上方 corridor（top→top）| 閘道 top-skip、task backward（迴圈返回）、task forward 長跳欄（dc>1 同列）| 自動 slot：每條連線一個 y-level，最長 span 放最外側；row 0 會動態預留空間避免壓到標題列 |
-| 下方 corridor（bottom→bottom）| 同列跨欄下方繞行（少數情境）| 自動 slot：在泳道底部往上堆疊，最長 span 放最外側，泳道高度自動擴張 |
-| 平行走廊（left→left / right→right）| 較罕見，用於特殊反向或跨區位連線 | 目前未做 slot，依 min/max 座標加固定偏移 |
-
-**規則 1 / 規則 2**（CLAUDE.md §10.1）
-- 規則 1：端點不能 IN+OUT 混用（violation detector blocking）
-- 規則 2：避免線段穿過任務矩形（violation detector warning）
-
-使用者拖曳端點 / 換目標時 violation detector 會即時抓出問題並紅色高亮。
 
 ---
 

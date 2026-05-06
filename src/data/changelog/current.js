@@ -6,6 +6,21 @@
 export default [
   {
     date: '2026-05-06',
+    title: 'routing 升級 ship：col 改 topological + L4 walk / Phase 1 mixed priority / Phase 3f L1 retry — 取代 preview toggle',
+    items: [
+      '**緣由**：前幾輪 preview 三件組（scheme3 col + Phase 1 mixed + Phase 3f）使用者測試通過。本 PR 把它從 toggle 升格成預設行為、移除 enhancedRouting flag、並把規則寫進 `docs/business-spec.md` §5 當 SOT。',
+      '**Col 分配（§5.2）**：`computeColumnMap` 改成 topological + L4 walk — 按 sortKey 順序走訪，`col[t] = max(predBound, l4Bound, 0)`。l4Bound 對 parallel sibling 允許同 col、對非 sibling 強制 +1。同時滿足 (a) parallel siblings contiguous 時同 col 對齊（5-1-5-7/8/9 case）(b) 中間有孤立任務時嚴格 L4 順序、不 leapfrog（g1/g2/g3 case）(c) compact 無空白 col。',
+      '**Phase 1 mixed priority（§5.3）**：閘道條件挑 port 改 4-pass fallback — ① 未被 sibling 用 + 路徑無障礙 + 規則 1 OK ② 路徑無障礙 + 規則 1 OK ③ 未被 sibling 用 ④ priorities[0]。把障礙與規則 1 在上游就 catch、減少下游紅線。',
+      '**Phase 3f L1 retry（§5.3）**：在所有 phase 跑完之後再掃所有連線（包含預設 right→left 沒進 routing maps 的）。對紅線連線試 16 種 (exit, entry) 組合，挑第一個規則 1 + 規則 2 都過的，寫進 `taskCrossLaneRouting`。**跳過使用者 override** — Phase 3e 寫過 connectionOverrides 的連線不被 auto-revert。',
+      '**isPathClear helper（§5.6）**：`corridor.js` 新增、預測路徑 cells（top→top corridor / right→left Z 形 / top→left L 形 等）+ rule 1 port-mix 檢核。Phase 1 + Phase 3f 共用同一 predicate 確保兩階段判定一致。',
+      '**移除 toggle**：拿掉 Header「改善排版」按鈕、FlowEditor 的 `toggleEnhanced` + `liveFlow.enhancedRouting`、`computeLayout` 的 `enhancedRouting` 條件分支。新行為對所有 flow 立即生效。',
+      '**清掉舊 routing-handover.md**：preview branch `claude/preview-vertical-obstacle-fix` 階段的調研文件，現在 spec §5 已涵蓋全部內容、刪除避免雙源頭漂移。同步更新 `CLAUDE.md` pointer + `HANDOVER.md` §2.5（指向 spec §5）。',
+      '**業務規則 SOT 化**：所有 routing 規則 + 工程細節都搬到 `docs/business-spec.md` §5（共 8 個小節 — 三條紅線 / col 分配 / pipeline / dr-dc 決策表 / corridor slot / isPathClear / 使用者覆寫優先 / 對應實作）。HANDOVER.md / business-rules.md 都改成指向那邊。',
+      '**動到的檔案（10 個）**：`src/diagram/layout/columnAssign.js`（topological+L4 walk 取代 idx-driven）/ `src/diagram/layout/phase1and2.js`（4-pass fallback 預設）/ `src/diagram/layout/phase3f.js`（保留，永遠跑）/ `src/diagram/layout/computeLayout.js`（拿掉 toggle）/ `src/diagram/layout/corridor.js`（保留 isPathClear）/ `src/components/FlowEditor/Header.jsx`（移除按鈕）/ `src/components/FlowEditor/index.jsx`（移除 toggleEnhanced）/ `docs/business-spec.md` §5（重寫為 SOT）/ `HANDOVER.md` §2.5（縮成指標）/ `CLAUDE.md`（移除 routing-handover.md pointer）/ 刪除 `.claude/routing-handover.md`。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: '`/ship-feature` skill 加 changelog 日期 audit step（CLAUDE.md §4 規則 5 補實作）',
     items: [
       '**緣由**：CLAUDE.md §4 第 5 條規則寫「`/ship-feature` skill 收尾步驟會跑 audit script 比對最新一條 changelog `date` 是否等於剛 merge 的 PR `merged_at`，不一致直接 fail」— 規則文字 PR-A 立過了，但 skill 本身沒實作。本 PR 補上。',

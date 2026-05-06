@@ -4,7 +4,7 @@ import {
   NODE_VOFFSET, ROUTE_MARGIN, ROUTE_SLOT_H, ROUTE_BOTTOM_PAD,
   minLaneH, halfExtent,
 } from './helpers.js';
-import { computeColumnMap, resolveRowCollisions, enforceIdxMonotonicPerLane } from './columnAssign.js';
+import { computeColumnMap, resolveRowCollisions } from './columnAssign.js';
 import { getGatewayExitEntry } from './gatewayRouting.js';
 import { runPhase1And2 } from './phase1and2.js';
 import { runPhase3 } from './phase3.js';
@@ -16,13 +16,7 @@ import { runPhase3f } from './phase3f.js';
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
 export function computeLayout(flow) {
-  const { roles, tasks, l3Number, staggerLanes, enhancedRouting } = flow;
-  // Enhanced routing bundles three preview improvements together:
-  //   1. scheme3 columnAssign (sort by L4 number, no parallel override)
-  //   2. Phase 1 mixed-priority (obstacle-aware port selection)
-  //   3. Phase 3f L1 retry (post-validation retry for red lines)
-  // OFF by default — enabled via flow.enhancedRouting toggle in Header.
-  const colAssignMode = enhancedRouting ? 'scheme3' : 'default';
+  const { roles, tasks, l3Number, staggerLanes } = flow;
 
   // Per-lane horizontal stagger offset (preview feature 2026-05-06):
   // odd-indexed rows shift right by COL_W/2 so tasks across adjacent
@@ -41,22 +35,13 @@ export function computeLayout(flow) {
   const taskRowOf = {};
   tasks.forEach(task => { taskRowOf[task.id] = roleIndexMap[task.roleId] ?? 0; });
 
-  // ── 3. Graph-based column assignment (parallel = same col) ────
-  // scheme3 needs display labels up-front to derive L4 sort keys; we
-  // re-compute later anyway for node label rendering, but cheap.
-  const labelsForSort = colAssignMode === 'scheme3'
-    ? computeDisplayLabels(tasks, l3Number)
-    : null;
-  const colOf = computeColumnMap(tasks, colAssignMode, labelsForSort);
-  // scheme3: use col rank as logical "idx" for collision resolution so
-  // it follows L4 order rather than array idx
-  const orderOfForCollisions = colAssignMode === 'scheme3'
-    ? Object.fromEntries(tasks.map(t => [t.id, colOf[t.id]]))
-    : null;
-  resolveRowCollisions(tasks, colOf, taskRowOf, orderOfForCollisions);
-  if (colAssignMode === 'scheme1') {
-    enforceIdxMonotonicPerLane(tasks, colOf, taskRowOf);
-  }
+  // ── 3. Graph-based column assignment ────────────────────
+  // Topological + L4 walk: parallel siblings contiguous in L4 share col,
+  // non-sibling tasks between siblings get monotonic order.
+  // Labels needed for L4 sortKey; re-computed later for rendering, cheap.
+  const displayLabelsForLayout = computeDisplayLabels(tasks, l3Number);
+  const colOf = computeColumnMap(tasks, displayLabelsForLayout);
+  resolveRowCollisions(tasks, colOf, taskRowOf);
   const taskColOf = {};
   tasks.forEach(task => { taskColOf[task.id] = colOf[task.id]; });
 
@@ -83,13 +68,13 @@ export function computeLayout(flow) {
     taskCrossLaneRouting:  new Map(),
   };
 
-  runPhase1And2(ctx, !!enhancedRouting);
+  runPhase1And2(ctx);
   runPhase3(ctx);
   runPhase3b(ctx);
   runPhase3c(ctx);
   runPhase3d(ctx);
   runPhase3e(ctx);
-  if (enhancedRouting) runPhase3f(ctx);
+  runPhase3f(ctx);
 
   const { condRouting, taskBackwardRouting, taskForwardRouting, taskCrossLaneRouting } = ctx;
 

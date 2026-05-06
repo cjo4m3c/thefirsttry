@@ -34,8 +34,7 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
   onUndo, onRedo, canUndo = false, canRedo = false,
   savePulse = 'none', saveCelebrate = false,
   densityMode = 'default', onCycleDensity,
-  staggerLanes = false, onToggleStagger,
-  enhancedRouting = false, onToggleEnhanced }) {
+  staggerLanes = false, onToggleStagger }) {
   const densityLabel =
     densityMode === 'compact'  ? '⊟ 緊密' :
     densityMode === 'spacious' ? '⊞ 寬鬆' :
@@ -130,22 +129,6 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
               : 'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10'
           }`}>
           錯落
-        </button>
-        {/* Enhanced routing toggle (preview branch 2026-05-06):
-            bundles 3 improvements together — scheme3 columnAssign (L4-order)
-            + Phase 1 mixed priority (obstacle-aware port pick) + Phase 3f
-            L1 retry (post-validation port swap). OFF by default. */}
-        <button
-          onClick={onToggleEnhanced}
-          title={enhancedRouting
-            ? '改善排版：開（L4 順序 + 障礙避開 + 紅線重試）— 點關閉'
-            : '改善排版：關 — 點開啟（L4 順序 + 障礙避開 + 紅線重試）'}
-          className={`px-3 py-1.5 text-base rounded border transition-colors ${
-            enhancedRouting
-              ? 'border-white bg-white text-[#1E4677] font-semibold'
-              : 'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10'
-          }`}>
-          改善排版
         </button>
         {/* Undo / Redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z). Stack clears
             after every save per spec — disabled while empty so users see
