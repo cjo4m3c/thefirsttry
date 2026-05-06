@@ -11,7 +11,7 @@
 | # | 項目 | 詳情 |
 |---|---|---|
 | 1 | **迴圈返回 BPMN 偵測** | 任意 task 的 `nextTaskIds` 指向上游 task（DAG 反向邊）→ 自動標記成 loop-return 連線型，比照 auto-merge 衍生偵測。動到 `src/model/connectionFormat.js formatConnection` + `src/model/flowSelectors.js` 加 `isBackEdge(task, allTasks)` selector。**注意**：編輯器已移除「迴圈返回」入口（PR-2026-04-29），這裡是衍生顯示不是手動標記。原 backlog 代號 AD |
-| 2 | **自動連線優化、閘道避開** | 整合 Routing Phase A（preview branch v2 部分有效）+ Phase B/C grid-based path-finding 升級 + 閘道作為跨列 forward obstacle 的 vertical-detour + 線段被任務矩形擋住的提醒。整體為 routing engine 重構。詳見 `.claude/routing-handover.md` §4-5。原 backlog 代號 Phase A / B / C / AH |
+| 2 | **自動連線優化、閘道避開（Phase C 重構）** | **Phase A + B 已 DONE（PR #196）**：col 改 topological+L4 walk / Phase 1 4-pass mixed priority / Phase 3f L1 retry — 80% 紅線情境自動修。**Phase C 仍 open**：grid-based path-finder（A* / BFS）取代「挑 port → 套樣板」架構，多 bend 視覺懲罰、cost function、全圖效能。建議只在 Phase 3f 仍有顯著紅線殘留時才啟動 — 多月工作、回歸風險高。對應 spec `docs/business-spec.md` §5 |
 | 3 | **複製整個 L3 工作流** | Dashboard 卡片加「複製」按鈕，複製後產生新 flow（編號自動 +1 或讓使用者改），tasks / roles / connections 全套複製。動到 `Dashboard` + `src/utils/storage.js` 加 `cloneFlow` 函式。原 backlog 代號 AC |
 | 4 | **Edge 瀏覽器批量下載漏檔** | 「批量下載數量太多時比較後面的編號會漏檔案 → 目前只有 edge 瀏覽器有，晚點再修」。原 backlog 代號 H |
 | 5 | **匯出圖 ISO A4 等比寬度** | 「匯出的圖檔要符合 ISO 文件適用寬度」— PNG 匯出規格、ISO A4 等比縮放。原 backlog 代號 G |
@@ -62,6 +62,10 @@
 - **AI（PR #135）**：Undo / Redo stack — 50 步 snapshot、500ms 打字 debounce、儲存後 stack 清空、Ctrl+Z / Ctrl+Y 鍵盤 + Header 按鈕；session-only
 - **PR #123**：流程圖文字 UI 微調 — TaskShape `lineH` 14→24（1.5 ratio）+ `letterSpacing` 0.02em / Edge label 白底寬度從固定 40×22 改成 `estimateTextWidth + padding` 動態 hug 文字 / L4Number 加白底 pill 防被線穿過
 - **U（PR #124）**：新增閘道操作拉齊 — `insertGatewayAfter` 簽名升級成 N-branch；ContextMenu / DrawerContent InsertPicker 都從固定 2 條改成預設 2 條 + 「+ 新增分支」/「✕」可動態增減
+
+**2026-05-06 已完成**：
+
+- **PR #196（routing 升級 ship）**：col topological+L4 walk / Phase 1 4-pass mixed priority / Phase 3f L1 retry 從 preview toggle 升格成預設行為；移除「改善排版」按鈕；docs/business-spec.md §5 重寫為 routing 規則 SOT（8 個小節）；刪除 `.claude/routing-handover.md`（內容搬進 spec）；HANDOVER.md §2.5 / CLAUDE.md pointer 同步。**對應 backlog #2 Phase A + B 完成**
 
 **2026-05-05 後段已完成（D 系列收尾後）**：
 
