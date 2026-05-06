@@ -9,14 +9,19 @@ import { isPathClear, hasIn, hasOut, useIn, useOut } from './corridor.js';
  * first one that passes. Mutates `condRouting` / task*Routing maps so the
  * downstream slot allocation + routeArrow rendering pick up the new sides.
  *
- * Conservative scope:
- *   - Skip user-overridden connections (Phase 3e set them per user intent)
- *   - Skip connections whose default sides already pass — only retry red ones
- *   - When no combination passes, leave the existing routing as-is so the
- *     violation surfaces in violations.js (red line) for the user
+ * Coverage:
+ *   - Gateway conditions (condRouting): always present in map
+ *   - Non-gateway forward/backward/cross-lane: routing entry exists in
+ *     one of taskBackwardRouting / taskForwardRouting / taskCrossLaneRouting
+ *   - **Default right→left non-gateway forwards** (no routing entry):
+ *     these were the silent majority — Phase 3f now retries them too,
+ *     writing alternatives into taskCrossLaneRouting so computeLayout's
+ *     fallback lookup picks them up.
  *
- * `isPathClear` here uses the same predicate as Phase 1 mixed priority so
- * the two layers agree on what counts as "clean".
+ * Port claims for default-routed connections are pre-registered so the
+ * isPathClear rule-1 check sees them. Swap order tries top→top corridor
+ * first (ALL_SIDES = ['top', 'right', 'bottom', 'left']) so cross-lane
+ * detours win over horizontal-cut alternatives.
  */
 const ALL_SIDES = ['top', 'right', 'bottom', 'left'];
 
@@ -26,15 +31,32 @@ export function runPhase3f(ctx) {
     condRouting, taskBackwardRouting, taskForwardRouting, taskCrossLaneRouting,
   } = ctx;
 
-  // Connections to retry: { key, fromId, toId, current: {exitSide,entrySide},
-  //                        routingMap, isUserOverride }
-  // Walk gateway conditions first, then non-gateway forward / backward edges.
+  // ── Pre-pass: register default right→left port claims for non-gateway
+  // forwards that lack a routing entry. Without this, isPathClear's rule-1
+  // check cannot see the implicit port usage and may permit a port-mix
+  // alternative.
+  tasks.forEach(task => {
+    if (task.type === 'gateway' || task.type === 'end' || task.type === 'start') return;
+    const nextIds = task.nextTaskIds?.length
+      ? task.nextTaskIds
+      : (task.nextTaskId ? [task.nextTaskId] : []);
+    nextIds.forEach(toId => {
+      if (!toId || taskRowOf[toId] === undefined) return;
+      const key = `${task.id}::${toId}`;
+      if (taskBackwardRouting.has(key) || taskForwardRouting.has(key)
+          || taskCrossLaneRouting.has(key)) return;
+      // Default = right→left. Claim ports so subsequent rule-1 checks see them.
+      useOut(ctx, task.id, 'right');
+      useIn(ctx, toId, 'left');
+    });
+  });
+
+  // ── Main pass: retry violating connections.
   const trySwap = (fromId, toId, currentExit, currentEntry, applyFn) => {
     const fr = taskRowOf[fromId], fc = taskColOf[fromId];
     const tr = taskRowOf[toId],   tc = taskColOf[toId];
     if (fr === undefined || tr === undefined) return;
 
-    // Already clean? skip.
     if (isPathClearAfterRelease(currentExit, currentEntry, fr, fc, tr, tc,
                                 ctx, fromId, toId)) return;
 
@@ -43,7 +65,6 @@ export function runPhase3f(ctx) {
         if (exit === currentExit && entry === currentEntry) continue;
         if (isPathClearAfterRelease(exit, entry, fr, fc, tr, tc,
                                     ctx, fromId, toId)) {
-          // Update port counts: release old, claim new
           decUseOut(ctx, fromId, currentExit);
           decUseIn(ctx, toId, currentEntry);
           useOut(ctx, fromId, exit);
@@ -55,7 +76,7 @@ export function runPhase3f(ctx) {
     }
   };
 
-  // Gateway conditions (condRouting)
+  // Gateway conditions
   tasks.forEach(task => {
     if (task.type !== 'gateway' || !task.conditions) return;
     task.conditions.forEach(cond => {
@@ -63,21 +84,19 @@ export function runPhase3f(ctx) {
       const key = `${task.id}::${cond.id}`;
       const cur = condRouting.get(key);
       if (!cur) return;
-      // Phase 3e overrides shouldn't be auto-retried; user picked them
-      // intentionally. (Phase 3e currently writes to condRouting too, so we
-      // can't distinguish here — accept the limitation for v1.)
       trySwap(task.id, cond.nextTaskId, cur.exitSide, cur.entrySide,
         (exit, entry) => condRouting.set(key, { exitSide: exit, entrySide: entry }));
     });
   });
 
-  // Non-gateway forward / backward / cross-lane (single source map per pair)
+  // Non-gateway forwards (with or without explicit routing entry)
   tasks.forEach(task => {
     if (task.type === 'gateway' || task.type === 'end' || task.type === 'start') return;
     const nextIds = task.nextTaskIds?.length
       ? task.nextTaskIds
       : (task.nextTaskId ? [task.nextTaskId] : []);
     nextIds.forEach(toId => {
+      if (!toId || taskRowOf[toId] === undefined) return;
       const key = `${task.id}::${toId}`;
       const map = taskBackwardRouting.has(key)
         ? taskBackwardRouting
@@ -86,26 +105,21 @@ export function runPhase3f(ctx) {
         : taskCrossLaneRouting.has(key)
         ? taskCrossLaneRouting
         : null;
-      if (!map) return;
-      const cur = map.get(key);
-      if (!cur) return;
-      trySwap(task.id, toId, cur.exitSide, cur.entrySide,
-        (exit, entry) => map.set(key, { exitSide: exit, entrySide: entry }));
+      if (map) {
+        const cur = map.get(key);
+        trySwap(task.id, toId, cur.exitSide, cur.entrySide,
+          (exit, entry) => map.set(key, { exitSide: exit, entrySide: entry }));
+      } else {
+        // Default right→left — write alternative to taskCrossLaneRouting
+        // so computeLayout's fallback lookup sees the override.
+        trySwap(task.id, toId, 'right', 'left',
+          (exit, entry) => taskCrossLaneRouting.set(key, { exitSide: exit, entrySide: entry }));
+      }
     });
   });
 }
 
-/**
- * Wrapper around isPathClear that "releases" the current connection's port
- * usage before checking, so it doesn't see itself as causing a port-mix.
- * Re-claims after the check.
- */
 function isPathClearAfterRelease(exit, entry, fr, fc, tr, tc, ctx, fromId, toId) {
-  // Save and release current claims so the predicate doesn't false-flag
-  // the connection's own port usage.
-  // (Implementation note: the current claims are already in portIn/portOut
-  // because Phase 3e and others called useIn/useOut. We need to subtract 1
-  // before checking, restore after.)
   const decAndKey = (mp, id, side) => {
     const k = `${id}::${side}`;
     const v = mp.get(k) || 0;
