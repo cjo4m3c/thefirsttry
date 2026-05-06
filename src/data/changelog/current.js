@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-06',
+    title: '拆 FlowEditor/index.jsx（19KB → 13.9KB）— 抽 useUndoRedo / useSaveReminder hooks + drawerInsertHandlers',
+    items: [
+      '**緣由**：使用者「希望每次改動不會遇到檔案太大的 timeout 問題」。`FlowEditor/index.jsx` 19KB 接近 20KB 硬上限，加 1 個小功能就會被擋。把混在主檔的 3 個有清楚切點的 concern 抽出去，剩下純 orchestrator state + render JSX。',
+      '**新增 `useUndoRedo.js`（3.2KB）custom hook**：把 undoStack state + handleUndo / handleRedo + Ctrl+Z/Y 鍵盤監聽 useEffect 抽成獨立 hook，input { liveFlow, setLiveFlow, setHasChanges, saveModal, resetAllModal }，return { pushSnapshot, clear, canUndo, canRedo, handleUndo, handleRedo }。`patch()` 呼叫 `pushSnapshot()` 在 setLiveFlow 之前，`doSave()` 呼叫 `clear()` 重置棧。',
+      '**新增 `useSaveReminder.js`（3.4KB）custom hook**：把 pulseMode / editStamp / editingStartRef + 2 個 useEffect（idle 90s 觸發 continuous + edit-duration 3min/5min 觸發 brief 8s）抽成獨立 hook，input { hasChanges, saveModal, resetAllModal }，return { pulseMode, bumpEdit, resetPulse }。`patch()` 呼叫 `bumpEdit()` 重置 idle timer，`doSave()` 呼叫 `resetPulse()` 重置 pulse + edit anchor。',
+      '**新增 `drawerInsertHandlers.js`（2.6KB）factory**：把原本 inline 在 `<DrawerContent>` 4 個 prop 上的 ~50 行 `onAddTaskAt` / `onAddOtherAt` / `onAddL3At` / `onAddGatewayAt` 轉成 `makeDrawerInsertHandlers({ liveFlow, actions })` factory return 4 個 handler。Render 變成 `<DrawerContent {...drawerHandlers} />` 一行。',
+      '**主檔 `FlowEditor/index.jsx`**：19KB → 13.9KB（軟上限 15KB 以內，留 1.1KB buffer）。減少 ~120 行 implementation，imports 多 3 條（hook 跟 factory），其他 state hub + render JSX 不動。',
+      '**沒動的 logic**：純 mechanical refactor。undo/redo 行為（包括 typing-burst debounce / save-clears-stack）/ save-reminder pulse 兩條 trigger path / drawer 4 個 click-to-insert 的 anchor 解析全部 1:1 移到新檔。`patch()` 跟 `doSave()` 改成呼叫新 hook 的 method 但對使用者完全 transparent。',
+      '**驗證**：`npm run build` 通過。所有 hook 對外 API 跟原 inline 寫法等價（pushSnapshot 在 setLiveFlow 前 / bumpEdit 在 setHasChanges 後 / 兩個 useEffect 的 deps array 完全保留）。',
+      '**動到的檔案（5 個）**：`src/components/FlowEditor/index.jsx`（19KB → 13.9KB）/ 新增 3 個 sibling 檔在 `src/components/FlowEditor/`：`useUndoRedo.js` / `useSaveReminder.js` / `drawerInsertHandlers.js` / `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: '拆 useFlowActions.js（21KB）→ orchestrator + 4 個 factory 子檔（皆 ≤11KB）',
     items: [
       '**緣由**：使用者「希望每次改動不會遇到檔案太大的 timeout 問題」。`useFlowActions.js` 21KB 過 20KB 硬上限，包含 16 個 graph-mutation 函式（task CRUD / 特殊插入 / connection 操作）。原已拆出 `converters.js`（10KB），但主檔還是過大。',
@@ -48,7 +62,7 @@ export default [
     items: [
       '**緣由**：使用者：「我發現很常在更新 changelog 的時候寫錯日期，請重新檢查每個 log 對應的 PR 與日期，並且把這個檢查納入規則中每次遵循」。早上連續 merge 一批 PR 跨 UTC 日界（#175 / #176 / #178~#183 實際 merged on 2026-05-06，但 changelog 寫成 2026-05-05），需要校正並把對照流程立規則。',
       '**`current.js` 8 處日期校正**：以 `mcp__github__list_pull_requests` 抓 50 個最新 PR 的 `merged_at`，逐筆 title 比對 changelog 條目；發現以下 8 條原 `date: 2026-05-05` 應為 `2026-05-06`（PR 號 / 對應條目）：#183 驗證規則重整 / #182 外部角色 strip / #181 流程圖文字 UI / #180 TaskCard 欄位交換 / #179 TaskCard col 2 / #178 同 lane skip routing / #176 編輯器 col 2 stacked / #175 編輯器 TaskCard 三項。其餘 12 條（#171 / #170 / #169 / #168 / #165 / #164 / #163 / #162 / #161 / #160 / #159 + #184）日期正確。',
-      '**`CLAUDE.md` §4 加 PR-merge 日期對照規則**：每次寫 changelog `date` 必須以 `mcp__github__pull_request_read get_pull_request` 或 `list_pull_requests` 取得目標 PR 的 `merged_at` ISO 日期為準（不是「正在寫的時間」、不是「PR 開立日期」）。如果是同一 session 還沒 merge → 暫填當天日期、merge 完後補正一次（含 ship-feature skill workflow 提醒）。新規則寫進 §4 「Changelog 維護」段，列為第 5 條 bullet。',
+      '**`CLAUDE.md` §4 加 PR-merge 日期對照規則**：每次寫 changelog `date` 必須以 `mcp__github__pull_request_read get_pull_request` 或 `list_pull_requests` 取得目標 PR 的 `merged_at` ISO 日期為準（不是「正在寫的時間」、不是「PR 開立日期」）。如果是同一 session 還沒 merge → 暫填當天日期、merge 完後補正一次(含 ship-feature skill workflow 提醒)。新規則寫進 §4 「Changelog 維護」段，列為第 5 條 bullet。',
       '**`current.js` 凍結 c25**：current.js 在校正前 ~55KB（含校正後的 20 條），遠超 7KB 凍結門檻 — 執行 §4 freeze workflow：cp current.js c25.js、改檔頭註解、`index.js` 加 c25 import，current.js 重置為僅含本條。c25 收 PR #159~#184 共 20 條條目。',
       '**未動的部分**：c01~c24 凍結檔的歷史日期沒在這次 audit 範圍（量大、且這批沒踩到 cross-day merge）。如果之後比對使用者出 bug 可單獨開 audit PR。',
       '**驗證**：`npm run build` 通過。CHANGELOG export 數量不變（c25 加入後仍是同一條陣列）。HelpPanel 變更紀錄 tab 顯示順序：本條 → c25.js（20 條） → c24.js → ... → c01.js。',
