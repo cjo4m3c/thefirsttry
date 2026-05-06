@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-06',
+    title: '拆 excelImport.js（33KB）→ 1 shim + 6 子檔（皆 <11KB），降低未來 timeout 風險',
+    items: [
+      '**緣由**：使用者「希望每次改動不會遇到檔案太大的 timeout 問題」。`excelImport.js` 33KB 是 codebase 最大的 source 檔，遠超 15KB 軟上限 / 20KB 硬上限。動到 Excel 匯入邏輯時 Read / Edit 工具吃 context、改完 PR 推不上去。本 PR 走 shim+子目錄 pattern 拆檔，外部 import 路徑不變。',
+      '**拆檔結構（`src/utils/excelImport/`）**：(1) `aux.js`（1.8KB）— `buildAuxColMap` / `readAuxMeta`，輔助欄位 header→colIndex 對照 (2) `detectors.js`（1.9KB）— `detectGatewayType`（從 ann body）/ `detectGatewayFromName`（從 L4 名稱前綴）/ `detectKindFromL4`（PR-D10 SOT，從 L4 後綴判元件類型）(3) `validators.js`（8.6KB）— `validateNumbering`（hard blocking 編號格式檢核）/ `normalizeL4Numbers`（auto-fix l4Number + 收集 fix 列表）(4) `warnings.js`（6.3KB）— `collectCrossCheckWarnings`（PR-D10 跨訊號 cross-check）/ `collectGatewayChainWarnings`（閘道鏈 X→X_g→X_g1）/ `collectMergeIncomingWarnings`（合併目標 incoming<2）(5) `buildFlow.js`（10.6KB）— `buildFlow`（單個 L3 group → flow 物件）+ `detectRoleTypes`（從 row 分布推 role.type）(6) `index.js`（8.1KB）— `parseExcelToFlow` 主 orchestrator + `parseFlowAnnotations` alias。',
+      '**Shim 保留（`src/utils/excelImport.js` 0.3KB）**：`export { parseExcelToFlow, parseFlowAnnotations } from \'./excelImport/index.js\';` — 唯一外部 importer `Dashboard.jsx` 一行不動，路徑仍是 `\'../utils/excelImport.js\'`。',
+      '**沒動的 logic**：純 mechanical refactor，每個函式 body 1:1 移到子檔，沒改任何驗證 rule / warning 文字 / detector 規則。少數常數（`COL_L3_NUMBER` / `COL_L4_NUMBER` 等）在多個子檔重複定義（每個子檔只用自己需要的 subset），資料不會 desync 因為它們都對應同一份 Excel 欄位 layout（layout 變了所有檔都要改）。',
+      '**驗證**：`npm run build` 通過，bundle size 不變（987KB → 987KB）。每個子檔皆 < 11KB，遠在 15KB 軟上限內，未來加 1-2 個 validator / warning 都還有空間。',
+      '**動到的檔案（8 個）**：`src/utils/excelImport.js`（33KB → 0.3KB shim）/ 新增 6 個子檔在 `src/utils/excelImport/`（aux / detectors / validators / warnings / buildFlow / index）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: 'changelog 日期校正 + 加 §4 PR-merge 日期對照規則 + 凍結 c25',
     items: [
       '**緣由**：使用者：「我發現很常在更新 changelog 的時候寫錯日期，請重新檢查每個 log 對應的 PR 與日期，並且把這個檢查納入規則中每次遵循」。早上連續 merge 一批 PR 跨 UTC 日界（#175 / #176 / #178~#183 實際 merged on 2026-05-06，但 changelog 寫成 2026-05-05），需要校正並把對照流程立規則。',
