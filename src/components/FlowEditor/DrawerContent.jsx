@@ -3,6 +3,7 @@ import TaskCard from './TaskCard.jsx';
 import { ReorderButtons } from '../reorderButtons.jsx';
 import { makeRole, taskOptionLabel } from '../../utils/taskDefs.js';
 import { ELEMENT_TYPES, getElementType, syncTasksToRoles, ensureExternalPrefix, stripExternalPrefix } from '../../utils/elementTypes.js';
+import { COLORS } from '../../diagram/constants.js';
 
 // InsertPicker — drawer-side equivalent of the diagram's ContextMenu, used
 // to add elements between TaskCards. Collapsed state looks identical to the
@@ -290,7 +291,7 @@ export function DrawerContent({ activeTab, liveFlow, displayLabels,
                   onPatch({ roles: newRoles, tasks: syncTasksToRoles(liveFlow.tasks, newRoles) });
                 }}
                 className="px-2 py-1.5 border border-gray-300 rounded text-base focus:outline-none"
-                style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
+                style={{ background: role.type === 'external' ? COLORS.EXTERNAL_BG : COLORS.INTERNAL_BG, color: COLORS.EXTERNAL_TEXT }}>
                 <option value="internal">內部角色</option>
                 <option value="external">外部角色</option>
               </select>

@@ -6,6 +6,7 @@ import BackToTop from './BackToTop.jsx';
 import { parseExcelToFlow } from '../utils/excelImport.js';
 import { exportDrawio } from '../utils/drawioExport.js';
 import { exportFlowToExcel } from '../utils/excelExport.js';
+import { COLORS } from '../diagram/constants.js';
 
 const SORT_OPTIONS = [
   { value: 'number-asc',  label: 'L3 編號 ↑' },
@@ -429,7 +430,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                   {(flow.roles ?? []).map(r => (
                     <span key={r.id}
                       className="px-2 py-0.5 rounded-full text-xs text-white h-fit"
-                      style={{ background: r.type === 'external' ? '#009900' : '#0066CC' }}>
+                      style={{ background: r.type === 'external' ? COLORS.EXTERNAL_BG : COLORS.INTERNAL_BG }}>
                       {r.name}
                     </span>
                   ))}
