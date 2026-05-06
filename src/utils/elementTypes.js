@@ -286,3 +286,42 @@ export function applyExternalPrefixToRoles(roles) {
   });
   return changed ? next : roles;
 }
+
+/**
+ * Inverse of ensureExternalPrefix — strip the leading `[外部角色]` prefix
+ * (with any leading whitespace after it) when the role's type is internal.
+ * Triggered when the user explicitly flips role.type external → internal,
+ * or when Excel import infers a role as internal but the imported name
+ * still carries the prefix.
+ *
+ * Idempotent: returns same ref when role.type !== 'internal' or when name
+ * doesn't start with `[外部角色]`. Strips only ONCE — multi-prefix
+ * `[外部角色][外部角色]xxx` becomes `[外部角色]xxx` (mirror of ensure-add).
+ *
+ * Edge cases:
+ *   - role.name = '[外部角色]' alone → stripped to '' (caller may want to
+ *     prompt user; we keep it empty rather than fallback to anything)
+ *   - role.name = '[外部角色] 客戶' (space after prefix) → stripped to '客戶'
+ *     (trim leading whitespace for UX)
+ *   - role.name = '[外部角色][合作夥伴]xxx' → stripped to '[合作夥伴]xxx'
+ *     (strip only the matching outer prefix)
+ */
+export function stripExternalPrefix(role) {
+  if (!role || role.type !== 'internal') return role;
+  const name = role.name || '';
+  if (!name.startsWith(EXTERNAL_ROLE_PREFIX)) return role;
+  const stripped = name.slice(EXTERNAL_ROLE_PREFIX.length).replace(/^\s+/, '');
+  return { ...role, name: stripped };
+}
+
+/** Cascade-apply stripExternalPrefix to a roles array; same-ref when no-op. */
+export function applyStripExternalPrefixToRoles(roles) {
+  if (!Array.isArray(roles)) return roles;
+  let changed = false;
+  const next = roles.map(r => {
+    const fixed = stripExternalPrefix(r);
+    if (fixed !== r) changed = true;
+    return fixed;
+  });
+  return changed ? next : roles;
+}

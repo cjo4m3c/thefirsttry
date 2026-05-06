@@ -7,7 +7,7 @@ import {
   computeDisplayLabels,
 } from './taskDefs.js';
 import { AUX_FIELD_DEFS } from './auxFieldDefs.js';
-import { applyExternalPrefixToRoles } from './elementTypes.js';
+import { applyExternalPrefixToRoles, applyStripExternalPrefixToRoles } from './elementTypes.js';
 import {
   parseConnection,
   detectGatewayFromText,
@@ -278,12 +278,17 @@ function buildFlow(rows, auxColMap = {}) {
   //     the diagram + FlowTable so the user can fix manually
   //   • role with no lane-sensitive rows (only start/end/gateway/l3activity)
   //     → internal (default; can't infer either way)
-  // Then PR-D4 prefix automation kicks in (no-op for internal, prefixes
-  // external names with `[外部角色]`).
+  // PR-D4 prefix automation: external roles get `[外部角色]` auto-added.
+  // PR (2026-05-05) prefix strip: internal roles whose Excel name still
+  // carries `[外部角色]` (e.g. mixed-role Excel where detectRoleTypes
+  // demoted external→internal but the typed name kept the prefix) get
+  // the prefix stripped so type / name stay consistent.
   const typedRoles = detectRoleTypes(roles, finalTasks);
+  const withPrefix = applyExternalPrefixToRoles(typedRoles);
+  const withStrip  = applyStripExternalPrefixToRoles(withPrefix);
   return {
     id: generateId(), l3Number, l3Name,
-    roles: applyExternalPrefixToRoles(typedRoles),
+    roles: withStrip,
     tasks: finalTasks,
   };
 }
