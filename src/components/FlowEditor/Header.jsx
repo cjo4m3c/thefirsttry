@@ -33,7 +33,8 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
   onTogglePin, onOpenDrawer, onSave, onResetAllConfirm, downloadHandlers,
   onUndo, onRedo, canUndo = false, canRedo = false,
   savePulse = 'none', saveCelebrate = false,
-  densityMode = 'default', onCycleDensity }) {
+  densityMode = 'default', onCycleDensity,
+  staggerLanes = false, onToggleStagger }) {
   const densityLabel =
     densityMode === 'compact'  ? '⊟ 緊密' :
     densityMode === 'spacious' ? '⊞ 寬鬆' :
@@ -112,6 +113,22 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           title={`目前：${densityLabel} — 點一下切換到「${densityNext}」`}
           className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
           {densityLabel}
+        </button>
+        {/* Stagger lanes toggle (preview branch 2026-05-06): when on, odd-indexed
+            swimlanes shift right by COL_W/2 so cross-lane elements interleave
+            instead of stacking. OFF by default — does not change existing
+            flowchart appearance unless user opts in. */}
+        <button
+          onClick={onToggleStagger}
+          title={staggerLanes
+            ? '錯落排列：開（奇數泳道右移半格）— 點一下關閉'
+            : '錯落排列：關 — 點一下開啟（奇數泳道右移半格，跨泳道任務交錯）'}
+          className={`px-3 py-1.5 text-base rounded border transition-colors ${
+            staggerLanes
+              ? 'border-white bg-white text-[#1E4677] font-semibold'
+              : 'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10'
+          }`}>
+          錯落
         </button>
         {/* Undo / Redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z). Stack clears
             after every save per spec — disabled while empty so users see

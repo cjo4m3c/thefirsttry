@@ -1,33 +1,66 @@
 /**
- * Index-driven column assignment (2026-05-05 重構).
+ * Column assignment — topological + L4 walk algorithm.
  *
- * 演算法：
- *   1. 預設 `col[t] = arrayIdxOf[t]` — 編輯器 / 表格的順序就是預設欄位順序，
- *      新增的 disconnected task 會在 lane 中對應 idx 位置出現，使用者好找
- *   2. 對「並行 source」覆寫 — 一個 task 同時導向 ≥2 個前向目標時，
- *      把所有目標對齊到 `max(source.col + 1, ...targets.col)`，保留並行視覺
+ * 演算法（2026-05-06 重構，從 idx-driven 升級）：
+ *   按 L4 sortKey 順序走訪每個任務，計算 col：
+ *     col[t] = max(predBound, l4Bound, 0)
+ *   其中
+ *     predBound = max(forward predecessors.col) + 1   ← topological 約束
+ *     l4Bound   = (t 跟 prevTask 是同 parallel source 的 siblings)
+ *                 ? prevTask.col           ← 同 col 允許（fork-out 對齊）
+ *                 : prevTask.col + 1       ← 嚴格大於（L4 monotonic）
  *
- * 並行 source 包含：
- *   - 閘道（gateway）的 conditions[]
- *   - 一般 task 的 nextTaskIds[] 多元素（implicit parallel-branch）
+ * 同時滿足：
+ *   1. parallel siblings 連續 contiguous 時同 col 對齊（fork-out 視覺）
+ *   2. 中間有非 sibling 任務時嚴格 L4 順序（不 leapfrog）
+ *   3. compact — 無空白 col（max-align overshoot 問題消失）
  *
- * 不算 override 的情境：
- *   - 序列：source 只一個目標 → 目標 col 維持自己 idx（避免拉緊壓縮）
- *   - 反向邊（target idx ≤ source idx）→ loop-return，跳過
+ * 取代舊 idx-driven 版本（PR #177）。idx 順序跟 L4 編號順序在
+ * Excel 匯入 + computeDisplayLabels.usedCounters skip 等場景下會分歧；
+ * 新演算法直接以 L4 編號為 col 排序基準。
  *
- * `resolveRowCollisions` 仍會處理「並行 override 後同 lane 同 col」的衝突，
- * 把後來的 task 推右 + 沿 graph 傳播。
+ * `parseL4SortKey(label)`：把 display label 轉成數字排序鍵：
+ *   `${pfx}-0`        → 0       (start)
+ *   `${pfx}-99`       → 99      (end)
+ *   `${pfx}-N`        → N       (sequence task)
+ *   `${pfx}-N_g[K]`   → N + 0.001 * K
+ *   `${pfx}-N_s[K]`   → N + 0.501 * K
+ *   `${pfx}-N_e[K]`   → N + 0.801 * K
  */
-export function computeColumnMap(tasks) {
+function parseL4SortKey(label) {
+  if (!label) return Infinity;
+  const m = String(label).match(/^\d+-\d+-\d+-(\d+)(?:_([gse])(\d*))?$/);
+  if (!m) return Infinity;
+  const base = parseInt(m[1], 10);
+  if (!m[2]) return base;
+  const offsetUnit = { g: 0.001, s: 0.501, e: 0.801 }[m[2]];
+  const k = m[3] === '' ? 1 : parseInt(m[3], 10);
+  return base + offsetUnit * k;
+}
+
+export function computeColumnMap(tasks, displayLabels) {
   const taskIdSet = new Set(tasks.map(t => t.id));
   const arrayIdxOf = {};
   tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
 
-  // 1. Default col = array index
-  const colOf = {};
-  tasks.forEach(t => { colOf[t.id] = arrayIdxOf[t.id]; });
+  const sortKeyOf = {};
+  tasks.forEach(t => { sortKeyOf[t.id] = parseL4SortKey(displayLabels[t.id]); });
 
-  // 2. Parallel-source override: align all forward targets at a shared col
+  // Sort tasks by sortKey (L4 order); arrayIdxOf as tiebreaker
+  const sortedIds = tasks
+    .map(t => t.id)
+    .sort((a, b) => {
+      if (sortKeyOf[a] !== sortKeyOf[b]) return sortKeyOf[a] - sortKeyOf[b];
+      return arrayIdxOf[a] - arrayIdxOf[b];
+    });
+
+  // Build forward predecessor list + parallel source markers.
+  // Forward = sortKey strictly greater (skip backward / self).
+  // parallelSourceOf[id] = source whose multi-target fanout includes id.
+  const fwdPredOf = {};
+  const parallelSourceOf = {};
+  tasks.forEach(t => { fwdPredOf[t.id] = []; });
+
   tasks.forEach(task => {
     let targets;
     if (task.type === 'gateway') {
@@ -38,30 +71,55 @@ export function computeColumnMap(tasks) {
       return;
     }
     const fwdTargets = targets.filter(id =>
-      id && taskIdSet.has(id) && arrayIdxOf[id] > arrayIdxOf[task.id]
-    );
-    if (fwdTargets.length < 2) return;   // single target = sequential, no override
-    const sharedCol = Math.max(
-      colOf[task.id] + 1,
-      ...fwdTargets.map(id => colOf[id])
+      id && taskIdSet.has(id) && sortKeyOf[id] > sortKeyOf[task.id]
     );
     fwdTargets.forEach(id => {
-      colOf[id] = Math.max(colOf[id], sharedCol);
+      fwdPredOf[id].push(task.id);
     });
+    if (fwdTargets.length >= 2) {
+      // Multi-target source = parallel/conditional fanout. Each target
+      // belongs to this source's "sibling group" so they may share a col
+      // when contiguous in L4 order.
+      fwdTargets.forEach(id => { parallelSourceOf[id] = task.id; });
+    }
+  });
+
+  // Walk in L4 sort order, assign col
+  const colOf = {};
+  let prevId = null;
+  sortedIds.forEach(id => {
+    let predBound = 0;
+    fwdPredOf[id].forEach(pid => {
+      const pcol = colOf[pid];
+      if (pcol !== undefined) predBound = Math.max(predBound, pcol + 1);
+    });
+    let l4Bound = 0;
+    if (prevId !== null) {
+      const prevCol = colOf[prevId] ?? 0;
+      const shareSource =
+        parallelSourceOf[id] !== undefined &&
+        parallelSourceOf[id] === parallelSourceOf[prevId];
+      l4Bound = shareSource ? prevCol : prevCol + 1;
+    }
+    colOf[id] = Math.max(predBound, l4Bound, 0);
+    prevId = id;
   });
 
   return colOf;
 }
 
 /**
- * Prevent same-row same-col collisions: if two tasks in the same swimlane land
- * at the same column (e.g. parallel branches both targeting the same lane),
- * shift the later-indexed task rightward and propagate the shift forward along
- * the graph so the topological order is preserved. Iterates until stable.
+ * Prevent same-row same-col collisions: if two tasks in the same swimlane
+ * land at the same col (e.g. parallel branches both targeting the same
+ * lane), shift the later one rightward and propagate forward along the
+ * graph. Iterates until stable.
+ *
+ * `orderOf` defaults to col-rank (so collision resolution follows L4 /
+ * topological order rather than array idx).
  */
 export function resolveRowCollisions(tasks, colOf, taskRowOf) {
-  const arrayIdxOf = {};
-  tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
+  const idxOf = {};
+  tasks.forEach(t => { idxOf[t.id] = colOf[t.id] ?? 0; });
 
   const taskIdSet = new Set(tasks.map(t => t.id));
   const successors = {};
@@ -72,7 +130,7 @@ export function resolveRowCollisions(tasks, colOf, taskRowOf) {
       : [...(task.nextTaskIds || []), task.nextTaskId].filter(Boolean);
     nexts.forEach(nid => {
       if (!nid || !taskIdSet.has(nid)) return;
-      if (arrayIdxOf[nid] <= arrayIdxOf[task.id]) return;
+      if (idxOf[nid] <= idxOf[task.id]) return;
       successors[task.id].push(nid);
     });
   });
@@ -88,7 +146,7 @@ export function resolveRowCollisions(tasks, colOf, taskRowOf) {
     let fixed = false;
     Object.values(cells).forEach(ids => {
       if (ids.length <= 1) return;
-      const sorted = ids.slice().sort((a, b) => arrayIdxOf[a] - arrayIdxOf[b]);
+      const sorted = ids.slice().sort((a, b) => idxOf[a] - idxOf[b]);
       for (let i = 1; i < sorted.length; i++) {
         const id = sorted[i];
         colOf[id] = colOf[id] + 1;

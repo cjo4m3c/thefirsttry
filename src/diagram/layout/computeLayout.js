@@ -11,11 +11,21 @@ import { runPhase3 } from './phase3.js';
 import { runPhase3b, runPhase3c } from './phase3bc.js';
 import { runPhase3d } from './phase3d.js';
 import { runPhase3e } from './phase3e.js';
+import { runPhase3f } from './phase3f.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
 export function computeLayout(flow) {
-  const { roles, tasks, l3Number } = flow;
+  const { roles, tasks, l3Number, staggerLanes } = flow;
+
+  // Per-lane horizontal stagger offset (preview feature 2026-05-06):
+  // odd-indexed rows shift right by COL_W/2 so tasks across adjacent
+  // swimlanes interleave instead of stacking on the same column.
+  // OFF by default — enabled via flow.staggerLanes toggle in Header.
+  const laneXOffset = roles.map((_, r) =>
+    staggerLanes && (r % 2 === 1) ? COL_W / 2 : 0
+  );
+  const maxLaneXOffset = laneXOffset.reduce((m, v) => Math.max(m, v), 0);
 
   // ── 1. Role index map ──────────────────────────────────────
   const roleIndexMap = {};
@@ -25,8 +35,12 @@ export function computeLayout(flow) {
   const taskRowOf = {};
   tasks.forEach(task => { taskRowOf[task.id] = roleIndexMap[task.roleId] ?? 0; });
 
-  // ── 3. Graph-based column assignment (parallel = same col) ────
-  const colOf = computeColumnMap(tasks);
+  // ── 3. Graph-based column assignment ────────────────────
+  // Topological + L4 walk: parallel siblings contiguous in L4 share col,
+  // non-sibling tasks between siblings get monotonic order.
+  // Labels needed for L4 sortKey; re-computed later for rendering, cheap.
+  const displayLabelsForLayout = computeDisplayLabels(tasks, l3Number);
+  const colOf = computeColumnMap(tasks, displayLabelsForLayout);
   resolveRowCollisions(tasks, colOf, taskRowOf);
   const taskColOf = {};
   tasks.forEach(task => { taskColOf[task.id] = colOf[task.id]; });
@@ -60,6 +74,7 @@ export function computeLayout(flow) {
   runPhase3c(ctx);
   runPhase3d(ctx);
   runPhase3e(ctx);
+  runPhase3f(ctx);
 
   const { condRouting, taskBackwardRouting, taskForwardRouting, taskCrossLaneRouting } = ctx;
 
@@ -219,7 +234,7 @@ export function computeLayout(flow) {
 
   tasks.forEach(task => {
     const row = taskRowOf[task.id] ?? 0;
-    const cx  = LANE_HEADER_W + colOf[task.id] * COL_W + COL_W / 2;
+    const cx  = LANE_HEADER_W + colOf[task.id] * COL_W + COL_W / 2 + laneXOffset[row];
     const cy  = laneTopY[row] + NODE_VOFFSET;
     const hx  = halfExtent(task.type, 'x');
     const hy  = halfExtent(task.type, 'y');
@@ -310,7 +325,7 @@ export function computeLayout(flow) {
   // ── 11. SVG dimensions ────────────────────────────────────────────
   const maxCol    = Math.max(...Object.values(colOf));
   const totalH    = laneTopY[roles.length - 1] + laneHeights[roles.length - 1];
-  const svgWidth  = LANE_HEADER_W + (maxCol + 1) * COL_W + LAYOUT.PADDING_RIGHT;
+  const svgWidth  = LANE_HEADER_W + (maxCol + 1) * COL_W + maxLaneXOffset + LAYOUT.PADDING_RIGHT;
   const svgHeight = totalH + LAYOUT.PADDING_BOTTOM;
 
   return { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights };

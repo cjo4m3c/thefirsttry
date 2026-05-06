@@ -135,3 +135,124 @@ export function corridorBlockedByFuturePhase3dVertical(ctx, row, minCol, maxCol)
   }
   return false;
 }
+
+/**
+ * isPathClear — predicts the cells a routed path will pass through given
+ * (exit, entry) sides, then checks for both task obstacles and rule-1
+ * port-mix violations. Used by Phase 1 mixed-priority and Phase 3f L1 retry.
+ *
+ * Path geometry mirrors `routeArrow.js`:
+ *   - right→left  forward (fc<tc): Z via midCol; horizontal at fr cols
+ *     (fc, midCol], vertical at midCol (column gap, no task cells), horizontal
+ *     at tr cols [midCol, tc).
+ *   - right→left  backward: routes via title-bar above row 0 → no task cells.
+ *   - top→top    : corridor above min(fr,tr); vertical at fc going up from
+ *     fr-1, vertical at tc going down to tr-1.
+ *   - bottom→bottom: corridor below max(fr,tr); vertical at fc fr+1..max,
+ *     vertical at tc tr+1..max.
+ *   - top→left/right (cross-row): vertical at fc above source, horizontal in
+ *     corridor, vertical at tc descending to tr.
+ *   - bottom→left/right: mirror of top→left/right downward.
+ *   - top→bottom / bottom→top: vertical at fc + vertical at tc through
+ *     intermediate rows.
+ *
+ * Returns false (= path NOT clear) on any obstacle. Endpoint cells (fr,fc)
+ * and (tr,tc) are excluded; an intermediate task at the same cell as the
+ * endpoint can't actually obstruct.
+ */
+export function isPathClear(exitSide, entrySide, fr, fc, tr, tc, ctx, fromId, toId) {
+  // Rule 1: source's exit port must not already have IN, target's entry
+  // port must not already have OUT (we'd be adding OUT to source, IN to target).
+  if (hasIn(ctx, fromId, exitSide)) return false;
+  if (hasOut(ctx, toId, entrySide)) return false;
+
+  const cells = predictPathCells(exitSide, entrySide, fr, fc, tr, tc);
+  for (const [r, c] of cells) {
+    if (r === fr && c === fc) continue;
+    if (r === tr && c === tc) continue;
+    if (ctx.taskAt(r, c)) return false;
+  }
+  return true;
+}
+
+function predictPathCells(exit, entry, fr, fc, tr, tc) {
+  const cells = [];
+  const rLo = Math.min(fr, tr), rHi = Math.max(fr, tr);
+
+  // Parallel corridors: top→top, bottom→bottom — verticals at both fc and tc
+  if (exit === 'top' && entry === 'top') {
+    for (let r = rLo; r < fr; r++) cells.push([r, fc]);
+    for (let r = rLo; r < tr; r++) cells.push([r, tc]);
+    return cells;
+  }
+  if (exit === 'bottom' && entry === 'bottom') {
+    for (let r = fr + 1; r <= rHi; r++) cells.push([r, fc]);
+    for (let r = tr + 1; r <= rHi; r++) cells.push([r, tc]);
+    return cells;
+  }
+
+  // right→left forward: Z-shape via midCol — horizontal segments at row fr
+  // and row tr; vertical at column gap (no task cells crossed by vertical).
+  if (exit === 'right' && entry === 'left') {
+    if (fc < tc) {
+      const midCol = Math.floor((fc + tc) / 2);
+      for (let c = fc + 1; c <= midCol; c++) cells.push([fr, c]);
+      for (let c = midCol + 1; c < tc; c++) cells.push([tr, c]);
+      // For cross-row Z-shape, vertical at midCol passes through intermediate rows
+      if (fr !== tr) {
+        for (let r = rLo + 1; r < rHi; r++) cells.push([r, midCol]);
+      }
+      return cells;
+    }
+    // backward right→left: title-bar detour above row 0 — no task cells crossed
+    return [];
+  }
+  if (exit === 'left' && entry === 'right') {
+    // backward via title bar
+    return [];
+  }
+
+  // top → left/right (cross-row): corridor detour. Vertical at fc going up
+  // from source, horizontal in corridor (no tasks), vertical at tc descending
+  // to target row.
+  if (exit === 'top' && (entry === 'left' || entry === 'right')) {
+    for (let r = rLo; r < fr; r++) cells.push([r, fc]);
+    for (let r = rLo; r < tr; r++) cells.push([r, tc]);
+    return cells;
+  }
+  if (exit === 'bottom' && (entry === 'left' || entry === 'right')) {
+    for (let r = fr + 1; r <= rHi; r++) cells.push([r, fc]);
+    for (let r = tr + 1; r <= rHi; r++) cells.push([r, tc]);
+    return cells;
+  }
+
+  // top↔bottom (vertical): pass through all intermediate rows at fc + tc.
+  if ((exit === 'top' && entry === 'bottom') || (exit === 'bottom' && entry === 'top')) {
+    if (fc === tc) {
+      for (let r = rLo + 1; r < rHi; r++) cells.push([r, fc]);
+    } else {
+      // vertical at fc to halfway, then horizontal, then vertical at tc.
+      const midRow = Math.floor((fr + tr) / 2);
+      for (let r = rLo + 1; r <= midRow; r++) cells.push([r, fc]);
+      for (let r = midRow; r < rHi; r++) cells.push([r, tc]);
+    }
+    return cells;
+  }
+
+  // right/left → top/bottom: horizontal first, then vertical.
+  if ((exit === 'right' || exit === 'left') && (entry === 'top' || entry === 'bottom')) {
+    // horizontal at row fr from fc to tc, then vertical at tc to tr.
+    const cLo = Math.min(fc, tc), cHi = Math.max(fc, tc);
+    for (let c = cLo + 1; c < cHi; c++) cells.push([fr, c]);
+    for (let r = rLo + 1; r < rHi; r++) cells.push([r, tc]);
+    return cells;
+  }
+
+  // Fallback: bounding box (conservative — may flag false positives).
+  for (let r = rLo; r <= rHi; r++) {
+    for (let c = Math.min(fc, tc); c <= Math.max(fc, tc); c++) {
+      cells.push([r, c]);
+    }
+  }
+  return cells;
+}
