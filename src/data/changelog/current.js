@@ -5,6 +5,18 @@
  */
 export default [
   {
+    date: '2026-05-06',
+    title: '（preview）錯落排列 toggle — 奇數泳道右移半格，跨泳道任務交錯',
+    items: [
+      '**緣由**：使用者：「我希望跨泳道的元件可以錯落排列⋯⋯第二個角色的元件位置會在上一列角色的一半的位置開始⋯⋯這樣連線可以從第一角色的兩個任務中間穿過。」',
+      '**v1 預覽範圍（最小可視化）**：加 per-flow `staggerLanes` boolean toggle、Header 多一顆「錯落」按鈕、`computeLayout` 對奇數 row 平移 `COL_W/2 = 92px`。COL_W 不動、routing 障礙檢查不動 — 純視覺先讓使用者評估。',
+      '**Toggle 預設 OFF**：既有流程圖外觀不變，使用者主動開啟才生效；狀態存在 flow 物件本身（不是 localStorage 全域），不同流程可獨立設定。',
+      '**動到的檔案（3 個）**：`src/diagram/layout/computeLayout.js`（`laneXOffset` array + cx 加 offset + svgWidth 補 maxLaneXOffset）/ `src/components/FlowEditor/Header.jsx`（「錯落」按鈕）/ `src/components/FlowEditor/index.jsx`（toggleStagger + props 傳遞）。',
+      '**部署**：`.github/workflows/deploy-preview.yml` 把 main + 此分支併到單一 Pages deploy；preview 在 `https://cjo4m3c.github.io/FlowSprite/preview-stagger-layout/`。',
+      '**已知限制 / 後續決策點**：(a) 鄰排任務水平視覺重疊 48px（不同 y 不撞，但看起來有點疊）— 若不滿意可走方案 B，把 COL_W 從 184 拉到 280；(b) routing 障礙檢查仍用 col 整數格，未改成視覺座標 — 平移後 phase3d 可能誤判某些 cross-lane 連線（暫無回歸案例）；(c) 三泳道以上時 lane 0/2 都不平移、只 lane 1 平移，跨多泳道的視覺效果可能不如預期。',
+    ],
+  },
+  {
     date: '2026-05-05',
     title: 'PR-D10：元件類型判斷改為「L4 編號為 SOT」，加跨訊號 cross-check + OR 詞彙容忍清單擴充',
     items: [
