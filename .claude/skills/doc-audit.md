@@ -1,87 +1,103 @@
 ---
 name: doc-audit
-description: Verify that ChangelogPanel, HelpPanel, README, HANDOVER, and the four-view-sync invariant are aligned with the latest code changes. Use when the user asks to "check docs"/"sync docs"/"確認文件是最新" or before shipping a major refactor.
+description: Comprehensive currency check — verify CLAUDE.md / README / HANDOVER / business-spec / backlog / helpPanelData are aligned with the latest code, plus scan for redundant code (unused exports, dead shims, legacy keywords, oversized files). Use after a wave of related PRs (e.g. a refactor series) or before a release.
 ---
 
-# /doc-audit — 文件同步檢查 + 四視圖一致性檢核
+# /doc-audit — 文件 currency + 冗餘碼 audit
 
-確認下列文件 + 一個關鍵 invariant 跟當前 main / branch 的程式碼狀態對齊。**逐項檢查，有不合才動手修。**
+兩段檢查，每段失敗就修：**(1) 6 份文件對齊現況、(2) 冗餘碼掃描**。Audit 範圍大，**建議 spawn agent 跑**（直接呼叫太燒主 context）。
 
-## 檢查清單
+## 觸發時機
 
-### 1. `src/components/ChangelogPanel.jsx`
+- 連續 merge 5+ 個相關 PR 後（refactor 系列、新功能落地）
+- Release 前
+- 接手 session 時想確認交接狀態
+- 使用者說「確認文件最新 / 檢查文件 / sync docs / audit」
 
-- [ ] 最頂部條目的 `date` 是今天（使用者系統日期）
-- [ ] 頂部條目的 `title` 對應當前 branch 的主要變更
-- [ ] `items` 覆蓋所有本次 commit 的重點（爬 `git log <branch> --not origin/main`）
-- [ ] 日期格式 `YYYY-MM-DD`，陣列 newest first
+## Agent 派工模板
 
-### 2. `src/components/HelpPanel.jsx`
+```
+Task tool, subagent=general-purpose
+  description: "Audit docs + redundant code"
+  prompt: """Audit /home/user/FlowSprite for two things, write concise
+report (under 600 words). Read-only, no changes.
 
-對應資料常數：
-- [ ] `NUMBERING`：涵蓋 L3 / L4 / 開始 / 結束 / 閘道 / 迴圈返回 / 子流程 7 種
-- [ ] `ELEMENTS`：所有元件類型（start / end / task / interaction / l3activity / **3 種 gateway: XOR / AND / OR**）
-- [ ] `VALIDATION`：**`FlowEditor.jsx validateFlow`** 裡的所有驗證規則都列到（注意：歷史上這段曾誤指 Wizard.jsx，validation 主邏輯實際在 FlowEditor）
-- [ ] `CONNECTIONS`：所有 `connectionType` 值都有對應描述（包含 inclusive-branch / inclusive-merge）
-- [ ] `EDITABLE_ACTIONS`：使用者可在畫面操作的編輯動作（拖曳 / ContextMenu / hover tooltip / 拖端點覆寫等）
-- [ ] `FORBIDDEN_RULES`：不能違反的規則（IN+OUT 混用 / 線跨任務 / 開始結束必須有連線 / L4 編號）
-- [ ] **不再含** ROUTING / CORRIDOR table（已從 2026-04-27 移到 `HANDOVER.md` §2.5 內部開發者文件）
+# Task 1: Doc currency
 
-Cross-check：
-- 跑 `grep "if (ct ===" src/components/ConnectionSection.jsx` 確認 HelpPanel.CONNECTIONS 列到所有 ct 值
-- 跑 `grep "applyConnectionType\|gwMap" src/utils/taskDefs.js` 確認 ELEMENTS 涵蓋所有 gateway 類型
-- 對照 `src/components/ContextMenu.jsx` + `FlowEditor.jsx` 的 add-connection / add-gateway / add-before/after 動作 — 都有列在 EDITABLE_ACTIONS
+對 6 份文件對 main 程式碼狀態，標 CURRENT 或 STALE-WITH-DETAILS：
 
-### 3. `README.md`
+- `CLAUDE.md` — §3 編號（含 `_e`）、§6 size table、§8 PR checklist、§12 工作流通則、§開頭外部檔 pointer 列表
+- `README.md` — 目錄樹、storage migration 數、changelog chunk 範圍、關鍵檔案描述
+- `HANDOVER.md` — 目錄樹、§2.5 routing 規則、§3.1 編號表（含 `_e`、`_s` row）、§5.1 skill 數量
+- `docs/business-spec.md` — §3 元件類型、§3.1 外部互動、§7.1/§7.2 validation 規則、§10 Excel 結構欄數
+- `.claude/backlog.md` — 最近 PR 是否登 done、dropped items 是否移除、檔案 size 數據
+- `src/data/helpPanelData.js` — NUMBERING / ELEMENTS / VALIDATION / EXPORTS / EDITABLE_ACTIONS / CONNECTIONS 條目跟程式碼一致
 
-- [ ] 「本地建置」區塊的 Node 版本跟 `.github/workflows/deploy.yml` 一致
-- [ ] Runtime / dev deps 表格跟 `package.json` 一致
-- [ ] 專案架構樹對應 `src/components/` + `.claude/skills/` 實際檔案清單（特別注意 `RightDrawer.jsx` / `ContextMenu.jsx` / `paste-bundle.md` / `preview-branch.md` / `wrap-pr.md`）
-- [ ] 關鍵檔案區塊的描述跟實際功能一致（尤其 `layout.js` 行數 / 能力）
+每份文件 diff-style 報告（不要 quote 整段），例：「README §X 直系樹漏 src/foo/，新增 PR-X 留下」。
 
-### 4. `HANDOVER.md`
+# Task 2: Redundant code scan
 
-- [ ] 程式碼結構樹跟 README 一致
-- [ ] §2.5 layout.js 內部路由規則仍對應 `layout.js` 實際 phase（dr/dc 表 + corridor slot 表 + 規則 1/2）
-- [ ] §3.1 編號格式跟 `taskDefs.js` regex 常數一致
-- [ ] §3.2 / §3.3 閘道關鍵字 — fork（XOR / AND / OR）+ merge target + loop-return
-- [ ] §5.1 提到的 skill 數量正確（截至 2026-04-27 為 8 個：ship-feature / sync-main / doc-audit / trace-layout / ui-rules / paste-bundle / preview-branch / wrap-pr）
-- [ ] 「交接情境」沒有已過時的做法
-- [ ] Backlog 項目反映最新狀態（`ChangelogPanel.jsx` 已涵蓋的移除）
+掃描下列 5 類，列出 file:line + 風險（low/med/high）：
 
-### 5. **四視圖一致性 invariant**（每次新增 / 編輯 / 刪除任務後必檢）
+1. **Unused exports**：`grep export` 後對照 `grep '\\bX\\b'` importer 數
+2. **Shim files**：`Dashboard.jsx` / `FlowEditor.jsx` / `DiagramRenderer.jsx` / `ContextMenu.jsx` / `HelpPanel.jsx` / `taskDefs.js` 是否仍是 shim、importer 是否還在
+3. **Legacy keywords**：`_w` 應只在 changelog 歷史 + storage migration + taskDefs rename comment；其他位置都是 stale。`migrateLegacyWtoE` 等 typo 引用應改正
+4. **File size cap**：`find src -size +15k`（軟）/ `+20k`（硬）— 列出 + 是否在 backlog 記錄
+5. **Imports of removed code**：build 應該已抓到，但 IDE 殘留 import 偶見
 
-> 這是 2026-04-27 加進來的硬性檢核點 — 使用者明確要求：「每次更新時檢查」。
+每筆：file:line + why redundant + risk + suggested fix。
 
-當任何 task / connection 被新增 / 編輯 / 刪除時，**4 個視圖必須同步**：
+# 格式
 
-| 視圖 | 來源 | 驗證 |
-|---|---|---|
-| 流程圖（DiagramRenderer）| `liveFlow.tasks` 直接 reactive | 直接看畫面 |
-| 右側 drawer 編輯器（FlowEditor flow tab）| `liveFlow.tasks` 直接 reactive | 看 TaskCard list |
-| 下方 Excel 表格（FlowTable）| `flow.tasks` via useEffect re-sync | ⚠️ **過去 bug**：`useEffect` 只 watch `flow.id` 不 watch `flow.tasks`，新增 task 不同步 |
-| 下載資料（Excel / drawio）| `liveFlow.tasks` → `buildExcelRows` / drawio export | 下載一次驗證 |
+回 markdown：
 
-**檢核方式**：
-1. 操作（新增 / 編輯 / 刪除）後，**至少同時看流程圖 + Excel 表格**。兩邊任務數 / 編號 / 名稱要一致
-2. 對照 L4 編號是否連續（用 `computeDisplayLabels` 單一 source）
-3. 任務名稱含 `[XX閘道] ` prefix 的（閘道類元件），切換閘道種類後 prefix 自動更新
-4. 下載 Excel → 第一欄 L3 編號 / 第三欄 L4 編號 / 第四欄任務名稱 三者跟畫面一致
+## Task 1: Doc currency
+| File | Status | Details |
+...
 
-**修法（如不同步）**：
-- FlowTable 不同步 → 檢查 `useEffect` deps（`flow.tasks` 必須在裡面）
-- L4 編號不一致 → 檢查 `excelExport.js buildTableL4Map` 是否正確 wrap `computeDisplayLabels`
-- 任務關聯說明文字不一致 → 檢查 `excelExport.js buildExcelRows` 是否永遠重算（不再用 stale `task.flowAnnotation`）
+## Task 2: Redundant code
+1. xxx (file:line) — risk=low/med/high — fix=xxx
 
-## 審核後的動作
+不要修檔案。讀完回 600 字以內 markdown 報告。"""
+```
 
-- **全部對齊**：跟使用者回報「文件已同步最新 + 四視圖 invariant 通過」
-- **有不合**：只改需要改的段落（不要整個 rewrite），每個改動一次小 Edit 避免 timeout
-- **涉及業務規則**：同步修 `CLAUDE.md` 規則 3（但這是規則來源，應該比文件更早被更新）
+## Audit 完後的動作
+
+依 agent 報告類型分流：
+
+### Doc 不對齊 → 開 cleanup PR
+- 一次 PR 收齊 6 份文件改動（用 `claude/<topic>-doc-sync` 分支）
+- 每個改動一次小 Edit（不要整 rewrite）
+- changelog 加一條描述哪些 staleness 被修
+
+### 冗餘碼 → 評估後決定
+- **High risk**（可能還在用、不確定）→ 寫成 backlog 條目，下次有空再除
+- **Med risk**（看起來無 importer 但可能有間接使用）→ grep 二次確認後刪
+- **Low risk**（明顯 dead code）→ 直接刪、寫 changelog
+
+### 都對齊 → 跟使用者回報「文件 + 冗餘碼皆 current」
+- 不要為了 PR 而 PR — 沒事就不改
 
 ## 避免做的事
 
-- 不要 regenerate 整份文件（每次一個小段落改）
-- 不要自己加 feature description 以外的內容（例：行銷語、TODO 項目）
-- 不要因為文件沒改就「假裝改了」然後 commit empty change
-- **不要跳過四視圖檢核**——這是硬性要求，不是可選步驟
+- **不要在主 context 跑 audit**（太燒 token，spawn agent）
+- **不要 regenerate 整份文件**（每個小段落改）
+- **不要把 audit 跟功能改動混 PR**（cleanup 自成一支）
+- **不要因為 agent 沒抓到就放心** — 建議自己再 quick grep `_w` / unused exports，補 verify
+
+## 已知 false positive
+
+- `task.flowAnnotation` 被 `taskDefs.normalizeTask:189` + `excelImport.collectMergeIncomingWarnings` 讀，但只 check keyword 存在性 — 不算 dead code
+- `loop-return` 相關常數（CONN_BADGE entry、normalizeTask 分支）— 雖然編輯器已移除 entry 點，舊資料仍會 render，**保留是 defensive** 不算 redundant
+- `migrateInteractionSuffix` 的 `/_w\d*$/` regex — 是 legacy 偵測，**不要刪**
+
+## 範例使用
+
+```
+User: 確認文件最新
+Claude: 開 agent 跑 /doc-audit comprehensive scan
+[agent 5 分鐘後回報 STALE 6 條 + redundant 2 條]
+Claude: 列摘要 → 問使用者要不要修
+User: 修
+Claude: 開 cleanup PR
+```

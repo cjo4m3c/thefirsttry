@@ -206,36 +206,54 @@ export default function FlowTable({ flow, onUpdateTask }) {
 
   return (
     <div className="mt-6">
-      {/* Toggle bar — small, no title/description (info redundant with the
-          page Header). The L3-columns toggle is kept because it's actionable.
-          Auto-fit row heights toggle 2026-05-04: switches between fixed
-          rows={2} (default) and textarea-grows-to-content. */}
+      {/* Toolbar — 3 toggle buttons (PR 2026-05-05): 適應內容高度 / 隱藏輔助欄位
+          / 隱藏L3欄位。Pure-text labels (no icons), each toggle is highlighted
+          when its named feature is active. Defaults: aux hidden + L3 hidden +
+          default row height (i.e. 隱藏輔助欄位 / 隱藏L3欄位 highlighted, 適應內
+          容高度 inactive on first visit; user-toggled state persists per
+          localStorage). Layout: left-to-right per spec. */}
       <div className="mb-2 flex justify-end gap-2">
         <button
           type="button"
-          onClick={() => setShowAux(v => !v)}
-          className="shrink-0 px-3 py-1.5 text-sm rounded border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap"
-          title="輔助欄位（執行主體 / 操作系統 / 動詞名詞 / 字典檢核 等 16 欄）為任務描述用，不影響流程圖、編號或連線。Excel 匯出無論顯示與否都會包含。"
+          onClick={() => setAutoFitRows(v => !v)}
+          className={`shrink-0 px-3 py-1.5 text-sm rounded border transition-colors whitespace-nowrap ${
+            autoFitRows
+              ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+              : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
+          }`}
+          title={autoFitRows
+            ? '目前每列自動展開到對應內容高度（再按一次回預設兩行）'
+            : '每列依內容高度自動展開（不用 cell 內捲動）'}
         >
-          {showAux ? '⊖ 隱藏輔助欄位' : '⊕ 顯示輔助欄位'}
+          適應內容高度
         </button>
         <button
           type="button"
-          onClick={() => setAutoFitRows(v => !v)}
-          className="shrink-0 px-3 py-1.5 text-sm rounded border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap"
-          title={autoFitRows
-            ? '回到預設兩行高度（內容超過會在 cell 內捲動）'
-            : '自動展開每列到對應內容高度，不用捲動就看到全部內容'}
+          onClick={() => setShowAux(v => !v)}
+          className={`shrink-0 px-3 py-1.5 text-sm rounded border transition-colors whitespace-nowrap ${
+            !showAux
+              ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+              : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
+          }`}
+          title={!showAux
+            ? '目前隱藏 21 欄輔助欄位（執行主體 / 操作系統 / 動詞名詞 / 字典檢核 等任務描述用）— 再按一次顯示'
+            : '隱藏右側 21 欄輔助欄位（保留核心欄位專注編輯）'}
         >
-          {autoFitRows ? '⇕ 回預設高度' : '⇕ 適應內容高度'}
+          隱藏輔助欄位
         </button>
         <button
           type="button"
           onClick={() => setShowL3(v => !v)}
-          className="shrink-0 px-3 py-1.5 text-sm rounded border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap"
-          title="L3 編號 / L3 名稱在頁面上方已有；下載 Excel 時無論顯示與否都會包含。"
+          className={`shrink-0 px-3 py-1.5 text-sm rounded border transition-colors whitespace-nowrap ${
+            !showL3
+              ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+              : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
+          }`}
+          title={!showL3
+            ? '目前隱藏 L3 編號 / L3 名稱欄（頁面上方已顯示）— 再按一次顯示'
+            : '隱藏 L3 編號 / L3 名稱欄'}
         >
-          {showL3 ? '隱藏 L3 欄位 ▲' : '顯示 L3 欄位 ▼'}
+          隱藏L3欄位
         </button>
       </div>
 

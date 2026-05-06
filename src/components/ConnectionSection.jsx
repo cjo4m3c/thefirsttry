@@ -84,9 +84,6 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
             <option value="">選擇目標任務</option>{renderOpts()}
           </select>
         </div>
-        <p className="text-xs text-gray-400 mt-1 pl-1">
-          ℹ 此任務將以 L3 活動元件（雙邊書擋矩形）繪製，上面顯示所調用的子流程 L3 編號
-        </p>
       </div>
     );
   }
@@ -141,9 +138,6 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
           className="mt-1.5 text-sm text-green-700 hover:text-green-900">
           + 新增並行目標
         </button>
-        <p className="text-xs text-gray-400 mt-1 pl-1">
-          ℹ AND 並行閘道不評估條件（標籤僅作註記用），所有目標都會建立並行路徑
-        </p>
       </div>
     );
   }
@@ -172,9 +166,6 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
           className="mt-1.5 text-sm" style={{ color: '#854D0E' }}>
           + 新增包容分支
         </button>
-        <p className="text-xs text-gray-400 mt-1 pl-1">
-          ℹ OR 包容閘道：每個條件獨立評估，凡為真者建立並行路徑（可同時觸發 1~N 條）
-        </p>
       </div>
     );
   }
@@ -202,23 +193,10 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
             <option value="">選擇返回目標任務</option>{renderOpts()}
           </select>
         </div>
-        <p className="text-xs text-gray-400 mt-1 pl-1">
-          ℹ 迴圈返回只指回前方任務；若需同時有「繼續前進」的條件分支，請改用「條件分支」排他閘道（需 `_g` 後綴）。
-        </p>
       </div>
     );
   }
 
-  if (ct === 'breakpoint') {
-    return (
-      <div className={`${rowGap} mt-1.5`}>
-        <span className={lbl}>斷點說明</span>
-        <input className={wide} value={task.breakpointReason || ''}
-          placeholder="說明斷點原因（選填）"
-          onChange={e => onUpdate({ ...task, breakpointReason: e.target.value })} />
-      </div>
-    );
-  }
-
-  return null; // 'end' — no connection config needed
+  // 'end' / legacy 'breakpoint' — no connection config needed
+  return null;
 }

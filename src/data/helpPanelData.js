@@ -446,14 +446,15 @@ export const EDITABLE_ACTIONS = [
     ],
   },
   {
-    title: '⊕ 顯示輔助欄位：FlowTable 向右展開 20 個任務描述欄',
+    title: 'FlowTable 三個 toolbar toggle：適應內容高度 / 隱藏輔助欄位 / 隱藏L3欄位',
     desc: [
-      'FlowTable 右上角加按鈕「⊕ 顯示輔助欄位」/「⊖ 隱藏輔助欄位」toggle',
-      '預設隱藏（只顯示核心 10 欄）；點開後在右側依 Excel K~AD 順序展開 20 欄',
-      '輔助欄位內容：執行主體 / 操作系統 / 涉及的業務實體 / 業務實體生命週期 / 單一性 / 完整性判定 / 動詞名詞_中文 / 字典檢核 / Key 傳遞斷點處 / 找 SO 釐清 等 16 個實際欄位 + 4 個視覺分組空白欄',
+      'FlowTable 右上角三顆 toggle 按鈕（純文字、無 icon）',
+      '預設：適應內容高度 OFF（每列固定兩行）/ 隱藏輔助欄位 ON / 隱藏L3欄位 ON',
+      'toggle 為 active 時按鈕呈深藍底白字、inactive 為白底藍邊',
+      '輔助欄位內容（21 欄）：執行主體 / 操作系統 / 涉及的業務實體 / 操作後業務實體生命週期 / 備註 / 牽涉實體或分配（1-實體、2-分配）/ 單一角色執行 / 連續執行不中斷 / 對應單一業務產出 / 目的具體完整 IPO / 動詞_中文 / 名詞_中文 / 檢核動詞_中文 / 檢核名詞_中文 / 是否完成字典檢核 / Key 傳遞斷點處 / 找 SO 釐清 / SO 釐清狀況 / 找 User 釐清 / 合併場次 / User 釐清狀況',
       '輔助欄位**完全不影響流程圖**、編號規則、連線解析；無檢核、無必填、自由文字編輯',
-      'toggle 狀態跨 session 記得（localStorage `bpm_flow_table_show_aux`）',
-      'Excel 匯出**不受 toggle 影響**，永遠包含 30 欄；匯入時走 header mapping 容忍欄序變動',
+      'toggle 狀態跨 session 記得（localStorage `bpm_flow_table_show_aux` / `_show_l3` / `_autofit`）',
+      'Excel 匯出**不受 toggle 影響**，永遠包含 31 欄；匯入時走 header mapping 容忍欄序變動',
     ],
   },
   {
@@ -587,9 +588,9 @@ export const EXPORTS = [
     ext: '.xlsx',
     tool: 'Microsoft Excel、LibreOffice Calc、Google Sheets',
     note: [
-      '共 30 欄：核心 10 欄（A~J）+ 輔助 20 欄（K~AD）',
+      '共 31 欄：核心 10 欄（A~J）+ 輔助 21 欄（K~AE）',
       '核心 10 欄：L3 編號、L3 名稱、L4 編號、任務名稱、說明、輸入、角色、產出、關聯說明、參考資料 — 用於流程圖辨識，欄位順序固定不可調',
-      '輔助 20 欄：執行主體 / 操作系統 / 業務實體生命週期 / 動詞名詞 / 字典檢核 等任務描述用，含 4 個視覺分組空白欄 — 走 header mapping，使用者可自由調序',
+      '輔助 21 欄：執行主體 / 操作系統 / 涉及的業務實體 / 操作後業務實體生命週期 / 備註 / 牽涉實體或分配 / 單一性與完整性判定 / 動詞名詞 / 字典檢核 / Key 傳遞斷點處 / SO 與 User 互動 釐清狀況 — 走 header mapping，使用者可自由調序、缺欄不報錯',
       '輔助欄位完全不影響流程圖、編號、連線；無檢核、無必填，自由文字編輯',
       '可在「詳細 Excel 清單」頁籤下載，或直接在首頁卡片點「↓ Excel」下載',
     ],

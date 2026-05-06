@@ -1,30 +1,64 @@
 import { useState } from 'react';
 import ConnectionSection from '../ConnectionSection.jsx';
 import { ReorderButtons } from '../reorderButtons.jsx';
-import { CONN_BADGE, CONN_ROW_BG } from '../../utils/taskDefs.js';
+import { CONN_ROW_BG } from '../../utils/taskDefs.js';
 import { ELEMENT_TYPES, detectElementKind, makeTypeChange, applyRoleChange } from '../../utils/elementTypes.js';
 import { formatConnection } from '../../model/connectionFormat.js';
+
+// Card background per element category. PR (2026-05-05): row colour now
+// distinguishes external interaction (cool slate) from regular L4 task
+// (default light grey) — earlier they shared the same `sequence` row bg
+// and looked identical in the editor despite rendering differently on
+// the diagram. Gateways / start / end / l3activity keep their existing
+// connectionType-driven palette via CONN_ROW_BG.
+const INTERACTION_ROW_BG = '#F1F5F9';   // slate-100, mirrors diagram's `#A0A0A0` interaction fill in a lighter form
+
+// PR (2026-05-05): short kind label shown under the L4 number in col 2.
+// Mirrors the user's mental categories (任務 / 包容閘道 / 外部互動 etc.)
+// rather than the verbose ELEMENT_TYPES.label ("L4 任務" / "包容閘道（OR）").
+const KIND_SHORT_LABEL = {
+  task:           '任務',
+  interaction:    '外部互動',
+  'gateway-xor':  '排他閘道',
+  'gateway-and':  '並行閘道',
+  'gateway-or':   '包容閘道',
+  l3activity:     '子流程',
+  start:          '開始事件',
+  end:            '結束事件',
+};
+
+// PR (2026-05-05): description shown on hover over the ℹ icon. Replaces
+// the gray inline notes that used to live at the bottom of each
+// ConnectionSection variant.
+const KIND_DESCRIPTION = {
+  task:           'L4 任務 — 一般工作項目，順序執行',
+  interaction:    '外部關係人互動 — 跨組織 / 客戶 / 系統互動，建議放在外部角色泳道',
+  'gateway-xor':  '排他閘道（XOR）— 評估每個條件，僅一條為真者觸發',
+  'gateway-and':  '並行閘道（AND）— 不評估條件，所有目標同時建立並行路徑（標籤僅作註記用）',
+  'gateway-or':   '包容閘道（OR）— 每個條件獨立評估，凡為真者建立並行路徑（可同時觸發 1~N 條）',
+  l3activity:     '子流程調用 — 跳到指定的另一張 L3 流程圖；圖上以雙邊書擋矩形繪製',
+  start:          '開始事件 — 流程入口',
+  end:            '結束事件 — 流程出口',
+};
 
 // ── TaskCard ────────────────────────────────────────
 export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdate, onRemove, canRemove,
   canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
   const ct = task.connectionType || 'sequence';
-  const badge = CONN_BADGE[ct];
   const num = displayLabels[task.id];
-  const rowBg = CONN_ROW_BG[ct] || '#FAFAFA';
-  const nameOptional = ct === 'start' || ct === 'end' || ct === 'breakpoint';
+  const rowBg = ct === 'sequence' && task.shapeType === 'interaction'
+    ? INTERACTION_ROW_BG
+    : CONN_ROW_BG[ct] || '#FAFAFA';
+  const nameOptional = ct === 'start' || ct === 'end';
   const currentKind = detectElementKind(task);
-  // Show legacy 'breakpoint' option only when the task already is one (phased
-  // out 2026-04-29; new ones can't be created from any UI).
-  const elementOptions = currentKind === 'breakpoint'
-    ? [...ELEMENT_TYPES, { value: 'breakpoint', label: '流程斷點（停用，僅相容舊資料）' }]
-    : ELEMENT_TYPES;
-  const [expanded, setExpanded] = useState(false);
-  // Derived "任務關聯說明" — the BPMN sequence-flow text that appears in the
-  // FlowTable / Excel / diagram tooltip. Showing it here lets the user see
-  // exactly what gets auto-generated as they edit, without bouncing to the
-  // table below.
+  const kindLabel = KIND_SHORT_LABEL[currentKind] || '';
   const annotation = formatConnection(task, allTasks || [], displayLabels || {});
+  const tooltipText = [
+    `[${kindLabel}]`,
+    KIND_DESCRIPTION[currentKind] || '',
+    annotation ? `\n任務關聯說明：\n${annotation}` : '',
+  ].filter(Boolean).join('\n');
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <div
@@ -34,25 +68,30 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
       {/* All three rows share the same 5-column flex layout so columns
           align vertically:
             col 1: ReorderButtons / spacer   (w-5)
-            col 2: badge / Row 3 label       (w-24)
+            col 2: L4 number + kind label    (w-24)
             col 3: role / connection-type    (w-40)
             col 4: name / shape-type / target select (flex-1 min-w-0)
             col 5: action buttons / spacer   (w-14)  ← ▼ + ✕ 24+24+gap8 + safety
           ConnectionSection inherits this layout via the wrapper below. */}
 
-      {/* Row 1: reorder + badge + role + name + actions */}
+      {/* Row 1: reorder + L4 number + role + name + actions */}
       <div className="flex items-center gap-2 px-2 pt-2 min-w-0">
         <ReorderButtons canUp={canMoveUp} canDown={canMoveDown} onUp={onMoveUp} onDown={onMoveDown} />
 
-        {/* col 2: Badge / number */}
-        <div className="w-24 flex-shrink-0 flex items-center">
-          {ct === 'sequence' && num ? (
-            <span className="text-sm font-mono text-gray-500 font-semibold whitespace-nowrap">{num}</span>
-          ) : (
-            <span className="px-1.5 py-0.5 rounded text-sm font-bold whitespace-nowrap"
-              style={{ background: badge.bg, color: badge.text }}>
-              {badge.label || num}
-            </span>
+        {/* col 2: L4 number (top) + kind short label + ℹ tooltip (bottom).
+            Stacked vertical; tooltip on the ℹ icon shows the kind's
+            description + auto-derived 任務關聯說明 (replaces the four gray
+            inline notes that used to live at the bottom of each
+            ConnectionSection variant). */}
+        <div className="w-24 flex-shrink-0 flex flex-col items-start min-w-0">
+          <span className="text-sm font-mono text-gray-600 font-semibold whitespace-nowrap truncate w-full">
+            {num || ''}
+          </span>
+          {kindLabel && (
+            <div className="flex items-center gap-1 mt-0.5 w-full min-w-0">
+              <span className="text-xs text-gray-500 truncate">{kindLabel}</span>
+              <span title={tooltipText} className="text-xs text-gray-400 cursor-help flex-shrink-0">ℹ</span>
+            </div>
           )}
         </div>
 
@@ -79,19 +118,19 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           className="w-6 flex-shrink-0 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-base">✕</button>
       </div>
 
-      {/* Row 2: unified 元件類型 select (mirrors InsertPicker / ConvertSubForm).
-          Replaces the previous connectionType + shapeType pair so the editor's
-          mental model matches "選元件，系統填預設關聯文字" — one knob, not two. */}
+      {/* Row 2: unified 元件類型 select. PR (2026-05-05): pl-1 removed from
+          the label cell so 元件類型 starts at the same x as Row 1 col 2's
+          number / kind label and Row 3 ConnectionSection labels. */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
         <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
-        <div className="w-24 flex-shrink-0 text-sm text-gray-600 pl-1">元件類型</div>
+        <div className="w-24 flex-shrink-0 text-sm text-gray-600">元件類型</div>
 
         {/* col 3 + col 4: element-type select stretches across both cols
             so all 8 labels (some long: "L3 流程（子流程調用）") fit comfortably */}
         <select value={currentKind}
           onChange={e => onUpdate(makeTypeChange(task, e.target.value))}
           className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
-          {elementOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          {ELEMENT_TYPES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
       </div>
 
@@ -105,18 +144,6 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           <ConnectionSection task={task} allTasks={allTasks} displayLabels={displayLabels} onUpdate={onUpdate} />
         </div>
       </div>
-
-      {/* Auto-generated 任務關聯說明 preview — uses the same 5-col layout
-          (reorder spacer / badge col / role col + name col flex-1 / actions
-          col) so the text reads as "below the name column". Italic muted
-          gray makes it clear this is system-generated, not editable. */}
-      {annotation && (
-        <div className="flex items-start gap-2 px-2 pb-2 min-w-0">
-          <div className="w-5 flex-shrink-0" aria-hidden="true" />
-          <div className="w-24 flex-shrink-0 text-xs text-gray-400 italic pt-0.5">關聯說明</div>
-          <div className="flex-1 min-w-0 text-xs text-gray-500 italic break-words pt-0.5">{annotation}</div>
-        </div>
-      )}
 
       {/* Expandable detail fields */}
       {expanded && (

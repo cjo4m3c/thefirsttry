@@ -77,9 +77,10 @@ export function getConvertibleElementTypes() {
  */
 export function detectElementKind(task) {
   if (task.type === 'start') return 'start';
-  if (task.type === 'end') {
-    return task.connectionType === 'breakpoint' ? 'breakpoint' : 'end';
-  }
+  // PR (2026-05-05): legacy `breakpoint` element retired from UI. Existing
+  // data with connectionType='breakpoint' renders as plain '結束事件' in the
+  // editor; storage/model layer untouched (no destructive migration).
+  if (task.type === 'end') return 'end';
   if (task.type === 'l3activity') return 'l3activity';
   if (task.shapeType === 'interaction') return 'interaction';
   if (task.type === 'gateway') return `gateway-${task.gatewayType || 'xor'}`;
@@ -127,9 +128,7 @@ export function makeTypeChange(task, kind) {
   } else if (kind === 'end') {
     overrides = { type: 'end', shapeType: 'task', connectionType: 'end',
       nextTaskIds: [], conditions: [] };
-  } else if (kind === 'breakpoint') {
-    overrides = { type: 'end', shapeType: 'task', connectionType: 'breakpoint',
-      nextTaskIds: [], conditions: [] };
+  // PR (2026-05-05): 'breakpoint' kind retired — falls through to no-op
   } else if (kind === 'gateway-xor' || kind === 'gateway-and' || kind === 'gateway-or') {
     const gType = kind.slice(8);
     const ctMap = { xor: 'conditional-branch', and: 'parallel-branch', or: 'inclusive-branch' };
