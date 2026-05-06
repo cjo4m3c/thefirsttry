@@ -442,7 +442,21 @@ function collectCrossCheckWarnings(allRows) {
     if (!l4) continue;
     const l4Name = String(row[COL_L4_NAME] ?? '').trim();
     const flowText = String(row[COL_L4_FLOW] ?? '');
+    const description = String(row[4] ?? '');   // col E = 任務重點說明
     const excelRow = i + 1;
+
+    // PR (2026-05-05): legacy 「流程斷點」 element retired — flag rows that
+    // mention it in name / description / flow annotation so the user can
+    // manually replace with 結束事件 (preferred) or restructure as needed.
+    const breakpointMentioned =
+      /流程斷點/.test(l4Name)
+      || /流程斷點/.test(description)
+      || /流程斷點/.test(flowText);
+    if (breakpointMentioned) {
+      warnings.push(
+        `• 第 ${excelRow} 列含「流程斷點」字樣 — 此元件已停用，請改用「結束事件」(L4 編號尾碼 -99) 或調整流程設計後重新匯入`
+      );
+    }
 
     const hasGTag    = /_g\d*$/.test(l4);
     const isStartL4  = /-0$/.test(l4);
