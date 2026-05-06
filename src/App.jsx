@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard.jsx';
 import Wizard from './components/Wizard.jsx';
 import FlowEditor from './components/FlowEditor.jsx';
@@ -8,6 +8,17 @@ export default function App() {
   const [view, setView] = useState('dashboard');
   const [flows, setFlows] = useState(() => loadFlows());
   const [activeFlowId, setActiveFlowId] = useState(null);
+
+  // PR (2026-05-06): reset window scroll to top whenever the page-level
+  // view switches. Without this, the browser preserves scroll position
+  // across renders — so scrolling Dashboard down to find a flow → 編輯 →
+  // FlowEditor would land scrolled at the bottom (over FlowTable) instead
+  // of the diagram. Same effect when navigating Dashboard → Wizard or
+  // back from FlowEditor. activeFlowId is included so re-entering the
+  // same view for a different flow also scrolls top.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view, activeFlowId]);
 
   function refreshFlows() { setFlows(loadFlows()); }
 
