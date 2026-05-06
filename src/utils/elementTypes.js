@@ -60,6 +60,37 @@ export function getElementType(kind) {
   return ELEMENT_TYPES.find(e => e.value === kind) || null;
 }
 
+// PR (2026-05-06): shared chip metadata for the editor (TaskCard col 2) and
+// the diagram ContextMenu header. Keeping the maps in one place ensures every
+// element kind shows the same short label + badge colour wherever it surfaces.
+//
+// KIND_SHORT_LABEL — compact label echoing the user's mental categories
+// (任務 / 包容閘道 / 外部互動) rather than verbose ELEMENT_TYPES.label.
+// KIND_BADGE       — { bg, text } per kind, mirrors the diagram palette.
+export const KIND_SHORT_LABEL = {
+  task:           '任務',
+  interaction:    '外部互動',
+  'gateway-xor':  '排他閘道',
+  'gateway-and':  '並行閘道',
+  'gateway-or':   '包容閘道',
+  l3activity:     '子流程',
+  start:          '開始事件',
+  end:            '結束事件',
+};
+
+export const KIND_BADGE = {
+  task:           { bg: '#E5E7EB', text: '#374151' },
+  interaction:    { bg: '#A0A0A0', text: '#FFFFFF' },
+  'gateway-xor':  { bg: '#FEF3C7', text: '#92400E' },
+  'gateway-and':  { bg: '#D1FAE5', text: '#065F46' },
+  'gateway-or':   { bg: '#FEF9C3', text: '#854D0E' },
+  l3activity:     { bg: '#EDE9FE', text: '#5B21B6' },
+  start:          { bg: '#D1FAE5', text: '#065F46' },
+  end:            { bg: '#FEE2E2', text: '#991B1B' },
+};
+
+export const KIND_BADGE_FALLBACK = { bg: '#E5E7EB', text: '#374151' };
+
 /** Subset filter for the OtherSubForm "新增其他" button row. */
 export function getOtherElementTypes() {
   return ELEMENT_TYPES.filter(e => e.inOther);
@@ -281,6 +312,45 @@ export function applyExternalPrefixToRoles(roles) {
   let changed = false;
   const next = roles.map(r => {
     const fixed = ensureExternalPrefix(r);
+    if (fixed !== r) changed = true;
+    return fixed;
+  });
+  return changed ? next : roles;
+}
+
+/**
+ * Inverse of ensureExternalPrefix — strip the leading `[外部角色]` prefix
+ * (with any leading whitespace after it) when the role's type is internal.
+ * Triggered when the user explicitly flips role.type external → internal,
+ * or when Excel import infers a role as internal but the imported name
+ * still carries the prefix.
+ *
+ * Idempotent: returns same ref when role.type !== 'internal' or when name
+ * doesn't start with `[外部角色]`. Strips only ONCE — multi-prefix
+ * `[外部角色][外部角色]xxx` becomes `[外部角色]xxx` (mirror of ensure-add).
+ *
+ * Edge cases:
+ *   - role.name = '[外部角色]' alone → stripped to '' (caller may want to
+ *     prompt user; we keep it empty rather than fallback to anything)
+ *   - role.name = '[外部角色] 客戶' (space after prefix) → stripped to '客戶'
+ *     (trim leading whitespace for UX)
+ *   - role.name = '[外部角色][合作夥伴]xxx' → stripped to '[合作夥伴]xxx'
+ *     (strip only the matching outer prefix)
+ */
+export function stripExternalPrefix(role) {
+  if (!role || role.type !== 'internal') return role;
+  const name = role.name || '';
+  if (!name.startsWith(EXTERNAL_ROLE_PREFIX)) return role;
+  const stripped = name.slice(EXTERNAL_ROLE_PREFIX.length).replace(/^\s+/, '');
+  return { ...role, name: stripped };
+}
+
+/** Cascade-apply stripExternalPrefix to a roles array; same-ref when no-op. */
+export function applyStripExternalPrefixToRoles(roles) {
+  if (!Array.isArray(roles)) return roles;
+  let changed = false;
+  const next = roles.map(r => {
+    const fixed = stripExternalPrefix(r);
     if (fixed !== r) changed = true;
     return fixed;
   });

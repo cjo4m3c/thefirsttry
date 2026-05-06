@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { applyRoleChange } from '../../utils/elementTypes.js';
+import {
+  applyRoleChange, detectElementKind,
+  KIND_SHORT_LABEL, KIND_BADGE, KIND_BADGE_FALLBACK,
+} from '../../utils/elementTypes.js';
 import {
   L3ActivitySubForm,
   ConnectionSubForm,
@@ -241,20 +244,37 @@ export default function ContextMenu({
       style={{ left: adjusted.left, top: adjusted.top, width: 300 }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Header — left has drag handle (☰), right has close (✕). The
-          handle is the only drag region so clicking elsewhere on the header
-          (e.g. ✕) doesn't start a drag. */}
-      <div className="px-2 py-2 border-b border-gray-200 bg-gray-50 rounded-t-lg flex items-center justify-between gap-2">
+      {/* Header — drag handle (☰), kind chip + L4 number, close (✕).
+          PR (2026-05-06): replaced static「編輯元件」title with element-kind
+          chip + mono L4 number per user spec — every kind uses the same
+          template (chip colour + label resolved via KIND_BADGE / KIND_SHORT_LABEL).
+          The drag handle is the only drag region so clicking elsewhere
+          (chip / number / ✕) doesn't start a drag. */}
+      <div className="px-2 py-2 border-b border-gray-200 bg-gray-50 rounded-t-lg flex items-center gap-2">
         <button onPointerDown={startDrag}
           title="拖曳移動編輯選單"
           aria-label="拖曳移動"
-          className="text-gray-400 hover:text-gray-700 text-base leading-none px-1"
+          className="text-gray-400 hover:text-gray-700 text-base leading-none px-1 flex-shrink-0"
           style={{ cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' }}>
           ☰
         </button>
-        <span className="text-xs font-semibold text-gray-700 flex-1">編輯元件</span>
+        {(() => {
+          const currentKind = detectElementKind(task);
+          const kindLabel = KIND_SHORT_LABEL[currentKind] || '元件';
+          const kindBadge = KIND_BADGE[currentKind] || KIND_BADGE_FALLBACK;
+          const num = (displayLabels && displayLabels[task.id]) || '';
+          return (
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <span className="px-1.5 py-0.5 rounded text-xs font-bold whitespace-nowrap flex-shrink-0"
+                style={{ background: kindBadge.bg, color: kindBadge.text }}>
+                {kindLabel}
+              </span>
+              <span className="text-xs font-mono text-gray-600 truncate">{num}</span>
+            </div>
+          );
+        })()}
         <button onClick={onClose} title="關閉（Esc）"
-          className="text-gray-400 hover:text-gray-700 text-sm leading-none px-1">✕</button>
+          className="text-gray-400 hover:text-gray-700 text-sm leading-none px-1 flex-shrink-0">✕</button>
       </div>
       {/* Body — scrollable when sub-form expand pushes total height past
           70vh. Header (drag + ✕) stays outside this wrapper so always

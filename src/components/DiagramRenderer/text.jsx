@@ -51,9 +51,14 @@ export function wrapText(text, maxChars, maxTotal) {
   return lines;
 }
 
-export function SvgLabel({ text, cx, cy, maxChars = 8, lineH = 32, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 22, bg = false, bgOpacity = 0.6 }) {
+export function SvgLabel({ text, cx, cy, maxChars = 8, lineH = 32, fontSize = 16, fill = COLORS.TASK_TEXT, maxTotal = 22, bg = false, bgOpacity = 0.6, topAlign = false }) {
   const lines = wrapText(text, maxChars, maxTotal);
   const total = (lines.length - 1) * lineH;
+  // PR (2026-05-05): topAlign mode — multi-line text grows DOWNWARD from
+  // cy instead of centering around cy. Used by GatewayShape so the label
+  // doesn't creep upward and overlap the diamond when wrapping. Default
+  // (centered) preserved for tasks / interactions.
+  const baseY = topAlign ? cy : cy - total / 2;
   // When `bg` is true, render a hugging white pill behind each line first
   // so the text reads cleanly even when arrows pass underneath. Used by
   // GatewayShape so the gateway name doesn't get sliced by lines entering
@@ -63,7 +68,7 @@ export function SvgLabel({ text, cx, cy, maxChars = 8, lineH = 32, fontSize = 16
       {bg && lines.map((line, i) => {
         const w = estimateTextWidth(line, fontSize) + 8;
         const h = fontSize + 4;
-        const y = cy - total / 2 + i * lineH;
+        const y = baseY + i * lineH;
         return (
           <rect key={`bg${i}`} x={cx - w / 2} y={y - h / 2}
             width={w} height={h} rx={2}
@@ -71,7 +76,7 @@ export function SvgLabel({ text, cx, cy, maxChars = 8, lineH = 32, fontSize = 16
         );
       })}
       {lines.map((line, i) => (
-        <text key={i} x={cx} y={cy - total / 2 + i * lineH}
+        <text key={i} x={cx} y={baseY + i * lineH}
           textAnchor="middle" dominantBaseline="middle"
           fontSize={fontSize} fill={fill} letterSpacing="0.02em"
           fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">

@@ -80,10 +80,9 @@ export function L3ActivityShape({ task, pos, l4Number, isHovered }) {
   const stroke = isHovered ? HOVER_STROKE : COLORS.L3_ACTIVITY_STROKE;
   const strokeW = isHovered ? 2.5 : 1.5;
   // L3 number shown at top (via l4Number prop, which caller replaces with
-  // subprocessName for subprocess calls). Inside shows [子流程] + task.name
-  // as the contextual label; falls back to task.name only for plain L3
-  // activity shapes with no subprocessName.
-  const isSubprocess = !!task.subprocessName?.trim();
+  // subprocessName for subprocess calls). Inside shows task.name only —
+  // the bookend rectangle visual + L3-number-on-top is enough to signal
+  // "subprocess call" without the inline [子流程] label (dropped 2026-05-05).
   return (
     <>
       <L4Number number={l4Number} cx={cx} y={y} />
@@ -93,17 +92,11 @@ export function L3ActivityShape({ task, pos, l4Number, isHovered }) {
         stroke={stroke} strokeWidth={1} />
       <line x1={x + NODE_W - barW} y1={y} x2={x + NODE_W - barW} y2={y + NODE_H}
         stroke={stroke} strokeWidth={1} />
-      {isSubprocess ? (
-        <>
-          <text x={cx} y={cy - 14} textAnchor="middle" dominantBaseline="middle"
-            fontSize={14} fill="#6B7280" fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
-            [子流程]
-          </text>
-          <SvgLabel text={task.name || ''} cx={cx} cy={cy + 14} maxChars={8} lineH={32} />
-        </>
-      ) : (
-        <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={8} lineH={32} />
-      )}
+      {/* 2026-05-05 per user: drop the inline 「[子流程]」 label —
+          the L3 number on top + double-bar bookend already conveys
+          "this is a subprocess call". maxChars 8 → 7 for tighter wrap
+          inside the rectangle. */}
+      <SvgLabel text={task.name || ''} cx={cx} cy={cy} maxChars={7} lineH={24} />
     </>
   );
 }
@@ -151,7 +144,12 @@ export function GatewayShape({ task, pos, l4Number, isHovered }) {
           maxChars=6 (was 8) caps the per-line width so long labels with
           the '[XX閘道] ' prefix wrap to multiple lines instead of bleeding
           into adjacent column. */}
-      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={6} lineH={22} fontSize={14} bg />
+      {/* 2026-05-05 per user: cap label at 2 lines, append `…` if it would
+          overflow. maxChars=10 widens each line so typical labels (含
+          [XX閘道] prefix) fit within 1-2 lines. maxTotal=20 = 2×maxChars,
+          forcing wrapText to truncate beyond that. topAlign keeps the
+          downward growth so the diamond above stays clean. */}
+      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={10} maxTotal={20} lineH={22} fontSize={14} bg topAlign />
     </>
   );
 }

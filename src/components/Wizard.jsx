@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { generateId } from '../utils/storage.js';
 import { ReorderButtons, moveItem } from './reorderButtons.jsx';
-import { syncTasksToRoles, ensureExternalPrefix } from '../utils/elementTypes.js';
+import { syncTasksToRoles, ensureExternalPrefix, stripExternalPrefix } from '../utils/elementTypes.js';
 import {
   makeRole, makeTask,
   applySequentialDefaults,
@@ -104,11 +104,14 @@ function Step2({ data, onChange }) {
   }
   function updateRole(id, field, val) {
     let newRoles = data.roles.map(r => r.id === id ? { ...r, [field]: val } : r);
-    // PR-D4: switching to external auto-adds `[外部角色]` prefix to the role
-    // name. Switching back to internal keeps name as-is (user may want to
-    // strip the prefix manually — onBlur won't re-add it for internal roles).
+    // PR-D4: switching to external auto-adds `[外部角色]` prefix.
+    // PR (2026-05-05): switching back to internal auto-strips the prefix
+    // (mirror of add). Strips ONCE; trims leading whitespace; doesn't
+    // touch other custom prefixes the user may have stacked.
     if (field === 'type' && val === 'external') {
       newRoles = newRoles.map(r => r.id === id ? ensureExternalPrefix(r) : r);
+    } else if (field === 'type' && val === 'internal') {
+      newRoles = newRoles.map(r => r.id === id ? stripExternalPrefix(r) : r);
     }
     const patch = { roles: newRoles };
     // Cascade-sync shapeType when a role flips internal↔external (no-op for
