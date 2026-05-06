@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-06',
+    title: '頁面切換自動捲動置頂（修「進入編輯器頁面停在下方表格」）',
+    items: [
+      '**緣由**：使用者：「我也希望點入頁面時是停在頁面最上方（現在都會停在下方 table）」。瀏覽器預設保留 scroll 位置 — 在 Dashboard 卡片網格往下滾找到要編輯的 flow → 點「編輯」 → FlowEditor render 完仍維持原 scroll 位置（剛好對到 FlowTable 區），看不到頁首跟流程圖。',
+      '**`App.jsx` 加 useEffect**：監聽 `view` + `activeFlowId` 變化，每次切換 view 或切到不同 flow 都跑 `window.scrollTo(0, 0)`。涵蓋場景：(a) Dashboard → FlowEditor (b) Dashboard → Wizard (c) FlowEditor → Dashboard（返回）(d) 同 view 換不同 flow（雖然 view 沒變，activeFlowId 變了會觸發）。',
+      '**為什麼放 App.jsx 不放 FlowEditor.jsx**：因為三個 view 切換都需要捲動置頂（Dashboard 自身被開啟時也應從頂部開始），單一 useEffect 集中處理避免每個 page-level component 重複實作。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) Dashboard 滾到底部 → 點任一卡片「編輯」 → FlowEditor 從頂部（header / 流程圖）顯示 (b) FlowEditor 滾到底（FlowTable）→ 點返回 → Dashboard 從頂部顯示 (c) Dashboard → 上傳 Excel → 自動進入新匯入流程的 FlowEditor → 從頂部顯示。',
+      '**動到的檔案（2 個）**：`src/App.jsx`（加 useEffect + import useEffect）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: 'Excel 匯入提醒文字四項調整：元件用流程圖編號 + 調整 vs 建議確認 + 連線違規不顯示 + 全部列點',
     items: [
       '**緣由**：使用者四點需求 (1)「真的有修改的，才用『調整』這個詞」(2)「沒有修改只是『提醒使用者要檢查』，請寫『建議確認』」(3)「請不要使用任務 2、任務 3，要指出是哪個元件，就直接寫出現有流程圖上的編號」(4)「連線有違反規則（端點混用、被任務擋到）的情況，在上傳時不提醒」+「Excel 檢核的提示訊息全部列點」。',
