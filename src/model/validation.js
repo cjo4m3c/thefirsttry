@@ -24,6 +24,7 @@
  */
 import { detectOverrideViolations } from '../diagram/violations.js';
 import { getTaskIncoming, computeDisplayLabels } from './flowSelectors.js';
+import { detectElementKind, KIND_SHORT_LABEL } from '../utils/elementTypes.js';
 
 function isStart(t) { return t.connectionType === 'start' || t.type === 'start'; }
 function isEnd(t)   { return t.connectionType === 'end' || t.connectionType === 'breakpoint' || t.type === 'end'; }
@@ -31,17 +32,15 @@ function isEnd(t)   { return t.connectionType === 'end' || t.connectionType === 
 // User-facing element-type label — used by warning messages so the user
 // can identify which element on the diagram a warning refers to.
 // Format example per user spec 2026-05-04: "排他閘道 1-1-1-1_g1".
+//
+// PR (2026-05-06): unified per user spec 「希望統一用全名」 — read from
+// shared `KIND_SHORT_LABEL` so chip pills (TaskCard / ContextMenu) and
+// warning messages share the SAME vocabulary. Legacy 流程斷點 kept here
+// because detectElementKind doesn't expose breakpoint as its own kind
+// (returns 'end' for both regular end + breakpoint).
 function describeElement(t) {
-  if (t.type === 'start') return '開始事件';
-  if (t.type === 'end')   return t.connectionType === 'breakpoint' ? '流程斷點' : '結束事件';
-  if (t.type === 'l3activity') return 'L3 流程';
-  if (t.shapeType === 'interaction') return '外部關係人互動';
-  if (t.type === 'gateway') {
-    return t.gatewayType === 'and' ? '並行閘道'
-         : t.gatewayType === 'or'  ? '包容閘道'
-         : '排他閘道';
-  }
-  return 'L4 任務';
+  if (t.type === 'end' && t.connectionType === 'breakpoint') return '流程斷點';
+  return KIND_SHORT_LABEL[detectElementKind(t)] || 'L4 任務';
 }
 
 export function validateFlow(flow) {
@@ -82,16 +81,25 @@ export function validateFlow(flow) {
   // User decision: allow multiple start / end events but surface a save-time
   // notice so the user can confirm the topology was intentional.
   if (startTasks.length >= 2) {
-    warnings.push(`流程有 ${startTasks.length} 個「流程開始」節點。BPMN 一般建議單一起點，請確認是否刻意設計多個入口`);
+    warnings.push(`流程有 ${startTasks.length} 個「流程開始」節點。BPMN 一般建議單一起點，建議確認是否刻意設計多個入口`);
   }
   if (endTasks.length >= 2) {
-    warnings.push(`流程有 ${endTasks.length} 個「流程結束」節點。多個終點可接受（不同情境收尾），請確認是否刻意設計`);
+    warnings.push(`流程有 ${endTasks.length} 個「流程結束」節點。多個終點可接受（不同情境收尾），建議確認是否刻意設計`);
   }
 
   // ── Warning-level checks ───────────────────────────────
   tasks.forEach((t, i) => {
     const ct = t.connectionType || 'sequence';
-    const label = `任務 ${i + 1}「${t.name || '未命名'}」`;
+    // PR (2026-05-06): label uses the element's actual L4 number from the
+    // diagram (displayLabels) + element-kind name (describeElement) so
+    // warnings reference the SAME identifier the user sees on screen.
+    // Pre-2026-05-06 used「任務 N」 array index which didn't match the
+    // diagram. Fallback chain: displayLabels → task.l4Number → empty
+    // (kind name alone is enough to locate via name).
+    const dl = displayLabels[t.id] || t.l4Number || '';
+    const num = dl ? ` ${dl}` : '';
+    const namePart = t.name?.trim() ? `「${t.name}」` : '';
+    const label = `${describeElement(t)}${num}${namePart}`;
 
     // 1 (consolidated 2026-05-05): every non-end element must have a
     // forward connection. Per user spec: 「除了結束事件外，任何元件沒有連到

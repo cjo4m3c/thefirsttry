@@ -243,7 +243,7 @@ export default function FlowEditor({ flow, onBack, onSave }) {
                 title="不再顯示此提醒"
               >✕</button>
             </div>
-            <ul className="ml-5 max-h-64 overflow-y-auto pr-1 space-y-0.5">
+            <ul className="ml-5 max-h-64 overflow-y-auto pr-1 space-y-0.5 list-disc">
               {liveFlow.importWarnings.map((w, i) => (
                 <li key={i} className="whitespace-pre-wrap">{w}</li>
               ))}

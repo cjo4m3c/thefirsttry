@@ -64,16 +64,22 @@ export function getElementType(kind) {
 // the diagram ContextMenu header. Keeping the maps in one place ensures every
 // element kind shows the same short label + badge colour wherever it surfaces.
 //
-// KIND_SHORT_LABEL — compact label echoing the user's mental categories
-// (任務 / 包容閘道 / 外部互動) rather than verbose ELEMENT_TYPES.label.
-// KIND_BADGE       — { bg, text } per kind, mirrors the diagram palette.
+// KIND_SHORT_LABEL — verbose user-facing label matching `model/validation.js
+// describeElement()` so warning messages and chip pills share the SAME
+// vocabulary across the whole UI (PR 2026-05-06 unified per user spec
+// 「希望統一用全名」). Used by:
+//   • TaskCard col 2 chip (FlowEditor)
+//   • ContextMenu header chip
+//   • SHOULD also be the single source for validation.describeElement —
+//     follow-up PR replaces the inline mapping there.
+// KIND_BADGE — { bg, text } per kind, mirrors the diagram palette.
 export const KIND_SHORT_LABEL = {
-  task:           '任務',
-  interaction:    '外部互動',
+  task:           'L4 任務',
+  interaction:    '外部關係人互動',
   'gateway-xor':  '排他閘道',
   'gateway-and':  '並行閘道',
   'gateway-or':   '包容閘道',
-  l3activity:     '子流程',
+  l3activity:     'L3 流程',
   start:          '開始事件',
   end:            '結束事件',
 };

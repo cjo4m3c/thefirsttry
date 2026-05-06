@@ -10,9 +10,7 @@ export default [
     items: [
       '**緣由**：使用者實測 S1 / S2 / S3 對照後選定 S3（依 L4 編號排），並要求把 S3 跟 Phase 1 mixed priority + L1 retry 合成一顆 toggle 方便 A/B 比較。',
       '**改善內容**：(1) scheme3 columnAssign — 改用 topological + L4 walk 演算法：按 L4 sortKey 順序走訪、`col[t] = max(predecessors.col + 1, l4Bound)`，l4Bound 對 parallel sibling 允許同 col、對非 sibling 強制 +1。同時滿足 (a) parallel siblings 連續 contiguous 時同 col 對齊、(b) 中間有孤立任務時嚴格 L4 順序、(c) compact 無空白 col。(2) Phase 1 mixed priority — 4-pass fallback：未被 sibling 用 + 路徑無障礙 + rule-1 OK → 路徑無障礙 → 未被 sibling 用 → priorities[0]。(3) Phase 3f L1 retry — 走完所有 phase 後對紅線連線試 16 種 (exit, entry) 組合、挑第一個 rule 1 + rule 2 都過的。Phase 3f 跳過使用者 override 連線（避免 auto-revert）。',
-      '**isPathClear helper**：`corridor.js` 新增、預測路徑 cells（top→top corridor / right→left Z 形 / top→left L 形 等）+ rule 1 port-mix 檢核。Phase 1 + Phase 3f 共用同一 predicate 確保兩階段判定一致。',
-      '**Header 改成 boolean toggle**：「改善排版」按鈕，一鍵開三件組 / 全關。per-flow persistent，跟「錯落」獨立 — 兩者可單獨用、合併用、全關，共 4 種測試組合。',
-      '**動到的檔案（5 個）**：`src/diagram/layout/corridor.js`（isPathClear + predictPathCells）/ `src/diagram/layout/phase1and2.js`（4-pass fallback）/ `src/diagram/layout/phase3f.js`（新檔，L1 retry）/ `src/diagram/layout/computeLayout.js`（enhancedRouting flag → scheme3 + Phase 1 useMixedPriority + Phase 3f）/ `src/components/FlowEditor/Header.jsx` + `index.jsx`（toggle button）。',
+      '**Header 改成 boolean toggle**：「改善排版」按鈕，跟「錯落」獨立，per-flow persistent。',
     ],
   },
   {
@@ -20,10 +18,45 @@ export default [
     title: '（preview）錯落排列 toggle — 奇數泳道右移半格，跨泳道任務交錯',
     items: [
       '**緣由**：使用者：「我希望跨泳道的元件可以錯落排列⋯⋯第二個角色的元件位置會在上一列角色的一半的位置開始⋯⋯這樣連線可以從第一角色的兩個任務中間穿過。」',
-      '**v1 預覽範圍（最小可視化）**：加 per-flow `staggerLanes` boolean toggle、Header 多一顆「錯落」按鈕、`computeLayout` 對奇數 row 平移 `COL_W/2 = 92px`。COL_W 不動、routing 障礙檢查不動 — 純視覺先讓使用者評估。',
-      '**Toggle 預設 OFF**：既有流程圖外觀不變，使用者主動開啟才生效；狀態存在 flow 物件本身（不是 localStorage 全域），不同流程可獨立設定。',
-      '**動到的檔案（3 個）**：`src/diagram/layout/computeLayout.js`（`laneXOffset` array + cx 加 offset + svgWidth 補 maxLaneXOffset）/ `src/components/FlowEditor/Header.jsx`（「錯落」按鈕）/ `src/components/FlowEditor/index.jsx`（toggleStagger + props 傳遞）。',
+      '**v1 預覽範圍（最小可視化）**：加 per-flow `staggerLanes` boolean toggle、Header 多一顆「錯落」按鈕、`computeLayout` 對奇數 row 平移 `COL_W/2 = 92px`。',
       '**部署**：`.github/workflows/deploy-preview.yml` 把 main + 此分支併到單一 Pages deploy；preview 在 `https://cjo4m3c.github.io/FlowSprite/preview-stagger-layout/`。',
+    ],
+  },
+  {
+    date: '2026-05-06',
+    title: '頁面切換自動捲動置頂（修「進入編輯器頁面停在下方表格」）',
+    items: [
+      '**緣由**：使用者：「我也希望點入頁面時是停在頁面最上方（現在都會停在下方 table）」。瀏覽器預設保留 scroll 位置 — 在 Dashboard 卡片網格往下滾找到要編輯的 flow → 點「編輯」 → FlowEditor render 完仍維持原 scroll 位置（剛好對到 FlowTable 區），看不到頁首跟流程圖。',
+      '**`App.jsx` 加 useEffect**：監聽 `view` + `activeFlowId` 變化，每次切換 view 或切到不同 flow 都跑 `window.scrollTo(0, 0)`。涵蓋場景：(a) Dashboard → FlowEditor (b) Dashboard → Wizard (c) FlowEditor → Dashboard（返回）(d) 同 view 換不同 flow（雖然 view 沒變，activeFlowId 變了會觸發）。',
+      '**為什麼放 App.jsx 不放 FlowEditor.jsx**：因為三個 view 切換都需要捲動置頂（Dashboard 自身被開啟時也應從頂部開始），單一 useEffect 集中處理避免每個 page-level component 重複實作。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) Dashboard 滾到底部 → 點任一卡片「編輯」 → FlowEditor 從頂部（header / 流程圖）顯示 (b) FlowEditor 滾到底（FlowTable）→ 點返回 → Dashboard 從頂部顯示 (c) Dashboard → 上傳 Excel → 自動進入新匯入流程的 FlowEditor → 從頂部顯示。',
+      '**動到的檔案（2 個）**：`src/App.jsx`（加 useEffect + import useEffect）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
+    title: 'Excel 匯入提醒文字四項調整：元件用流程圖編號 + 調整 vs 建議確認 + 連線違規不顯示 + 全部列點',
+    items: [
+      '**緣由**：使用者四點需求 (1)「真的有修改的，才用『調整』這個詞」(2)「沒有修改只是『提醒使用者要檢查』，請寫『建議確認』」(3)「請不要使用任務 2、任務 3，要指出是哪個元件，就直接寫出現有流程圖上的編號」(4)「連線有違反規則（端點混用、被任務擋到）的情況，在上傳時不提醒」+「Excel 檢核的提示訊息全部列點」。',
+      '**`model/validation.js` label 格式改寫（核心修正）**：原 `任務 ${i + 1}「${t.name}」` 用陣列 index — 跟流程圖上實際 L4 編號不一致（流程圖顯示 1-1-5-3，warning 卻寫「任務 2」），使用者找不到對應元件。改成 `${describeElement(t)}${num}「${t.name}」` 用 `displayLabels[t.id]`（fallback `task.l4Number`）+ 元件類型中文名稱。Warning 範例：`L4 任務 1-1-5-3「彙整請購資料」：未連接下一步元件`。',
+      '**詞彙統一 — 多 start / end 警告改「建議確認」**：原「請確認是否刻意設計多個入口/收尾」改成「建議確認是否刻意設計多個入口/收尾」。對照規則：實際有改動 → 用「調整」（`已自動調整 X 個 L4 編號`）/ 沒改只提醒檢查 → 用「建議確認」。其他 warning 文字（「未連接下一步元件」/「沒有任何元件連接過來」/「未指定泳道角色」）本身就是純陳述，無需動。',
+      '**`utils/excelImport/index.js` 連線違規 filter 擴大**：原 `isLineCrossingSummary` 只 filter「連線被任務矩形擋住」 summary。擴大成 `isConnectionViolation`，同時 filter (a) blocking「端點同時有進出連線（違反規則 1：端點不混用）」(b) warning「連線「A」→「B」 穿過任務「C」（違反規則 2：視覺不重疊）」(c) summary「連線被任務矩形擋住」。三者都從 Excel banner + per-flow `importWarnings` 過濾掉。Save 時編輯器內仍會跳 modal（紅框 + blocking 仍然 block save），只是上傳當下不顯示。',
+      '**Bullet 列點（`Dashboard/Banners.jsx` + `FlowEditor/index.jsx`）**：兩個 ImportWarnings banner 的 `<ul>` 加 `list-disc` class — 原本沒有實心 bullet 點，使用者看到的是一行一行純文字，不像列表。加 class 後每筆訊息前面有 disc bullet「•」，視覺上清楚是列點。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) 上傳含未連接元件的 Excel → banner 顯示「L4 任務 1-1-5-3「name」：未連接下一步元件」（用 L4 編號不是任務 N）(b) 上傳含 IN+OUT 端點混用的 Excel → banner 不再顯示這條，但開編輯器後 save 仍會擋 (c) 多 start / end 警告改用「建議確認」 (d) 兩個 banner 訊息有 disc bullet。',
+      '**動到的檔案（5 個）**：`src/model/validation.js`（label 改 displayLabels-based + 多 start/end 詞彙）/ `src/utils/excelImport/index.js`（filter 擴大 + 重命名 isLineCrossingSummary → isConnectionViolation）/ `src/components/Dashboard/Banners.jsx`（`list-disc` class）/ `src/components/FlowEditor/index.jsx`（`list-disc` class）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
+    title: '元件類型中文標籤統一用全名（KIND_SHORT_LABEL 改 verbose）+ describeElement 改讀同一份',
+    items: [
+      '**緣由**：使用者：「我希望統一用全名」。原本 chip pill（TaskCard col 2 / ContextMenu header）用 compact 短名「任務」/「外部互動」/「子流程」，但 `validation.js describeElement()` warning 訊息用 verbose「L4 任務」/「外部關係人互動」/「L3 流程」— 同一個元件在 UI 三處顯示兩個名字，使用者混亂。改成單一份 SOT verbose 名稱。',
+      '**`utils/elementTypes.js KIND_SHORT_LABEL` 全 verbose**：`task: 任務 → L4 任務` / `interaction: 外部互動 → 外部關係人互動` / `l3activity: 子流程 → L3 流程`。閘道 / 開始 / 結束 4 個原本就 verbose 不變。檔頭註解改成「跟 validation.describeElement() 故意一致 — 單一 SOT」。',
+      '**`model/validation.js describeElement()` 改讀 KIND_SHORT_LABEL**：原本 inline 的 7 行 if/else mapping 換成 1 行 `KIND_SHORT_LABEL[detectElementKind(t)] || \'L4 任務\'`。流程斷點（legacy `connectionType === \'breakpoint\'`）保留 special case（detectElementKind 不曝露 breakpoint，只回 \'end\'），else 全部 import 共用 mapping。',
+      '**TaskCard / DrawerContent / ConnectionSection 5-col layout 配套**：col 2（badge / label）從 `w-24`（96px）擴成 `w-32`（128px）容納「外部關係人互動」7 個 CJK 字（chip 約 96px + ℹ icon 14px + gap 4px = ~114px > 96px 會溢出）。3 個檔同步調，含 col 註解。',
+      '**ContextMenu header 不動**：header 是 `w-300px` 固定 + chip flex-shrink-0 + 編號 truncate，wider chip 自然吃掉編號的 truncate 空間，無需特別調整。',
+      '**驗證**：`npm run build` 通過。視覺驗證點：(a) TaskCard col 2 chip 顯示 `[L4 任務]` / `[外部關係人互動]` / `[L3 流程]` 不溢出 (b) 同一元件儲存提醒 warning 訊息「L4 任務 1-1-5-3 沒有任何元件連接過來」跟 chip 文字完全一致 (c) ContextMenu header chip 跟 chip 在 TaskCard col 2 顯示完全相同 (d) Row 2 任務名稱 label / Row 3 ConnectionSection label 隨 col 2 同寬度。',
+      '**動到的檔案（5 個）**：`src/utils/elementTypes.js`（KIND_SHORT_LABEL 3 處 verbose 化 + 註解改寫）/ `src/model/validation.js`（describeElement 改 1 行 import + breakpoint special case）/ `src/components/FlowEditor/TaskCard.jsx`（col 2 + Row 2 label w-24 → w-32 共 4 處）/ `src/components/FlowEditor/DrawerContent.jsx`（label 寬度 + 註解）/ `src/components/ConnectionSection.jsx`（label 寬度 + 註解）/ `src/data/changelog/current.js`（本條）。',
     ],
   },
   {
