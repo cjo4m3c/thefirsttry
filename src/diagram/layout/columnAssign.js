@@ -57,29 +57,94 @@ export function computeColumnMap(tasks, mode = 'default', displayLabels = null) 
   const arrayIdxOf = {};
   tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
 
-  // 1. Default col = array index, OR L4-sorted rank when scheme3
-  const colOf = {};
+  // scheme3: topological + L4-walk algorithm
+  //
+  // Walk tasks in L4 sortKey order. For each task t:
+  //   predBound = max(col[forward predecessors]) + 1
+  //   prevTask  = previous task in L4 sort order
+  //   l4Bound   = (t and prevTask are siblings of same parallel source)
+  //               ? col[prevTask]        // allow same col
+  //               : col[prevTask] + 1    // strictly greater
+  //   col[t] = max(predBound, l4Bound, 0)
+  //
+  // This achieves both:
+  //   • Parallel siblings contiguous in L4 → same col (compact)
+  //   • Non-sibling task between siblings  → strict L4 order (no leapfrog)
+  //   • Compact: no empty columns from max-align overshooting
   if (mode === 'scheme3' && displayLabels) {
-    const sortedIds = tasks
-      .map(t => t.id)
-      .sort((a, b) => {
-        const ka = parseL4SortKey(displayLabels[a]);
-        const kb = parseL4SortKey(displayLabels[b]);
-        if (ka !== kb) return ka - kb;
-        return arrayIdxOf[a] - arrayIdxOf[b];   // tiebreaker
-      });
-    sortedIds.forEach((id, rank) => { colOf[id] = rank; });
-  } else {
-    tasks.forEach(t => { colOf[t.id] = arrayIdxOf[t.id]; });
+    return computeColumnMapTopologicalL4(tasks, displayLabels, arrayIdxOf);
   }
 
+  // 1. Default col = array index
+  const colOf = {};
+  tasks.forEach(t => { colOf[t.id] = arrayIdxOf[t.id]; });
+
   // 2. Parallel-source override: align all forward targets at a shared col
-  //
-  // scheme3 SKIPS this entirely — col is already in strict L4 order, and
-  // any override (max or min) would break that order when siblings span
-  // mixed sortKeys. The user explicitly wants L4 = visual order, even at
-  // the cost of fan-out lines having unequal length.
-  if (mode === 'scheme3') return colOf;
+  tasks.forEach(task => {
+    let targets;
+    if (task.type === 'gateway') {
+      targets = (task.conditions || []).map(c => c.nextTaskId);
+    } else if (task.type !== 'end') {
+      targets = task.nextTaskIds || [];
+    } else {
+      return;
+    }
+    const isForward = (id) =>
+      id && taskIdSet.has(id) && arrayIdxOf[id] > arrayIdxOf[task.id];
+    const fwdTargets = targets.filter(isForward);
+    if (fwdTargets.length < 2) return;
+
+    if (mode === 'scheme2') {
+      const sharedCol = Math.max(
+        colOf[task.id] + 1,
+        Math.min(...fwdTargets.map(id => colOf[id]))
+      );
+      fwdTargets.forEach(id => { colOf[id] = sharedCol; });
+    } else {
+      // default / scheme1: max-align (original behavior)
+      const sharedCol = Math.max(
+        colOf[task.id] + 1,
+        ...fwdTargets.map(id => colOf[id])
+      );
+      fwdTargets.forEach(id => {
+        colOf[id] = Math.max(colOf[id], sharedCol);
+      });
+    }
+  });
+
+  return colOf;
+}
+
+/**
+ * Topological + L4 walk algorithm — the shape that scheme3 / enhancedRouting
+ * uses. See block comment at the top of computeColumnMap for the algorithm.
+ *
+ * Key data:
+ *   fwdPredOf[id]        = list of tasks whose forward fanout includes id
+ *                          (forward defined by sortKey order)
+ *   parallelSourceOf[id] = source task whose multi-target fanout is the
+ *                          reason `id` is at this col tier. Used to detect
+ *                          when two consecutive tasks in L4 order are
+ *                          siblings of the same parallel source — they may
+ *                          share a col without violating L4 monotonic.
+ */
+function computeColumnMapTopologicalL4(tasks, displayLabels, arrayIdxOf) {
+  const taskIdSet = new Set(tasks.map(t => t.id));
+  const sortKeyOf = {};
+  tasks.forEach(t => { sortKeyOf[t.id] = parseL4SortKey(displayLabels[t.id]); });
+
+  // Sort tasks by sortKey (L4 order); arrayIdxOf as tiebreaker
+  const sortedIds = tasks
+    .map(t => t.id)
+    .sort((a, b) => {
+      if (sortKeyOf[a] !== sortKeyOf[b]) return sortKeyOf[a] - sortKeyOf[b];
+      return arrayIdxOf[a] - arrayIdxOf[b];
+    });
+
+  // Build forward predecessor list + parallel source markers
+  const fwdPredOf = {};
+  const parallelSourceOf = {};
+  tasks.forEach(t => { fwdPredOf[t.id] = []; });
 
   tasks.forEach(task => {
     let targets;
@@ -90,35 +155,39 @@ export function computeColumnMap(tasks, mode = 'default', displayLabels = null) 
     } else {
       return;
     }
-    // For scheme3, "forward" is defined by sortKey order rather than idx
-    // so a target with smaller idx but larger L4 still counts as forward.
-    const isForward = (id) => {
-      if (!id || !taskIdSet.has(id)) return false;
-      if (mode === 'scheme3' && displayLabels) {
-        return colOf[id] > colOf[task.id];
-      }
-      return arrayIdxOf[id] > arrayIdxOf[task.id];
-    };
-    const fwdTargets = targets.filter(isForward);
-    if (fwdTargets.length < 2) return;
-
-    if (mode === 'scheme2') {
-      // Min-align: pull later siblings LEFT to the smallest sibling's col
-      const sharedCol = Math.max(
-        colOf[task.id] + 1,
-        Math.min(...fwdTargets.map(id => colOf[id]))
-      );
-      fwdTargets.forEach(id => { colOf[id] = sharedCol; });
-    } else {
-      // default / scheme1 / scheme3: max-align (original behavior)
-      const sharedCol = Math.max(
-        colOf[task.id] + 1,
-        ...fwdTargets.map(id => colOf[id])
-      );
-      fwdTargets.forEach(id => {
-        colOf[id] = Math.max(colOf[id], sharedCol);
-      });
+    const fwdTargets = targets.filter(id =>
+      id && taskIdSet.has(id) && sortKeyOf[id] > sortKeyOf[task.id]
+    );
+    fwdTargets.forEach(id => {
+      fwdPredOf[id].push(task.id);
+    });
+    if (fwdTargets.length >= 2) {
+      // Multi-target source = parallel/conditional fanout. Each target gets
+      // marked as belonging to this source's "sibling group" so they can
+      // share a col when contiguous in L4 order.
+      fwdTargets.forEach(id => { parallelSourceOf[id] = task.id; });
     }
+  });
+
+  // Walk in L4 sort order, assign col
+  const colOf = {};
+  let prevId = null;
+  sortedIds.forEach(id => {
+    let predBound = 0;
+    fwdPredOf[id].forEach(pid => {
+      const pcol = colOf[pid];
+      if (pcol !== undefined) predBound = Math.max(predBound, pcol + 1);
+    });
+    let l4Bound = 0;
+    if (prevId !== null) {
+      const prevCol = colOf[prevId] ?? 0;
+      const shareSource =
+        parallelSourceOf[id] !== undefined &&
+        parallelSourceOf[id] === parallelSourceOf[prevId];
+      l4Bound = shareSource ? prevCol : prevCol + 1;
+    }
+    colOf[id] = Math.max(predBound, l4Bound, 0);
+    prevId = id;
   });
 
   return colOf;

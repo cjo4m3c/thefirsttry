@@ -9,7 +9,7 @@ export default [
     title: '（preview）改善排版 toggle — scheme3 + Phase 1 mixed priority + Phase 3f L1 retry 三件組',
     items: [
       '**緣由**：使用者實測 S1 / S2 / S3 對照後選定 S3（依 L4 編號排），並要求把 S3 跟 Phase 1 mixed priority + L1 retry 合成一顆 toggle 方便 A/B 比較。',
-      '**改善內容**：(1) scheme3 columnAssign — 用 L4 編號 sortKey 排 col，不依 array idx；不做 parallel override 確保嚴格 L4 順序。(2) Phase 1 mixed priority — 4-pass fallback：未被 sibling 用 + 路徑無障礙 + rule-1 OK → 路徑無障礙 → 未被 sibling 用 → priorities[0]。(3) Phase 3f L1 retry — 走完所有 phase 後對紅線連線試 16 種 (exit, entry) 組合、挑第一個 rule 1 + rule 2 都過的。',
+      '**改善內容**：(1) scheme3 columnAssign — 改用 topological + L4 walk 演算法：按 L4 sortKey 順序走訪、`col[t] = max(predecessors.col + 1, l4Bound)`，l4Bound 對 parallel sibling 允許同 col、對非 sibling 強制 +1。同時滿足 (a) parallel siblings 連續 contiguous 時同 col 對齊、(b) 中間有孤立任務時嚴格 L4 順序、(c) compact 無空白 col。(2) Phase 1 mixed priority — 4-pass fallback：未被 sibling 用 + 路徑無障礙 + rule-1 OK → 路徑無障礙 → 未被 sibling 用 → priorities[0]。(3) Phase 3f L1 retry — 走完所有 phase 後對紅線連線試 16 種 (exit, entry) 組合、挑第一個 rule 1 + rule 2 都過的。',
       '**isPathClear helper**：`corridor.js` 新增、預測路徑 cells（top→top corridor / right→left Z 形 / top→left L 形 等）+ rule 1 port-mix 檢核。Phase 1 + Phase 3f 共用同一 predicate 確保兩階段判定一致。',
       '**Header 改成 boolean toggle**：「改善排版」按鈕，一鍵開三件組 / 全關。per-flow persistent，跟「錯落」獨立 — 兩者可單獨用、合併用、全關，共 4 種測試組合。',
       '**動到的檔案（5 個）**：`src/diagram/layout/corridor.js`（isPathClear + predictPathCells）/ `src/diagram/layout/phase1and2.js`（4-pass fallback）/ `src/diagram/layout/phase3f.js`（新檔，L1 retry）/ `src/diagram/layout/computeLayout.js`（enhancedRouting flag → scheme3 + Phase 1 useMixedPriority + Phase 3f）/ `src/components/FlowEditor/Header.jsx` + `index.jsx`（toggle button）。',
