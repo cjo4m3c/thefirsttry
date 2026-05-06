@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-06',
+    title: '拆 useFlowActions.js（21KB）→ orchestrator + 4 個 factory 子檔（皆 ≤11KB）',
+    items: [
+      '**緣由**：使用者「希望每次改動不會遇到檔案太大的 timeout 問題」。`useFlowActions.js` 21KB 過 20KB 硬上限，包含 16 個 graph-mutation 函式（task CRUD / 特殊插入 / connection 操作）。原已拆出 `converters.js`（10KB），但主檔還是過大。',
+      '**拆檔結構（新增 3 個 factory 子檔在 `src/components/FlowEditor/useFlowActions/`）**：(1) `taskOps.js`（7.4KB）— `makeTaskOps` factory，輸出 `updateTask` / `addTask` / `addTaskBefore` / `addTaskAfter` / `removeTask`。`updateTask` 是 SOT mutator，含 PR-D8 topology-shift l4Number reset 邏輯 (2) `inserts.js`（6.2KB）— `makeInserts` factory，輸出 `addL3ActivityBefore/After` / `insertGatewayBefore/After`。內部 helper `rewireIncomingTo` + `buildGatewayConditions` (3) `connections.js`（6.7KB）— `makeConnectionOps` factory（depends on `updateTask`），輸出 6 個 connection 操作（addConnection / updateConnectionOverride / changeConnectionTarget / removeConnection / resetConnectionOverride / resetAllOverrides）(4) `converters.js`（10KB，舊有，不動）。',
+      '**主檔 `useFlowActions.js` 21KB → 1.3KB**：純 orchestrator，import 4 個 factory，注入 `updateTask` 給 connectionOps（保留單一 SOT），spread 出去當 hook return。',
+      '**Dependency injection 模式**：connectionOps 不自己定義 updateTask，從 taskOps 接過去，避免 topology-shift 邏輯（PR-D8 規則：type/shapeType 變更時 strip 其他 task 的 l4Number）在多處重新 implement 而 desync。',
+      '**沒動的 logic**：純 mechanical refactor。所有 16 個 action 函式 body 1:1 移到 sub-file，`alert` 文字 / generateId() 用法 / patch() 呼叫順序、condition / nextTaskIds 操作邏輯全部一致。共用的 `stripStoredL4Numbers` helper 在 taskOps + inserts 兩檔重複定義（5 行小 helper，跨檔 import 不划算）。',
+      '**驗證**：`npm run build` 通過，bundle size 不變。每個子檔皆 ≤ 11KB（舊 converters.js 10KB 是上限），主檔 1.3KB。FlowEditor/index.jsx import 路徑（`./useFlowActions.js`）不變。',
+      '**動到的檔案（6 個）**：`src/components/FlowEditor/useFlowActions.js`（21KB → 1.3KB orchestrator）/ 新增 3 個 factory：`taskOps.js` / `inserts.js` / `connections.js`，皆在 `src/components/FlowEditor/useFlowActions/` / `src/data/changelog/current.js`（本條）。`converters.js` 舊有未動。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: '拆 Dashboard.jsx（27KB）→ 1 shim + 1 orchestrator + 5 子檔（皆 <13KB）',
     items: [
       '**緣由**：使用者「希望每次改動不會遇到檔案太大的 timeout 問題」。`Dashboard.jsx` 27KB 排第二大 source 檔，超過 20KB 硬上限。混合了 state（11 個 useState + 1 個 useEffect + sortFlows useMemo）/ banner（3 種 import banner 全 inline）/ bulk toolbar（含格式 checkbox + delete + download）/ flow card（80 行 grid item JSX）/ duplicate-L3 modal（50 行 confirm modal）等多個 concern。',
