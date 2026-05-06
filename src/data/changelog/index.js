@@ -1,8 +1,9 @@
 /**
  * Changelog data — re-exports CHANGELOG (newest first) by concatenating
- * `current` (tip, edited per PR) with frozen archive chunks `c01`..`c24` (oldest).
+ * `current` (tip, edited per PR) with frozen archive chunks `c01`..`c26` (oldest).
  */
 import current from './current.js';
+import c26 from './c26.js';
 import c25 from './c25.js';
 import c24 from './c24.js';
 import c23 from './c23.js';
@@ -31,6 +32,7 @@ import c01 from './c01.js';
 
 export const CHANGELOG = [
   ...current,
+  ...c26,
   ...c25,
   ...c24,
   ...c23,
