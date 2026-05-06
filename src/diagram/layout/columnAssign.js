@@ -74,6 +74,13 @@ export function computeColumnMap(tasks, mode = 'default', displayLabels = null) 
   }
 
   // 2. Parallel-source override: align all forward targets at a shared col
+  //
+  // scheme3 SKIPS this entirely — col is already in strict L4 order, and
+  // any override (max or min) would break that order when siblings span
+  // mixed sortKeys. The user explicitly wants L4 = visual order, even at
+  // the cost of fan-out lines having unequal length.
+  if (mode === 'scheme3') return colOf;
+
   tasks.forEach(task => {
     let targets;
     if (task.type === 'gateway') {
