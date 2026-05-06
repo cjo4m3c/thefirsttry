@@ -6,6 +6,27 @@
 export default [
   {
     date: '2026-05-05',
+    title: '流程圖 layout 改 idx-driven：disconnected 任務在 lane 中不再亂跑 / 並行覆寫保留視覺',
+    items: [
+      '**緣由**：使用者回報「新增元件後還沒連線時，圖會亂掉、找不到剛加的任務」。Trace 後確認原因 — `columnAssign.computeColumnMap` 走 topological + longest-path：disconnected 任務 inDeg=0 → 預設 col 0 → 跟 start 衝突 → push 到 col 1/2，跑去 lane 最左邊，使用者預期它應該在 lane 最右（idx 對應位置）。',
+      '**改法**：把 col 算法從 topological 改成 **array index 為主、parallel 覆寫**。',
+      '  • Step 1：所有 task 預設 `col = arrayIdxOf[t]`（編輯器 / 表格順序就是欄位順序，新增 disconnected task 自然落在 lane 該有的右側位置）',
+      '  • Step 2：parallel source（閘道 conditions[] / 一般任務多 nextTaskIds[]）覆寫 — 全部前向目標對齊到 `max(source.col+1, ...targets.col)`，保留並行視覺',
+      '  • 反向邊（loop-return）跳過、不影響 col',
+      '  • 既有的 `resolveRowCollisions` 保留 — 處理 parallel 覆寫後同 lane 同 col 衝突（推右 + 沿 graph 傳播）',
+      '**對應 5 個使用者情境決策（決策 1-5）**：',
+      '  - **決策 1（disconnected）**：新 task col = idx（不再 push 到 col 0/1）✓',
+      '  - **決策 2（parallel）**：targets 對齊 `max(parent+1, all-target-idx)`，保留並行 ✓',
+      '  - **決策 3（merge 後 task）**：跟 idx 走（自動處理）✓',
+      '  - **決策 4（跨 lane 連線拉長）**：A1 idx 0 → A2 idx 5 連線從 col 0 拉到 col 5（使用者要的真實表達）✓',
+      '  - **決策 5（multi-start）**：每個 start 在自己 idx 位置 ✓',
+      '**驗證**：`npm run build` 通過。Node 單元測試 5 個情境 — linear / disconnected / parallel / cross-lane skip / multi-start 結果全對。',
+      '**動到的檔案（2 個）**：`src/diagram/layout/columnAssign.js`（computeColumnMap 重寫成 idx-first + parallel override）/ `src/data/changelog/current.js`（本條）。',
+      '**接下來 PR-C**：決策 7 情境 C（同 lane skip-connection 走上 / 下 corridor 繞路、不穿越中間任務）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: '編輯器 TaskCard 三項優化：外部互動底色獨立 / 全元件類型顯示編號 / 移除底部關聯說明 preview',
     items: [
       '**緣由**：使用者要求 (1) 外部互動跟一般任務在編輯器中目前共用 sequence 底色 `#FAFAFA`，視覺上分不出 — 應該像閘道一樣有獨立底色 (2) col 2 的編號目前只在 sequence 顯示，閘道 / 開始 / 結束 / 子流程被彩色 badge 蓋掉 — 希望全部都顯示 L4 編號 (3) Card 底部的「關聯說明」preview 多餘（同樣文字已在 FlowTable / Excel / drawio 都有），請移除。',
