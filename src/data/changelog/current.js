@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-05',
+    title: '流程圖文字 UI：L3 子流程行高跟任務統一 + 閘道標籤改 top-align 並加寬 1 字',
+    items: [
+      '**緣由**：使用者 (1)「子流程元件中行高太大、請做成跟任務元件一樣」(2)「閘道文字現在採段落置中，多行時會向上蓋住閘道元件，希望每行寬度多 1-2 字、多行時改置上對齊向下延伸」。',
+      '**Fix 1（子流程行高）**：`shapes.jsx L3ActivityShape` 的 SvgLabel `lineH` 從 `32` 改成 `24`，跟 TaskShape 行高一致（task.name 顯示更緊密）。兩個分支（純 L3 活動 / 子流程調用）都改。',
+      '**Fix 2（閘道標籤 top-align）**：`text.jsx SvgLabel` 加 `topAlign` prop（預設 false 維持置中）。`baseY = topAlign ? cy : cy - total/2`，i 行 y 從 baseY 往下累加。`shapes.jsx GatewayShape` 的 label 開 `topAlign` — cy=cy+d+14 是 TOP 而非中心，多行從這個 y 往下延伸不再壓到閘道菱形。',
+      '**Fix 3（閘道標籤每行多 1 字）**：GatewayShape SvgLabel `maxChars` 從 6 改成 7，較長標籤可少一行。',
+      '**驗證**：`npm run build` 通過。bg 模式下背景框跟文字 y 同步使用 baseY，多行時 bg pill 也會往下延伸不蓋閘道。',
+      '**動到的檔案（3 個）**：`src/components/DiagramRenderer/text.jsx`（SvgLabel topAlign 支援）/ `src/components/DiagramRenderer/shapes.jsx`（L3 lineH + Gateway topAlign + maxChars）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-05',
     title: 'TaskCard 任務名稱 ↔ 元件類型欄位交換：name 拿 Row 2 雙欄寬編輯空間',
     items: [
       '**緣由**：使用者：「把任務名稱欄位跟任務元件欄位交換，這樣使用者才有比較大空間可以編輯任務名稱」。原 layout：Row 1 col 4 是 name input（單欄寬）/ Row 2 col 3+4 跨欄 span 是 element-type select。任務名稱常常很長（含閘道前綴或長描述），擠在單欄不夠。',

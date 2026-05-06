@@ -99,10 +99,10 @@ export function L3ActivityShape({ task, pos, l4Number, isHovered }) {
             fontSize={14} fill="#6B7280" fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
             [子流程]
           </text>
-          <SvgLabel text={task.name || ''} cx={cx} cy={cy + 14} maxChars={8} lineH={32} />
+          <SvgLabel text={task.name || ''} cx={cx} cy={cy + 14} maxChars={8} lineH={24} />
         </>
       ) : (
-        <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={8} lineH={32} />
+        <SvgLabel text={task.name} cx={cx} cy={cy} maxChars={8} lineH={24} />
       )}
     </>
   );
@@ -151,7 +151,7 @@ export function GatewayShape({ task, pos, l4Number, isHovered }) {
           maxChars=6 (was 8) caps the per-line width so long labels with
           the '[XX閘道] ' prefix wrap to multiple lines instead of bleeding
           into adjacent column. */}
-      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={6} lineH={22} fontSize={14} bg />
+      <SvgLabel text={task.name} cx={cx} cy={cy + d + 14} maxChars={7} lineH={22} fontSize={14} bg topAlign />
     </>
   );
 }
