@@ -1,64 +1,63 @@
 /**
- * Graph-based column assignment (Fix issue 1: parallel task alignment).
+ * Index-driven column assignment (2026-05-05 重構).
  *
- * Uses topological sort on FORWARD connections only (backward gateway conditions
- * are excluded to avoid cycles).  Parallel targets (multiple nextTaskIds from the
- * same source) all receive column = source_col + 1, so they appear side-by-side
- * in their respective lanes.
+ * 演算法：
+ *   1. 預設 `col[t] = arrayIdxOf[t]` — 編輯器 / 表格的順序就是預設欄位順序，
+ *      新增的 disconnected task 會在 lane 中對應 idx 位置出現，使用者好找
+ *   2. 對「並行 source」覆寫 — 一個 task 同時導向 ≥2 個前向目標時，
+ *      把所有目標對齊到 `max(source.col + 1, ...targets.col)`，保留並行視覺
+ *
+ * 並行 source 包含：
+ *   - 閘道（gateway）的 conditions[]
+ *   - 一般 task 的 nextTaskIds[] 多元素（implicit parallel-branch）
+ *
+ * 不算 override 的情境：
+ *   - 序列：source 只一個目標 → 目標 col 維持自己 idx（避免拉緊壓縮）
+ *   - 反向邊（target idx ≤ source idx）→ loop-return，跳過
+ *
+ * `resolveRowCollisions` 仍會處理「並行 override 後同 lane 同 col」的衝突，
+ * 把後來的 task 推右 + 沿 graph 傳播。
  */
 export function computeColumnMap(tasks) {
   const taskIdSet = new Set(tasks.map(t => t.id));
   const arrayIdxOf = {};
   tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
 
-  const fwdNext = {};   // taskId → [successorId, ...]
-  const inDeg   = {};
-  tasks.forEach(t => { fwdNext[t.id] = []; inDeg[t.id] = 0; });
-
-  const addEdge = (fromId, toId) => {
-    if (!toId || !taskIdSet.has(toId)) return;
-    if (arrayIdxOf[toId] <= arrayIdxOf[fromId]) return; // skip backward / self
-    fwdNext[fromId].push(toId);
-    inDeg[toId]++;
-  };
-
-  tasks.forEach(task => {
-    if (task.type === 'gateway') {
-      (task.conditions || []).forEach(c => addEdge(task.id, c.nextTaskId));
-    } else if (task.type !== 'end') {
-      (task.nextTaskIds || []).forEach(nid => addEdge(task.id, nid));
-      if (task.nextTaskId) addEdge(task.id, task.nextTaskId); // legacy
-    }
-  });
-
+  // 1. Default col = array index
   const colOf = {};
-  tasks.forEach(t => { colOf[t.id] = 0; });
+  tasks.forEach(t => { colOf[t.id] = arrayIdxOf[t.id]; });
 
-  // Kahn's algorithm + longest-path column computation
-  const queue = tasks.filter(t => inDeg[t.id] === 0).map(t => t.id);
-  const rem = { ...inDeg };
-  const processed = new Set();
-
-  while (queue.length > 0) {
-    const id = queue.shift();
-    processed.add(id);
-    fwdNext[id].forEach(nid => {
-      colOf[nid] = Math.max(colOf[nid], colOf[id] + 1);
-      if (--rem[nid] === 0) queue.push(nid);
+  // 2. Parallel-source override: align all forward targets at a shared col
+  tasks.forEach(task => {
+    let targets;
+    if (task.type === 'gateway') {
+      targets = (task.conditions || []).map(c => c.nextTaskId);
+    } else if (task.type !== 'end') {
+      targets = task.nextTaskIds || [];
+    } else {
+      return;
+    }
+    const fwdTargets = targets.filter(id =>
+      id && taskIdSet.has(id) && arrayIdxOf[id] > arrayIdxOf[task.id]
+    );
+    if (fwdTargets.length < 2) return;   // single target = sequential, no override
+    const sharedCol = Math.max(
+      colOf[task.id] + 1,
+      ...fwdTargets.map(id => colOf[id])
+    );
+    fwdTargets.forEach(id => {
+      colOf[id] = Math.max(colOf[id], sharedCol);
     });
-  }
-
-  // Fallback for tasks not reached by forward processing (cycles / isolated nodes)
-  tasks.forEach((t, i) => { if (!processed.has(t.id)) colOf[t.id] = i; });
+  });
 
   return colOf;
 }
 
 /**
  * Prevent same-row same-col collisions: if two tasks in the same swimlane land
- * at the same column (e.g. start circle + gateway both at col 0), shift the
- * later-indexed task rightward and propagate the shift forward along the graph
- * so the topological order is preserved. Iterates until stable.
+ * at the same column (e.g. parallel branches both targeting the same lane),
+ * shift the later-indexed task rightward and propagate the shift forward along
+ * the graph so the topological order is preserved. Iterates until stable.
  */
 export function resolveRowCollisions(tasks, colOf, taskRowOf) {
   const arrayIdxOf = {};
