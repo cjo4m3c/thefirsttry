@@ -4,7 +4,7 @@
  * TaskCard's Row 3 (the "下一步 / 條件分支至 ..." row).
  *
  * Layout convention (matches TaskCard's other rows):
- *   col-A label    w-24        ← aligns with TaskCard badge column
+ *   col-A label    w-32        ← aligns with TaskCard badge column
  *   col-B middle   w-40        ← aligns with TaskCard role column
  *                              (used by branch cases for the condition
  *                              label input; for non-branch single-target
@@ -25,7 +25,7 @@ export default function ConnectionSection({ task, allTasks, displayLabels, onUpd
   const opts = allTasks.filter(t => t.id !== task.id && (t.type === 'gateway' || t.type === 'l3activity' || t.roleId));
   // Shared style fragments — keep the row layout identical across all
   // connection-type cases so columns align with TaskCard rows above.
-  const lbl = 'text-sm text-gray-600 w-24 flex-shrink-0 truncate';
+  const lbl = 'text-sm text-gray-600 w-32 flex-shrink-0 truncate';
   const midInput = 'w-40 flex-shrink-0 px-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-1';
   // Single-target cases (non-branch): select / input spans col-B + col-C
   // (drops the empty col-B spacer that used to leave an awkward gap between

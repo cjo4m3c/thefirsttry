@@ -24,6 +24,7 @@
  */
 import { detectOverrideViolations } from '../diagram/violations.js';
 import { getTaskIncoming, computeDisplayLabels } from './flowSelectors.js';
+import { detectElementKind, KIND_SHORT_LABEL } from '../utils/elementTypes.js';
 
 function isStart(t) { return t.connectionType === 'start' || t.type === 'start'; }
 function isEnd(t)   { return t.connectionType === 'end' || t.connectionType === 'breakpoint' || t.type === 'end'; }
@@ -31,17 +32,15 @@ function isEnd(t)   { return t.connectionType === 'end' || t.connectionType === 
 // User-facing element-type label — used by warning messages so the user
 // can identify which element on the diagram a warning refers to.
 // Format example per user spec 2026-05-04: "排他閘道 1-1-1-1_g1".
+//
+// PR (2026-05-06): unified per user spec 「希望統一用全名」 — read from
+// shared `KIND_SHORT_LABEL` so chip pills (TaskCard / ContextMenu) and
+// warning messages share the SAME vocabulary. Legacy 流程斷點 kept here
+// because detectElementKind doesn't expose breakpoint as its own kind
+// (returns 'end' for both regular end + breakpoint).
 function describeElement(t) {
-  if (t.type === 'start') return '開始事件';
-  if (t.type === 'end')   return t.connectionType === 'breakpoint' ? '流程斷點' : '結束事件';
-  if (t.type === 'l3activity') return 'L3 流程';
-  if (t.shapeType === 'interaction') return '外部關係人互動';
-  if (t.type === 'gateway') {
-    return t.gatewayType === 'and' ? '並行閘道'
-         : t.gatewayType === 'or'  ? '包容閘道'
-         : '排他閘道';
-  }
-  return 'L4 任務';
+  if (t.type === 'end' && t.connectionType === 'breakpoint') return '流程斷點';
+  return KIND_SHORT_LABEL[detectElementKind(t)] || 'L4 任務';
 }
 
 export function validateFlow(flow) {

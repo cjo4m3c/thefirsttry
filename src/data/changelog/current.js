@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-06',
+    title: '元件類型中文標籤統一用全名（KIND_SHORT_LABEL 改 verbose）+ describeElement 改讀同一份',
+    items: [
+      '**緣由**：使用者：「我希望統一用全名」。原本 chip pill（TaskCard col 2 / ContextMenu header）用 compact 短名「任務」/「外部互動」/「子流程」，但 `validation.js describeElement()` warning 訊息用 verbose「L4 任務」/「外部關係人互動」/「L3 流程」— 同一個元件在 UI 三處顯示兩個名字，使用者混亂。改成單一份 SOT verbose 名稱。',
+      '**`utils/elementTypes.js KIND_SHORT_LABEL` 全 verbose**：`task: 任務 → L4 任務` / `interaction: 外部互動 → 外部關係人互動` / `l3activity: 子流程 → L3 流程`。閘道 / 開始 / 結束 4 個原本就 verbose 不變。檔頭註解改成「跟 validation.describeElement() 故意一致 — 單一 SOT」。',
+      '**`model/validation.js describeElement()` 改讀 KIND_SHORT_LABEL**：原本 inline 的 7 行 if/else mapping 換成 1 行 `KIND_SHORT_LABEL[detectElementKind(t)] || \'L4 任務\'`。流程斷點（legacy `connectionType === \'breakpoint\'`）保留 special case（detectElementKind 不曝露 breakpoint，只回 \'end\'），else 全部 import 共用 mapping。',
+      '**TaskCard / DrawerContent / ConnectionSection 5-col layout 配套**：col 2（badge / label）從 `w-24`（96px）擴成 `w-32`（128px）容納「外部關係人互動」7 個 CJK 字（chip 約 96px + ℹ icon 14px + gap 4px = ~114px > 96px 會溢出）。3 個檔同步調，含 col 註解。',
+      '**ContextMenu header 不動**：header 是 `w-300px` 固定 + chip flex-shrink-0 + 編號 truncate，wider chip 自然吃掉編號的 truncate 空間，無需特別調整。',
+      '**驗證**：`npm run build` 通過。視覺驗證點：(a) TaskCard col 2 chip 顯示 `[L4 任務]` / `[外部關係人互動]` / `[L3 流程]` 不溢出 (b) 同一元件儲存提醒 warning 訊息「L4 任務 1-1-5-3 沒有任何元件連接過來」跟 chip 文字完全一致 (c) ContextMenu header chip 跟 chip 在 TaskCard col 2 顯示完全相同 (d) Row 2 任務名稱 label / Row 3 ConnectionSection label 隨 col 2 同寬度。',
+      '**動到的檔案（5 個）**：`src/utils/elementTypes.js`（KIND_SHORT_LABEL 3 處 verbose 化 + 註解改寫）/ `src/model/validation.js`（describeElement 改 1 行 import + breakpoint special case）/ `src/components/FlowEditor/TaskCard.jsx`（col 2 + Row 2 label w-24 → w-32 共 4 處）/ `src/components/FlowEditor/DrawerContent.jsx`（label 寬度 + 註解）/ `src/components/ConnectionSection.jsx`（label 寬度 + 註解）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: '拆 FlowEditor/index.jsx（19KB → 13.9KB）— 抽 useUndoRedo / useSaveReminder hooks + drawerInsertHandlers',
     items: [
       '**緣由**：使用者「希望每次改動不會遇到檔案太大的 timeout 問題」。`FlowEditor/index.jsx` 19KB 接近 20KB 硬上限，加 1 個小功能就會被擋。把混在主檔的 3 個有清楚切點的 concern 抽出去，剩下純 orchestrator state + render JSX。',

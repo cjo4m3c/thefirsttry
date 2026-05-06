@@ -57,7 +57,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
       {/* All three rows share the same 5-column flex layout so columns
           align vertically:
             col 1: ReorderButtons / spacer   (w-5)
-            col 2: L4 number + kind label    (w-24)
+            col 2: L4 number + kind label    (w-32)
             col 3: role / connection-type    (w-40)
             col 4: name / shape-type / target select (flex-1 min-w-0)
             col 5: action buttons / spacer   (w-14)  ← ▼ + ✕ 24+24+gap8 + safety
@@ -77,7 +77,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
               CSS `group-hover` popover for instant + multi-line + styled
               behaviour. Popover wraps below-the-icon, max-w 280px, dark
               background for contrast. */}
-        <div className="w-24 flex-shrink-0 flex flex-col items-start gap-0.5 min-w-0">
+        <div className="w-32 flex-shrink-0 flex flex-col items-start gap-0.5 min-w-0">
           {kindLabel && (
             <div className="flex items-center gap-1 w-full min-w-0">
               <span className="px-1.5 py-0.5 rounded text-xs font-bold whitespace-nowrap"
@@ -136,7 +136,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
           x-position as Row 1 col 2 chip / Row 3 ConnectionSection labels. */}
       <div className="flex items-center gap-2 px-2 pt-1.5 pb-2 min-w-0">
         <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
-        <div className="w-24 flex-shrink-0 text-sm text-gray-600">任務名稱</div>
+        <div className="w-32 flex-shrink-0 text-sm text-gray-600">任務名稱</div>
 
         {/* col 3 + col 4: name input spans both for ample edit room */}
         <input type="text" placeholder={nameOptional ? '名稱（選填）' : '任務名稱 *'}
@@ -146,7 +146,7 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
 
       {/* Row 3: Connection config — wrapper provides reorder spacer; the inner
           ConnectionSection lays out its own [label | optional mid | select]
-          using the same w-24 / w-40 / flex-1 pattern so labels align
+          using the same w-32 / w-40 / flex-1 pattern so labels align
           with the badge column and the inputs align with the name column. */}
       <div className="flex items-start gap-2 px-2 pb-2.5 min-w-0">
         <div className="w-5 flex-shrink-0" aria-hidden="true" />          {/* col 1: reorder spacer */}
