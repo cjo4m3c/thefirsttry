@@ -131,17 +131,19 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           }`}>
           錯落
         </button>
-        {/* Column assign mode 3-way cycle (preview branch 2026-05-06):
-            default → scheme1 → scheme2 → default.
-            Used to A/B test the parallel-override leapfrog bug fixes —
-            scheme1 = idx-monotonic per lane, scheme2 = min-align siblings. */}
+        {/* Column assign mode 4-way cycle (preview branch 2026-05-06):
+            default → scheme1 → scheme2 → scheme3 → default.
+            scheme1 = idx-monotonic守則; scheme2 = min-align 拉左;
+            scheme3 = 用 L4 編號順序排（不是 array idx）。 */}
         <button
           onClick={onCycleColAssign}
           title={
             colAssignMode === 'scheme1'
               ? '欄位分配：方案 1（idx 順序守則）— 點切到方案 2'
               : colAssignMode === 'scheme2'
-              ? '欄位分配：方案 2（min-align 拉左）— 點切回預設'
+              ? '欄位分配：方案 2（min-align 拉左）— 點切到方案 3'
+              : colAssignMode === 'scheme3'
+              ? '欄位分配：方案 3（依 L4 編號排）— 點切回預設'
               : '欄位分配：預設（含 leapfrog bug）— 點切到方案 1'
           }
           className={`px-3 py-1.5 text-base rounded border transition-colors ${
@@ -149,7 +151,10 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
               ? 'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10'
               : 'border-white bg-white text-[#1E4677] font-semibold'
           }`}>
-          {colAssignMode === 'scheme1' ? '欄位 S1' : colAssignMode === 'scheme2' ? '欄位 S2' : '欄位 預設'}
+          {colAssignMode === 'scheme1' ? '欄位 S1'
+            : colAssignMode === 'scheme2' ? '欄位 S2'
+            : colAssignMode === 'scheme3' ? '欄位 S3'
+            : '欄位 預設'}
         </button>
         {/* Undo / Redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z). Stack clears
             after every save per spec — disabled while empty so users see

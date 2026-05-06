@@ -35,8 +35,18 @@ export function computeLayout(flow) {
   tasks.forEach(task => { taskRowOf[task.id] = roleIndexMap[task.roleId] ?? 0; });
 
   // ── 3. Graph-based column assignment (parallel = same col) ────
-  const colOf = computeColumnMap(tasks, colAssignMode);
-  resolveRowCollisions(tasks, colOf, taskRowOf);
+  // scheme3 needs display labels up-front to derive L4 sort keys; we
+  // re-compute later anyway for node label rendering, but cheap.
+  const labelsForSort = colAssignMode === 'scheme3'
+    ? computeDisplayLabels(tasks, l3Number)
+    : null;
+  const colOf = computeColumnMap(tasks, colAssignMode, labelsForSort);
+  // scheme3: use col rank as logical "idx" for collision resolution so
+  // it follows L4 order rather than array idx
+  const orderOfForCollisions = colAssignMode === 'scheme3'
+    ? Object.fromEntries(tasks.map(t => [t.id, colOf[t.id]]))
+    : null;
+  resolveRowCollisions(tasks, colOf, taskRowOf, orderOfForCollisions);
   if (colAssignMode === 'scheme1') {
     enforceIdxMonotonicPerLane(tasks, colOf, taskRowOf);
   }

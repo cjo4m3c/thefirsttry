@@ -76,12 +76,17 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   function toggleStagger() {
     patch({ staggerLanes: !liveFlow.staggerLanes });
   }
-  // Column-assign mode 3-way cycle (preview branch 2026-05-06):
-  // default (current behavior with leapfrog bug) → scheme1 (idx-monotonic
-  // per lane) → scheme2 (min-align parallel siblings) → default.
+  // Column-assign mode 4-way cycle (preview branch 2026-05-06):
+  // default (current with leapfrog bug) → scheme1 (idx-monotonic per lane)
+  // → scheme2 (min-align parallel siblings) → scheme3 (sort by L4 number,
+  // not idx) → default.
   function cycleColAssign() {
     const cur = liveFlow.colAssignMode || 'default';
-    const next = cur === 'default' ? 'scheme1' : cur === 'scheme1' ? 'scheme2' : 'default';
+    const next =
+      cur === 'default' ? 'scheme1' :
+      cur === 'scheme1' ? 'scheme2' :
+      cur === 'scheme2' ? 'scheme3' :
+                          'default';
     patch({ colAssignMode: next });
   }
   // Ref to DiagramRenderer's imperative export API (forwardRef +

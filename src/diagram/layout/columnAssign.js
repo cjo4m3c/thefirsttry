@@ -24,15 +24,54 @@
  *                  leapfrog 的孤立任務推到 sibling 之後
  *   - 'scheme2'  — min-align：parallel override 改用 min(siblings.col)，
  *                  把 idx 大的 sibling 拉左對齊到最小 sibling 的 col
+ *   - 'scheme3'  — 用 L4 編號順序當 col 排序基準（不是 array idx），
+ *                  解 idx ≠ L4 編號 順序時的視覺反序問題
  */
-export function computeColumnMap(tasks, mode = 'default') {
+
+/**
+ * Parse an L4 display label into a sortable numeric key.
+ *
+ *   `${pfx}-0`        → 0       (start)
+ *   `${pfx}-99`       → 99      (end)
+ *   `${pfx}-N`        → N       (sequence task)
+ *   `${pfx}-N_g[K]`   → N + K*0.001  (gateway after task N)
+ *   `${pfx}-N_s[K]`   → N + K*0.501  (subprocess after task N, after gateways)
+ *   `${pfx}-N_e[K]`   → N + K*0.801  (interaction after task N, after _g/_s)
+ *
+ * Returns Infinity for unparseable labels so they sink to the end without
+ * disrupting the rest.
+ */
+function parseL4SortKey(label) {
+  if (!label) return Infinity;
+  const m = String(label).match(/^\d+-\d+-\d+-(\d+)(?:_([gse])(\d*))?$/);
+  if (!m) return Infinity;
+  const base = parseInt(m[1], 10);
+  if (!m[2]) return base;
+  const offsetUnit = { g: 0.001, s: 0.501, e: 0.801 }[m[2]];
+  const k = m[3] === '' ? 1 : parseInt(m[3], 10);
+  return base + offsetUnit * k;
+}
+
+export function computeColumnMap(tasks, mode = 'default', displayLabels = null) {
   const taskIdSet = new Set(tasks.map(t => t.id));
   const arrayIdxOf = {};
   tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
 
-  // 1. Default col = array index
+  // 1. Default col = array index, OR L4-sorted rank when scheme3
   const colOf = {};
-  tasks.forEach(t => { colOf[t.id] = arrayIdxOf[t.id]; });
+  if (mode === 'scheme3' && displayLabels) {
+    const sortedIds = tasks
+      .map(t => t.id)
+      .sort((a, b) => {
+        const ka = parseL4SortKey(displayLabels[a]);
+        const kb = parseL4SortKey(displayLabels[b]);
+        if (ka !== kb) return ka - kb;
+        return arrayIdxOf[a] - arrayIdxOf[b];   // tiebreaker
+      });
+    sortedIds.forEach((id, rank) => { colOf[id] = rank; });
+  } else {
+    tasks.forEach(t => { colOf[t.id] = arrayIdxOf[t.id]; });
+  }
 
   // 2. Parallel-source override: align all forward targets at a shared col
   tasks.forEach(task => {
@@ -44,10 +83,17 @@ export function computeColumnMap(tasks, mode = 'default') {
     } else {
       return;
     }
-    const fwdTargets = targets.filter(id =>
-      id && taskIdSet.has(id) && arrayIdxOf[id] > arrayIdxOf[task.id]
-    );
-    if (fwdTargets.length < 2) return;   // single target = sequential, no override
+    // For scheme3, "forward" is defined by sortKey order rather than idx
+    // so a target with smaller idx but larger L4 still counts as forward.
+    const isForward = (id) => {
+      if (!id || !taskIdSet.has(id)) return false;
+      if (mode === 'scheme3' && displayLabels) {
+        return colOf[id] > colOf[task.id];
+      }
+      return arrayIdxOf[id] > arrayIdxOf[task.id];
+    };
+    const fwdTargets = targets.filter(isForward);
+    if (fwdTargets.length < 2) return;
 
     if (mode === 'scheme2') {
       // Min-align: pull later siblings LEFT to the smallest sibling's col
@@ -57,7 +103,7 @@ export function computeColumnMap(tasks, mode = 'default') {
       );
       fwdTargets.forEach(id => { colOf[id] = sharedCol; });
     } else {
-      // Default / scheme1: max-align (original behavior)
+      // default / scheme1 / scheme3: max-align (original behavior)
       const sharedCol = Math.max(
         colOf[task.id] + 1,
         ...fwdTargets.map(id => colOf[id])
@@ -105,10 +151,16 @@ export function enforceIdxMonotonicPerLane(tasks, colOf, taskRowOf) {
  * at the same column (e.g. parallel branches both targeting the same lane),
  * shift the later-indexed task rightward and propagate the shift forward along
  * the graph so the topological order is preserved. Iterates until stable.
+ *
+ * `orderOf` (optional): map taskId → numeric "logical position". When omitted
+ * defaults to array idx — the original behaviour. scheme3 passes a map derived
+ * from L4 sortKey so collisions resolve in display-label order rather than
+ * idx order.
  */
-export function resolveRowCollisions(tasks, colOf, taskRowOf) {
-  const arrayIdxOf = {};
-  tasks.forEach((t, i) => { arrayIdxOf[t.id] = i; });
+export function resolveRowCollisions(tasks, colOf, taskRowOf, orderOf = null) {
+  const fallbackIdx = {};
+  tasks.forEach((t, i) => { fallbackIdx[t.id] = i; });
+  const idxOf = orderOf || fallbackIdx;
 
   const taskIdSet = new Set(tasks.map(t => t.id));
   const successors = {};
@@ -119,7 +171,7 @@ export function resolveRowCollisions(tasks, colOf, taskRowOf) {
       : [...(task.nextTaskIds || []), task.nextTaskId].filter(Boolean);
     nexts.forEach(nid => {
       if (!nid || !taskIdSet.has(nid)) return;
-      if (arrayIdxOf[nid] <= arrayIdxOf[task.id]) return;
+      if (idxOf[nid] <= idxOf[task.id]) return;
       successors[task.id].push(nid);
     });
   });
@@ -135,7 +187,7 @@ export function resolveRowCollisions(tasks, colOf, taskRowOf) {
     let fixed = false;
     Object.values(cells).forEach(ids => {
       if (ids.length <= 1) return;
-      const sorted = ids.slice().sort((a, b) => arrayIdxOf[a] - arrayIdxOf[b]);
+      const sorted = ids.slice().sort((a, b) => idxOf[a] - idxOf[b]);
       for (let i = 1; i < sorted.length; i++) {
         const id = sorted[i];
         colOf[id] = colOf[id] + 1;
