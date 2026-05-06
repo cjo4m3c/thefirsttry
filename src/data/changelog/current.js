@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-06',
+    title: 'Excel 匯入 banner 雙重 bullet 修正（list-disc + 文字「•」前綴重疊）',
+    items: [
+      '**緣由**：使用者「我發現匯入提醒事項列點後，有些原本有列點的現在就會有兩個點」。前一個 PR-I 在 banner 的 `<ul>` 加 `list-disc` 後，凡是訊息文字本身已含 `• ` 前綴的（例如「• 第 85 列「name」 X → Y」）就變成 disc bullet + 文字 bullet 兩顆連在一起。',
+      '**修法**：把 8 處 `warnings.push` 開頭的 `• `（或 `  • `）字串前綴拿掉，讓視覺 bullet 完全由 `<ul list-disc>` CSS 提供。動到的位置 — `excelImport/warnings.js`：collectCrossCheckWarnings（4 處 `_g` 後綴 / 閘道型不一致 / `-0` start / `-99` end 訊息）+ collectGatewayChainWarnings（2 處：找不到前置 / 前置未指向）`excelImport/index.js`：normalizeL4Numbers fix line 2 種變體（含 / 不含 excelRow tag）。',
+      '**沒動的地方**：`validators.js` 內 `errors.push(\'• 第 N 列...\')` 是 `validateNumbering` throw 的 hard error 訊息（不是 warning array）— 這些訊息是用 `\\n` 串成大字串後 throw，最後在 import error banner 用 `whitespace-pre-line` 顯示為純文字（沒走 `<ul>`），所以 `• ` 就是視覺 bullet 必須保留。',
+      '**驗證**：`npm run build` 通過。功能驗證點：(a) 上傳會自動調整 L4 編號的 Excel → banner 顯示「[L3 5-1-2] 已自動調整 1 個 L4 編號以符合規則：」（一個 disc）+「第 85 列「name」 X → Y」（一個 disc）— 不再重複 (b) 上傳含 cross-check warning 的 Excel → 同樣每行一個 disc (c) `validateNumbering` throw 的格式錯誤（紅色 banner）字樣不變、保留 `• ` 純文字 bullet。',
+      '**動到的檔案（3 個）**：`src/utils/excelImport/warnings.js`（6 處 strip）/ `src/utils/excelImport/index.js`（fix line 2 處 strip + 註解）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-06',
     title: '頁面切換自動捲動置頂（修「進入編輯器頁面停在下方表格」）',
     items: [
       '**緣由**：使用者：「我也希望點入頁面時是停在頁面最上方（現在都會停在下方 table）」。瀏覽器預設保留 scroll 位置 — 在 Dashboard 卡片網格往下滾找到要編輯的 flow → 點「編輯」 → FlowEditor render 完仍維持原 scroll 位置（剛好對到 FlowTable 區），看不到頁首跟流程圖。',

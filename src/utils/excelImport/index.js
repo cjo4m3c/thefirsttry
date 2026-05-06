@@ -122,10 +122,13 @@ export function parseExcelToFlow(arrayBuffer) {
       fixes.forEach(f => {
         // PR-D12: include Excel row number so user can locate the offending
         // row in their source file (was `「name」 X → Y` only).
+        // PR (2026-05-06): dropped leading `  • ` prefix — the banner's
+        // <ul list-disc> renders the bullet visually, so a text-bullet here
+        // would double up. Indent via banner CSS if sub-hierarchy needed.
         const rowTag = f.excelRow ? `第 ${f.excelRow} 列` : '';
         const line = rowTag
-          ? `  • ${rowTag}「${f.name}」 ${f.before} → ${f.after}`
-          : `  • 「${f.name}」 ${f.before} → ${f.after}`;
+          ? `${rowTag}「${f.name}」 ${f.before} → ${f.after}`
+          : `「${f.name}」 ${f.before} → ${f.after}`;
         normalizeWarnings.push(line);
         flow.importWarnings.push(line);
       });
