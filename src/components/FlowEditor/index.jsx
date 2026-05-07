@@ -55,6 +55,12 @@ export default function FlowEditor({ flow, onBack, onSave }) {
   function cycleDensity() {
     setDensityMode(m => m === 'default' ? 'compact' : m === 'compact' ? 'spacious' : 'default');
   }
+  // 錯落 toggle (preview-only, 2026-05-06): per-flow setting, persisted on
+  // the flow object. Hidden on main; this preview branch re-adds the
+  // button + handler so the test site can experiment with the layout.
+  function toggleStagger() {
+    patch({ staggerLanes: !liveFlow.staggerLanes });
+  }
   // Ref to DiagramRenderer's imperative export API (forwardRef +
   // useImperativeHandle exposes exportPng / exportDrawio / exportExcel).
   // Used by the Header download dropdown — each item calls
@@ -209,7 +215,8 @@ export default function FlowEditor({ flow, onBack, onSave }) {
         onUndo={handleUndo} onRedo={handleRedo}
         canUndo={canUndo} canRedo={canRedo}
         savePulse={pulseMode} saveCelebrate={saveCelebrate}
-        densityMode={densityMode} onCycleDensity={cycleDensity} />
+        densityMode={densityMode} onCycleDensity={cycleDensity}
+        staggerLanes={!!liveFlow.staggerLanes} onToggleStagger={toggleStagger} />
 
       <main className="px-4 py-6 w-full max-w-full">
         {/* PR-D12: Excel import warnings banner — shows the auto-fix /
