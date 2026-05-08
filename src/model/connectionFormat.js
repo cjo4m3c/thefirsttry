@@ -257,7 +257,20 @@ function splitForkEntries(section) {
   const numbers = [];
   const labels  = [];
   section.split(/[,、]/).forEach(entry => {
-    const numM = entry.trim().match(NUM_HEAD);
+    const trimmed = entry.trim();
+    // PR (2026-05-06): a fork entry may say「調用子流程 X-Y-Z（label）」 — i.e.
+    // the gateway's branch points to an L3 子流程 element (which the importer
+    // either reuses or auto-creates). Encoded as `__sub__:X-Y-Z` so it flows
+    // through to buildFlow without changing the array shape; the builder
+    // detects the prefix and resolves to the synthetic _s element's id.
+    const subM = trimmed.match(/^調用子流程\s*(\d+-\d+-\d+)/);
+    if (subM) {
+      numbers.push(`__sub__:${subM[1]}`);
+      const lblM = entry.match(LABEL_PAREN);
+      labels.push(lblM ? lblM[1].trim() : '');
+      return;
+    }
+    const numM = trimmed.match(NUM_HEAD);
     const lblM = entry.match(LABEL_PAREN);
     if (numM) {
       numbers.push(numM[1]);
