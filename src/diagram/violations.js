@@ -76,8 +76,9 @@ export function detectOverrideViolations(flow) {
     const fromPos = positions[c.fromId];
     const toPos   = positions[c.toId];
     if (!fromPos || !toPos) return;
-    const pts = routeArrow(fromPos, toPos, c.exitSide, c.entrySide,
-      c.laneBottomY, c.laneTopCorridorY);
+    const pts = c._bendPoints
+      ?? routeArrow(fromPos, toPos, c.exitSide, c.entrySide,
+        c.laneBottomY, c.laneTopCorridorY);
 
     for (const t of flow.tasks) {
       if (t.id === c.fromId || t.id === c.toId) continue;

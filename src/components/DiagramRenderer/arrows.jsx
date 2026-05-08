@@ -44,7 +44,9 @@ export function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredCo
   const to = positions[conn.toId];
   if (!from || !to) return null;
 
-  const pts = routeArrow(from, to, conn.exitSide, conn.entrySide, conn.laneBottomY, conn.laneTopCorridorY);
+  // ELK mode 下 conn 已帶 _bendPoints；default mode 走自家 routeArrow。
+  const pts = conn._bendPoints
+    ?? routeArrow(from, to, conn.exitSide, conn.entrySide, conn.laneBottomY, conn.laneTopCorridorY);
   const pointsStr = pts.map(p => `${p[0]},${p[1]}`).join(' ');
 
   const labelPt = pts.length >= 3

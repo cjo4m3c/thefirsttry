@@ -1,0 +1,79 @@
+name: Deploy ELK Test to GitHub Pages
+
+# 試驗版部署：把 main 跟 ELK 試驗版一起放在 gh-pages
+#   main → /FlowSprite/
+#   this branch → /FlowSprite/test-elk/  (VITE_ROUTER=elk)
+# main 的 deploy.yml 不動（push to main 仍走原 workflow）。
+# 試驗結束移除這個 file 即可。
+
+on:
+  push:
+    branches:
+      - claude/test-link-open-source-kKqHk
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main (baseline)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-source
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: main-source/package-lock.json
+
+      - name: Install + build main
+        working-directory: main-source
+        run: npm install && npm run build
+
+      - name: Checkout ELK test branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          path: elk-source
+
+      - name: Install + build ELK test at sub-path
+        working-directory: elk-source
+        env:
+          VITE_BASE_PATH: /FlowSprite/test-elk/
+          VITE_ROUTER: elk
+        run: npm install && npm run build
+
+      - name: Combine into single dist
+        run: |
+          mkdir -p combined-dist
+          cp -r main-source/dist/. combined-dist/
+          mkdir -p combined-dist/test-elk
+          cp -r elk-source/dist/. combined-dist/test-elk/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: combined-dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

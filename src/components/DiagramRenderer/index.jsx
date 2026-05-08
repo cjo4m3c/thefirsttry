@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { toPng } from 'html-to-image';
-import { computeLayout, routeArrow } from '../../diagram/layout.js';
+import { computeLayout, routeArrow, warmElk, isElkReady, ROUTER_MODE } from '../../diagram/layout.js';
 import { detectOverrideViolations } from '../../diagram/violations.js';
 import { getLaneShapeViolations } from '../../model/flowSelectors.js';
 import { LAYOUT, COLORS } from '../../diagram/constants.js';
@@ -78,6 +78,15 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   const stickyHeadersRef = useRef(null);
   const [hoveredId, setHoveredId] = useState(null);
   const [hoveredConnKey, setHoveredConnKey] = useState(null);
+  // ELK mode：warm ELK async；warm 完用 elkTick 觸發 re-render，這時 cache hit
+  // 後 computeLayout(flow) 會回實際結果。default sync mode 下 warmElk 是 no-op。
+  const [elkTick, setElkTick] = useState(0);
+  useEffect(() => {
+    if (ROUTER_MODE !== 'elk') return;
+    let cancelled = false;
+    warmElk(flow).then(() => { if (!cancelled) setElkTick(t => t + 1); });
+    return () => { cancelled = true; };
+  }, [flow]);
   // Tooltip state for hover-on-task description preview.
   // { taskId, x, y } where x/y anchor the tooltip *above* the task shape.
   const [tooltip, setTooltip] = useState(null);
@@ -137,6 +146,14 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
     return (
       <div className="flex items-center justify-center h-64 text-gray-400 text-sm border border-dashed border-gray-300 rounded-lg">
         尚無流程資料，請完成表單後產生圖表
+      </div>
+    );
+  }
+
+  if (ROUTER_MODE === 'elk' && !isElkReady(flow)) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-400 text-sm border border-dashed border-gray-300 rounded-lg">
+        ELK 連線排版運算中…
       </div>
     );
   }
@@ -367,8 +384,9 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
             // on top of the line — geometric src/tgt midpoint drifts off the
             // line for routes that go through corridors or cross lanes.
             const polyline = (srcPort && tgtPort)
-              ? routeArrow(from, to, selectedConn.exitSide, selectedConn.entrySide,
-                           selectedConn.laneBottomY, selectedConn.laneTopCorridorY)
+              ? (selectedConn._bendPoints
+                 ?? routeArrow(from, to, selectedConn.exitSide, selectedConn.entrySide,
+                               selectedConn.laneBottomY, selectedConn.laneTopCorridorY))
               : null;
             const deletePt = polyline ? polylineMidpoint(polyline) : null;
             return (
