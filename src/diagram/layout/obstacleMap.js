@@ -93,16 +93,50 @@ export function subCellToPixel(sx, sy, subCellW = SUB_CELL_W, subCellH = SUB_CEL
 
 /**
  * 把 path（sub-cell 座標 array）轉成 polyline pixel 座標 array，
- * 並合併共線段（co-linear merge）讓 polyline 簡潔。
+ * 在 endpoint 跟第一/最後 sub-cell 之間插入 axis-aligned 轉折點，
+ * 避免「歪歪的」對角段。
+ *
+ * exitDir / entryDir: 0=E, 1=W, 2=S, 3=N（路徑離開 source / 抵達 target 的方向）
  */
-export function pathToPolyline(path, startPx, endPx, subCellW = SUB_CELL_W, subCellH = SUB_CELL_H) {
+export function pathToPolyline(path, startPx, endPx, exitDir, entryDir, subCellW = SUB_CELL_W, subCellH = SUB_CELL_H) {
   if (!path || path.length === 0) return null;
-  const points = [
-    [startPx.x, startPx.y],
-    ...path.map(p => [p.x * subCellW, p.y * subCellH]),
-    [endPx.x, endPx.y],
-  ];
-  return smoothPolyline(points);
+
+  const subPoints = path.map(p => [p.x * subCellW, p.y * subCellH]);
+  const result = [[startPx.x, startPx.y]];
+
+  // 起點 → 第一 sub-cell：插入 axis-aligned 轉折避免對角
+  if (subPoints.length > 0) {
+    const firstSub = subPoints[0];
+    const isHorizontalExit = exitDir === 0 || exitDir === 1;   // right or left
+    if (isHorizontalExit) {
+      // 第一段水平：從 (startPx.x, startPx.y) 到 (firstSub.x, startPx.y)
+      // 第二段垂直：到 (firstSub.x, firstSub.y)
+      if (firstSub[0] !== startPx.x) result.push([firstSub[0], startPx.y]);
+      if (firstSub[1] !== startPx.y) result.push([firstSub[0], firstSub[1]]);
+    } else {
+      // 垂直 exit：先垂直、再水平
+      if (firstSub[1] !== startPx.y) result.push([startPx.x, firstSub[1]]);
+      if (firstSub[0] !== startPx.x) result.push([firstSub[0], firstSub[1]]);
+    }
+  }
+
+  // 中間 sub-cell（已經是 axis-aligned，因為 A* 一次只走一格水平或垂直）
+  for (let i = 1; i < subPoints.length; i++) result.push(subPoints[i]);
+
+  // 最後 sub-cell → 終點：插入 axis-aligned 轉折
+  if (subPoints.length > 0) {
+    const lastSub = subPoints[subPoints.length - 1];
+    const isHorizontalEntry = entryDir === 0 || entryDir === 1;
+    if (isHorizontalEntry) {
+      // 最後一段水平：從 (lastSub.x, lastSub.y) 經 (lastSub.x, endPx.y) 到 (endPx.x, endPx.y)
+      if (lastSub[1] !== endPx.y) result.push([lastSub[0], endPx.y]);
+    } else {
+      if (lastSub[0] !== endPx.x) result.push([endPx.x, lastSub[1]]);
+    }
+  }
+  result.push([endPx.x, endPx.y]);
+
+  return smoothPolyline(result);
 }
 
 function smoothPolyline(pts) {

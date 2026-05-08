@@ -333,22 +333,28 @@ export function computeLayout(flow) {
   const svgHeight = totalH + LAYOUT.PADDING_BOTTOM;
 
   // ── 12. Phase 3g — A* on grid fallback for remaining red lines ─────
-  // 對 routeArrow 仍會穿任務矩形的 connection 跑 A*，找乾淨路徑取代
-  // routeArrow 結果。Override 是硬約束（保留 exit/entry port，A* 只搜
-  // 中間路徑）。並行邊用 soft obstacle（cost penalty）避免互相重疊。
-  // 結果存在 connection.aStarPolyline，DiagramRenderer 偵測到就用它替代
-  // routeArrow output。
+  // 對 routeArrow 仍會穿任務矩形的 connection 跑 A*。Phase 3g 試多組
+  // (exit, entry) candidate 跑 A*、選 lowest cost 那組取代 — 可能修正
+  // Phase 3f 選的（cell-clean 但視覺糟）combo。Override（user 拖過的
+  // 連線）only 試使用者 lock 的 combo、不換 port。並行邊用 soft
+  // obstacle 互相避開。
   let aStarOverrides;
   try {
-    aStarOverrides = runAStarPhase(connections, positions, svgWidth, svgHeight);
+    aStarOverrides = runAStarPhase(connections, positions, svgWidth, svgHeight, tasks);
   } catch (e) {
     aStarOverrides = new Map();
   }
   if (aStarOverrides && aStarOverrides.size > 0) {
     connections.forEach((conn, i) => {
       const key = `${conn.fromId}::${conn.toId}::${i}`;
-      const polyline = aStarOverrides.get(key);
-      if (polyline) conn.aStarPolyline = polyline;
+      const result = aStarOverrides.get(key);
+      if (!result) return;
+      conn.aStarPolyline = result.polyline;
+      // A* 可能挑了不同的 (exit, entry)，更新 conn 讓 routeArrow fallback
+      // 不會再算錯（雖然有 aStarPolyline 時 routeArrow 不會被呼叫，但
+      // violations.js 等其他消費端讀 conn.exitSide/entrySide 時要正確）
+      conn.exitSide = result.exitSide;
+      conn.entrySide = result.entrySide;
     });
   }
 

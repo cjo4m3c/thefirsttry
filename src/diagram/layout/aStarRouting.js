@@ -1,23 +1,25 @@
 /**
  * A* routing orchestrator — Phase 3g 用。
  *
- * 跑完 Phase 1-3f 後，挑出**仍會視覺穿任務矩形**的 connection，
- * 用 A* 找乾淨路徑取代 routeArrow 結果。輸出 polyline override map。
+ * 對 routeArrow 仍會穿任務矩形的 connection 跑 A*。為了找最佳視覺路徑，
+ * 不只照 Phase 3f 選的 (exit, entry)，會試多組 candidate combos 跑 A*、
+ * 比較 cost、選最低的取代。
  *
- * 觸發條件（D5 partial replacement）：
- *   只對 routeArrow 產生會撞任務的 connection 跑 A*。簡單 case
- *   （短路徑、無障礙）仍走 routeArrow，不浪費 A* compute。
+ * 演算規則：
+ *   D6 override 硬約束：使用者拖曳寫過 task.connectionOverrides[key] 的
+ *      連線 only 試使用者選的 combo（A* 不換 port）
+ *   非 override：試 (a) Phase 3f 選的 combo (b) 自然 default 依 dr/dc 推
+ *      (c) 一些常見替代。pick lowest A* cost path that passes path-clean check
+ *   D11 soft obstacle：邊跑完 cells 加入 occupiedCells，後跑的邊看到 +20 cost
  *
- * Override 硬約束（D6）：
- *   保留 connection 的 (exit, entry) port — A* 只搜中間路徑。
- *   initialDir / finalDir 鎖住兩端方向。
+ * Cost tuning（2026-05-06 第二次調整）：
+ *   - bendPenalty 10→30：強烈避免多餘轉彎（user 反映線段太多 bend）
+ *   - airGapPenalty 5→0：col gap (1 sub-cell wide) 不該被懲罰、否則
+ *      A* 找不到「在 col gap 下行」這個最優解
  *
- * Soft obstacle（D11 + D10）：
- *   按 connection 順序跑、每條跑完把 polyline 佔的 sub-cell 加入
- *   occupiedCells，後跑的 connection 偵測時 cost +20，自然繞開。
- *
- * 輸出：Map<connKey, polyline>，連線會替換 routeArrow 的結果。
- *      若 A* 找不到清楚路徑（比 routeArrow 更糟）則跳過該 connection。
+ * 輸出：Map<connKey, { polyline, exitSide, entrySide }>。
+ *      `exitSide` / `entrySide` 是 A* 最終選的 port（可能跟 connection
+ *      原本的不同），DiagramRenderer 套用時要更新到 conn 上。
  */
 
 import { findPath } from './pathFinder.js';
@@ -29,100 +31,178 @@ import { routeArrow } from './routeArrow.js';
 import { pathCrossesAnyTaskRect } from './pathCrossesTask.js';
 
 const SIDE_TO_DIR = { right: 0, left: 1, bottom: 2, top: 3 };
-const OPPOSITE = { 0: 1, 1: 0, 2: 3, 3: 2 };
+const FINAL_DIR_FOR_ENTRY = { left: 0, right: 1, top: 2, bottom: 3 };
+
+const A_STAR_OPTS = {
+  bendPenalty: 30,
+  maxIterations: 8000,
+};
+const GRID_OPTS = {
+  airGapPenalty: 0,    // col gap 是必走通道，不該懲罰
+  edgeCrossingPenalty: 20,
+};
 
 /**
- * @param {Array} connections — computeLayout 產出 connections array
- * @param {Object} positions — { taskId: { left, right, top, bottom, cx, cy } }
- * @param {number} svgWidth, svgHeight
- * @param {Set} taskIds — 用來識別障礙；其實 positions 鍵就是 taskIds
- * @returns Map<connKey, polyline>
+ * 給定方向 (dr, dc)，回傳建議的 (exit, entry) candidate 列表。
+ * 先試「自然」combo，再試 Phase 3f 可能挑的替代、最後窮盡。
  */
-export function runAStarPhase(connections, positions, svgWidth, svgHeight) {
+function candidateCombos(dr, dc, currentExit, currentEntry) {
+  const combos = [];
+  const seen = new Set();
+  const add = (e, en) => {
+    const k = `${e}::${en}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    combos.push({ exit: e, entry: en });
+  };
+
+  // 1) 「自然」default 依 dr/dc
+  if (dr === 0 && dc === 1) add('right', 'left');
+  else if (dr === 0 && dc > 1) { add('right', 'left'); add('top', 'top'); }
+  else if (dr === 0 && dc < 0) add('top', 'top');
+  else if (dr > 0 && dc > 0) add('right', 'left');
+  else if (dr > 0 && dc === 0) add('bottom', 'top');
+  else if (dr < 0 && dc > 0) add('right', 'left');
+  else if (dr < 0 && dc === 0) add('top', 'bottom');
+
+  // 2) Phase 3f / Phase 3e 選的 combo
+  add(currentExit, currentEntry);
+
+  // 3) 常見替代（避免完全卡死時兜底）
+  const commonAlts = [
+    ['right', 'left'], ['right', 'top'], ['right', 'bottom'],
+    ['bottom', 'left'], ['bottom', 'top'], ['top', 'left'], ['top', 'top'],
+  ];
+  commonAlts.forEach(([e, en]) => add(e, en));
+
+  return combos;
+}
+
+export function runAStarPhase(connections, positions, svgWidth, svgHeight, tasksWithOverrides) {
   const overrides = new Map();
   const occupiedCells = new Set();
+
+  // 建一個 task → 是否有 override map（給「is locked」判斷）
+  const overrideOf = new Map();   // `${fromId}::${overrideKey}` → true
+  if (tasksWithOverrides) {
+    for (const t of tasksWithOverrides) {
+      const ov = t.connectionOverrides;
+      if (!ov) continue;
+      for (const k in ov) overrideOf.set(`${t.id}::${k}`, true);
+    }
+  }
 
   connections.forEach((conn, i) => {
     const fromPos = positions[conn.fromId];
     const toPos = positions[conn.toId];
     if (!fromPos || !toPos) return;
 
-    // Compute the routeArrow polyline first to check if it crosses any task.
+    // 先用 routeArrow 試現行 (exit, entry) — 若已乾淨、不需 A*
     const defaultPolyline = routeArrow(
       fromPos, toPos, conn.exitSide, conn.entrySide,
       conn.laneBottomY, conn.laneTopCorridorY
     );
-    const blocking = pathCrossesAnyTaskRect(defaultPolyline, positions, conn.fromId, conn.toId);
+    const defaultBlocking = pathCrossesAnyTaskRect(defaultPolyline, positions, conn.fromId, conn.toId);
 
-    if (!blocking) {
-      // routeArrow 已乾淨 — 把它佔的 cells 標起來給後跑的邊看
+    if (!defaultBlocking) {
       const cells = polylineToOccupiedCells(defaultPolyline);
       cells.forEach(c => occupiedCells.add(c));
       return;
     }
 
-    // Try A* with override hard constraint
-    const exitDir = SIDE_TO_DIR[conn.exitSide];
-    const entryDir = SIDE_TO_DIR[conn.entrySide];
-    if (exitDir === undefined || entryDir === undefined) return;
+    // 需 A*。決定 candidate (exit, entry) 列表
+    const dr = toPos.row - fromPos.row;
+    const dc = toPos.col - fromPos.col;
 
-    const sxPx = fromPos[conn.exitSide].x;
-    const syPx = fromPos[conn.exitSide].y;
-    const txPx = toPos[conn.entrySide].x;
-    const tyPx = toPos[conn.entrySide].y;
+    const overrideKey = `${conn.fromId}::${conn.overrideKey ?? conn.toId}`;
+    const isUserOverride = overrideOf.has(overrideKey);
 
-    // Step ONE sub-cell out from source / into target so start/end are not
-    // inside the task obstacle.
-    const stepOut = (px, py, dir, w, h) => {
-      const dx = [w, -w, 0, 0][dir];
-      const dy = [0, 0, h, -h][dir];
-      return { x: px + dx, y: py + dy };
-    };
-    const startPx = stepOut(sxPx, syPx, exitDir, SUB_CELL_W, SUB_CELL_H);
-    const endPx = stepOut(txPx, tyPx, entryDir, SUB_CELL_W, SUB_CELL_H);
+    const combos = isUserOverride
+      ? [{ exit: conn.exitSide, entry: conn.entrySide }]
+      : candidateCombos(dr, dc, conn.exitSide, conn.entrySide);
 
-    const { grid, cols, rows } = buildObstacleGrid(positions, svgWidth, svgHeight, {
-      occupiedCells,
-    });
-    const start = pixelToSubCell(startPx.x, startPx.y);
-    const end = pixelToSubCell(endPx.x, endPx.y);
+    let bestResult = null;
+    let bestCost = Infinity;
 
-    // Make sure start/end cells are free (rounding may have placed them on task border)
-    if (start.y >= 0 && start.y < rows && start.x >= 0 && start.x < cols) {
-      grid[start.y * cols + start.x] = 0;
+    for (const combo of combos) {
+      const exitDir = SIDE_TO_DIR[combo.exit];
+      const finalDir = FINAL_DIR_FOR_ENTRY[combo.entry];
+      if (exitDir === undefined || finalDir === undefined) continue;
+
+      const sxPx = fromPos[combo.exit].x;
+      const syPx = fromPos[combo.exit].y;
+      const txPx = toPos[combo.entry].x;
+      const tyPx = toPos[combo.entry].y;
+
+      // step out from source / target into adjacent sub-cell
+      const stepOut = (px, py, dir) => {
+        const dx = [SUB_CELL_W, -SUB_CELL_W, 0, 0][dir];
+        const dy = [0, 0, SUB_CELL_H, -SUB_CELL_H][dir];
+        return { x: px + dx, y: py + dy };
+      };
+      const startPx = stepOut(sxPx, syPx, exitDir);
+      // for entry, the agent's last move is finalDir; agent comes FROM the
+      // opposite of finalDir, so step the OTHER way to find the cell we
+      // need to reach before entering the target
+      const oppositeOfFinal = [1, 0, 3, 2][finalDir];
+      const endPx = stepOut(txPx, tyPx, oppositeOfFinal);
+
+      const { grid, cols, rows } = buildObstacleGrid(positions, svgWidth, svgHeight, {
+        ...GRID_OPTS,
+        occupiedCells,
+      });
+      const start = pixelToSubCell(startPx.x, startPx.y);
+      const end = pixelToSubCell(endPx.x, endPx.y);
+
+      // Make sure start/end cells themselves are free
+      if (start.y >= 0 && start.y < rows && start.x >= 0 && start.x < cols) {
+        grid[start.y * cols + start.x] = 0;
+      }
+      if (end.y >= 0 && end.y < rows && end.x >= 0 && end.x < cols) {
+        grid[end.y * cols + end.x] = 0;
+      }
+
+      const path = findPath(grid, cols, rows, start, end, {
+        ...A_STAR_OPTS,
+        initialDir: exitDir,
+        finalDir,
+      });
+      if (!path) continue;
+
+      const polyline = pathToPolyline(path, { x: sxPx, y: syPx }, { x: txPx, y: tyPx }, exitDir, finalDir);
+      if (!polyline) continue;
+
+      // 防呆：A* 結果可能撞 task（rounding edge case）
+      const stillBlocking = pathCrossesAnyTaskRect(polyline, positions, conn.fromId, conn.toId);
+      if (stillBlocking) continue;
+
+      // 成本估算：路徑長 + bend 數 × 30
+      let bends = 0;
+      for (let p = 1; p < polyline.length - 1; p++) {
+        const [px, py] = polyline[p - 1];
+        const [cx, cy] = polyline[p];
+        const [nx, ny] = polyline[p + 1];
+        const d1 = (cx - px) === 0 ? 'V' : 'H';
+        const d2 = (nx - cx) === 0 ? 'V' : 'H';
+        if (d1 !== d2) bends++;
+      }
+      let length = 0;
+      for (let p = 0; p < polyline.length - 1; p++) {
+        length += Math.abs(polyline[p + 1][0] - polyline[p][0])
+                + Math.abs(polyline[p + 1][1] - polyline[p][1]);
+      }
+      const cost = length / SUB_CELL_W + bends * 30;
+
+      if (cost < bestCost) {
+        bestCost = cost;
+        bestResult = { polyline, exitSide: combo.exit, entrySide: combo.entry };
+      }
     }
-    if (end.y >= 0 && end.y < rows && end.x >= 0 && end.x < cols) {
-      grid[end.y * cols + end.x] = 0;
-    }
 
-    // finalDir = same direction as entryDir (the LAST step into target moves
-    // INTO the task, which we treat as "the direction perpendicular to the
-    // entry side" — actually opposite of entry side since we're moving INTO it).
-    // entry top = arriving from above = last move direction = down (S = 2)
-    // entry bottom = arriving from below = last move = up (N = 3)
-    // entry left = arriving from left = last move = right (E = 0)
-    // entry right = arriving from right = last move = left (W = 1)
-    const finalDirMap = { top: 2, bottom: 3, left: 0, right: 1 };
-    const finalDir = finalDirMap[conn.entrySide];
+    if (!bestResult) return;   // A* 找不到 — 維持原 routeArrow（紅）
 
-    const path = findPath(grid, cols, rows, start, end, {
-      initialDir: exitDir,
-      finalDir,
-      bendPenalty: 10,
-      maxIterations: 8000,
-    });
-
-    if (!path) return;   // A* 找不到 — 維持原 routeArrow（紅）
-
-    const polyline = pathToPolyline(path, { x: sxPx, y: syPx }, { x: txPx, y: tyPx });
-    if (!polyline) return;
-
-    // Verify A* polyline doesn't actually cross tasks (defensive)
-    const stillBlocking = pathCrossesAnyTaskRect(polyline, positions, conn.fromId, conn.toId);
-    if (stillBlocking) return;   // 不接受比預設更糟的結果
-
-    overrides.set(`${conn.fromId}::${conn.toId}::${i}`, polyline);
-    const cells = polylineToOccupiedCells(polyline);
+    overrides.set(`${conn.fromId}::${conn.toId}::${i}`, bestResult);
+    const cells = polylineToOccupiedCells(bestResult.polyline);
     cells.forEach(c => occupiedCells.add(c));
   });
 
