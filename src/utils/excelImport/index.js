@@ -109,6 +109,29 @@ export function parseExcelToFlow(arrayBuffer) {
   // 每個 flow 自己累積；最後 flatMap 成全域 warnings 給 Dashboard。
   flows.forEach(flow => { flow.importWarnings = []; });
 
+  // PR (2026-05-06): surface auto-added L3 activity elements (created when
+  // a gateway branch said「調用子流程 X-Y-Z」 but no `_s` row existed).
+  // Format mirrors normalizeWarnings: headline + one line per add. Strip
+  // the internal `__autoSubAdds` scaffolding from each flow afterward so
+  // it doesn't reach localStorage.
+  const autoSubWarnings = [];
+  flows.forEach(flow => {
+    const adds = flow.__autoSubAdds || [];
+    delete flow.__autoSubAdds;
+    if (adds.length === 0) return;
+    const pfx = flows.length > 1 ? `[L3 ${flow.l3Number}] ` : '';
+    const headlineGlobal = `${pfx}已自動補上 ${adds.length} 個子流程元件（閘道分支寫了「調用子流程」但 Excel 沒對應的 _s 列，依規則自動建立）：`;
+    const headlineFlow = `已自動補上 ${adds.length} 個子流程元件：`;
+    autoSubWarnings.push(headlineGlobal);
+    flow.importWarnings.push(headlineFlow);
+    adds.forEach(a => {
+      const branchTag = a.branchLabel ? `「${a.branchLabel}」分支` : '分支';
+      const line = `${a.sub}（調用 ${a.calledL3}）— 由閘道 ${a.gateway} 的${branchTag}建立`;
+      autoSubWarnings.push(line);
+      flow.importWarnings.push(line);
+    });
+  });
+
   const normalizeWarnings = [];
   flows.forEach(flow => {
     const { tasks, fixes } = normalizeL4Numbers(flow.tasks, flow.l3Number, excelRowByL4);
@@ -199,6 +222,6 @@ export function parseExcelToFlow(arrayBuffer) {
 
   return {
     flows,
-    warnings: [...normalizeWarnings, ...mergeWarnings, ...warnings, ...validationLines],
+    warnings: [...autoSubWarnings, ...normalizeWarnings, ...mergeWarnings, ...warnings, ...validationLines],
   };
 }
