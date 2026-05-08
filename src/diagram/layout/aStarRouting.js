@@ -49,34 +49,38 @@ const GRID_OPTS = {
 function candidateCombos(dr, dc, currentExit, currentEntry) {
   const combos = [];
   const seen = new Set();
-  const add = (e, en) => {
+  const add = (e, en, preference) => {
     const k = `${e}::${en}`;
     if (seen.has(k)) return;
     seen.add(k);
-    combos.push({ exit: e, entry: en });
+    combos.push({ exit: e, entry: en, preference });
   };
 
-  // 1) 「自然」default 依 dr/dc
-  if (dr === 0 && dc === 1) add('right', 'left');
-  else if (dr === 0 && dc > 1) { add('right', 'left'); add('top', 'top'); }
-  else if (dr === 0 && dc < 0) add('top', 'top');
-  else if (dr > 0 && dc > 0) add('right', 'left');
-  else if (dr > 0 && dc === 0) add('bottom', 'top');
-  else if (dr < 0 && dc > 0) add('right', 'left');
-  else if (dr < 0 && dc === 0) add('top', 'bottom');
+  // 1) 「自然」default 依 dr/dc — preference 0（最優）
+  if (dr === 0 && dc === 1) add('right', 'left', 0);
+  else if (dr === 0 && dc > 1) { add('right', 'left', 0); add('top', 'top', 0); }
+  else if (dr === 0 && dc < 0) add('top', 'top', 0);
+  else if (dr > 0 && dc > 0) add('right', 'left', 0);
+  else if (dr > 0 && dc === 0) add('bottom', 'top', 0);
+  else if (dr < 0 && dc > 0) add('right', 'left', 0);
+  else if (dr < 0 && dc === 0) add('top', 'bottom', 0);
 
-  // 2) Phase 3f / Phase 3e 選的 combo
-  add(currentExit, currentEntry);
+  // 2) Phase 3f / Phase 3e 選的 combo — preference 1（備援）
+  add(currentExit, currentEntry, 1);
 
-  // 3) 常見替代（避免完全卡死時兜底）
+  // 3) 常見替代 — preference 2（最後手段）
   const commonAlts = [
     ['right', 'left'], ['right', 'top'], ['right', 'bottom'],
     ['bottom', 'left'], ['bottom', 'top'], ['top', 'left'], ['top', 'top'],
   ];
-  commonAlts.forEach(([e, en]) => add(e, en));
+  commonAlts.forEach(([e, en]) => add(e, en, 2));
 
   return combos;
 }
+
+// 自然 combo cost 不打折；Phase 3f combo +100；其他 +200。
+// 這讓「右→左」(forward 自然) 在 cost 比「右→上」高 < 100 時仍勝出。
+const PREFERENCE_PENALTY = 100;
 
 export function runAStarPhase(connections, positions, svgWidth, svgHeight, tasksWithOverrides) {
   const overrides = new Map();
@@ -191,7 +195,7 @@ export function runAStarPhase(connections, positions, svgWidth, svgHeight, tasks
         length += Math.abs(polyline[p + 1][0] - polyline[p][0])
                 + Math.abs(polyline[p + 1][1] - polyline[p][1]);
       }
-      const cost = length / SUB_CELL_W + bends * 30;
+      const cost = length / SUB_CELL_W + bends * 30 + (combo.preference || 0) * PREFERENCE_PENALTY;
 
       if (cost < bestCost) {
         bestCost = cost;

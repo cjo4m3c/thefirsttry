@@ -92,52 +92,51 @@ export function subCellToPixel(sx, sy, subCellW = SUB_CELL_W, subCellH = SUB_CEL
 }
 
 /**
- * 把 path（sub-cell 座標 array）轉成 polyline pixel 座標 array，
- * 在 endpoint 跟第一/最後 sub-cell 之間插入 axis-aligned 轉折點，
- * 避免「歪歪的」對角段。
+ * 把 path（sub-cell 座標 array）轉成 polyline pixel 座標 array。
+ *
+ * Anchor 策略（避免 sub-cell rounding 造成的歪折）：
+ *   1. 偵測 turn indices（方向改變的 sub-cell）
+ *   2. First segment（pts[0..firstTurn]）整段對齊 startPx 的非 exit 軸
+ *      H exit → 整段 y = startPx.y；V exit → 整段 x = startPx.x
+ *   3. Last segment（pts[lastTurn..end]）整段對齊 endPx 的非 entry 軸
+ *
+ * 結果：每段純水平 / 垂直、無 sub-cell rounding 引起的微 jog。
  *
  * exitDir / entryDir: 0=E, 1=W, 2=S, 3=N（路徑離開 source / 抵達 target 的方向）
  */
 export function pathToPolyline(path, startPx, endPx, exitDir, entryDir, subCellW = SUB_CELL_W, subCellH = SUB_CELL_H) {
   if (!path || path.length === 0) return null;
 
-  const subPoints = path.map(p => [p.x * subCellW, p.y * subCellH]);
-  const result = [[startPx.x, startPx.y]];
+  const pts = path.map(p => [p.x * subCellW, p.y * subCellH]);
 
-  // 起點 → 第一 sub-cell：插入 axis-aligned 轉折避免對角
-  if (subPoints.length > 0) {
-    const firstSub = subPoints[0];
-    const isHorizontalExit = exitDir === 0 || exitDir === 1;   // right or left
-    if (isHorizontalExit) {
-      // 第一段水平：從 (startPx.x, startPx.y) 到 (firstSub.x, startPx.y)
-      // 第二段垂直：到 (firstSub.x, firstSub.y)
-      if (firstSub[0] !== startPx.x) result.push([firstSub[0], startPx.y]);
-      if (firstSub[1] !== startPx.y) result.push([firstSub[0], firstSub[1]]);
-    } else {
-      // 垂直 exit：先垂直、再水平
-      if (firstSub[1] !== startPx.y) result.push([startPx.x, firstSub[1]]);
-      if (firstSub[0] !== startPx.x) result.push([firstSub[0], firstSub[1]]);
-    }
+  const turns = [];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const dx1 = pts[i][0] - pts[i - 1][0];
+    const dy1 = pts[i][1] - pts[i - 1][1];
+    const dx2 = pts[i + 1][0] - pts[i][0];
+    const dy2 = pts[i + 1][1] - pts[i][1];
+    if (dx1 * dy2 - dy1 * dx2 !== 0) turns.push(i);
   }
 
-  // 中間 sub-cell（已經是 axis-aligned，因為 A* 一次只走一格水平或垂直）
-  for (let i = 1; i < subPoints.length; i++) result.push(subPoints[i]);
-
-  // 最後 sub-cell → 終點：插入 axis-aligned 轉折
-  if (subPoints.length > 0) {
-    const lastSub = subPoints[subPoints.length - 1];
-    const isHorizontalEntry = entryDir === 0 || entryDir === 1;
-    if (isHorizontalEntry) {
-      // 最後一段水平：從 (lastSub.x, lastSub.y) 經 (lastSub.x, endPx.y) 到 (endPx.x, endPx.y)
-      if (lastSub[1] !== endPx.y) result.push([lastSub[0], endPx.y]);
-    } else {
-      if (lastSub[0] !== endPx.x) result.push([endPx.x, lastSub[1]]);
-    }
+  const firstTurnIdx = turns.length > 0 ? turns[0] : pts.length - 1;
+  const isHExit = exitDir === 0 || exitDir === 1;
+  for (let i = 0; i <= firstTurnIdx; i++) {
+    if (isHExit) pts[i][1] = startPx.y;
+    else pts[i][0] = startPx.x;
   }
-  result.push([endPx.x, endPx.y]);
+
+  const lastTurnIdx = turns.length > 0 ? turns[turns.length - 1] : 0;
+  const isHEntry = entryDir === 0 || entryDir === 1;
+  for (let i = lastTurnIdx; i < pts.length; i++) {
+    if (isHEntry) pts[i][1] = endPx.y;
+    else pts[i][0] = endPx.x;
+  }
+
+  const result = [[startPx.x, startPx.y], ...pts, [endPx.x, endPx.y]];
 
   return smoothPolyline(result);
 }
+
 
 function smoothPolyline(pts) {
   if (pts.length <= 2) return pts;
