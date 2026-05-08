@@ -12,6 +12,7 @@ import { runPhase3b, runPhase3c } from './phase3bc.js';
 import { runPhase3d } from './phase3d.js';
 import { runPhase3e } from './phase3e.js';
 import { runPhase3f } from './phase3f.js';
+import { runAStarPhase } from './aStarRouting.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
@@ -330,6 +331,26 @@ export function computeLayout(flow) {
   const totalH    = laneTopY[roles.length - 1] + laneHeights[roles.length - 1];
   const svgWidth  = LANE_HEADER_W + (maxCol + 1) * COL_W + maxLaneXOffset + LAYOUT.PADDING_RIGHT;
   const svgHeight = totalH + LAYOUT.PADDING_BOTTOM;
+
+  // ── 12. Phase 3g — A* on grid fallback for remaining red lines ─────
+  // 對 routeArrow 仍會穿任務矩形的 connection 跑 A*，找乾淨路徑取代
+  // routeArrow 結果。Override 是硬約束（保留 exit/entry port，A* 只搜
+  // 中間路徑）。並行邊用 soft obstacle（cost penalty）避免互相重疊。
+  // 結果存在 connection.aStarPolyline，DiagramRenderer 偵測到就用它替代
+  // routeArrow output。
+  let aStarOverrides;
+  try {
+    aStarOverrides = runAStarPhase(connections, positions, svgWidth, svgHeight);
+  } catch (e) {
+    aStarOverrides = new Map();
+  }
+  if (aStarOverrides && aStarOverrides.size > 0) {
+    connections.forEach((conn, i) => {
+      const key = `${conn.fromId}::${conn.toId}::${i}`;
+      const polyline = aStarOverrides.get(key);
+      if (polyline) conn.aStarPolyline = polyline;
+    });
+  }
 
   return { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights };
 }

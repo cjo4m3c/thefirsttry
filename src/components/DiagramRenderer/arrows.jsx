@@ -44,7 +44,11 @@ export function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredCo
   const to = positions[conn.toId];
   if (!from || !to) return null;
 
-  const pts = routeArrow(from, to, conn.exitSide, conn.entrySide, conn.laneBottomY, conn.laneTopCorridorY);
+  // Phase 3g (A* on grid) may have replaced this connection's path. If
+  // conn.aStarPolyline exists, use it directly; else compute via routeArrow.
+  const pts = conn.aStarPolyline
+    ? conn.aStarPolyline
+    : routeArrow(from, to, conn.exitSide, conn.entrySide, conn.laneBottomY, conn.laneTopCorridorY);
   const pointsStr = pts.map(p => `${p[0]},${p[1]}`).join(' ');
 
   const labelPt = pts.length >= 3
