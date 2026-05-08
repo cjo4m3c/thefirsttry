@@ -67,7 +67,16 @@ export function validateNumbering(allRows) {
     const isStart     = /開始事件/.test(l4Name);
     const isEnd       = /結束事件/.test(l4Name);
     const gatewayType = detectGatewayFromText(flowText); // 'xor' | 'and' | null
-    const isSubprocessRow = /調用子流程\s*\d+-\d+-\d+/.test(flowText);
+    // PR (2026-05-06): 「調用子流程」 in body has two meanings:
+    //   (a) primary outgoing → THIS row IS the L3 activity element (`_s`)
+    //   (b) one of a fork's branch destinations (gateway points TO an L3
+    //       activity element — the auto-importer creates the `_s` element)
+    // `hasSubprocessCall` = the broad text test (used by _s row check below).
+    // `isSubprocessRow`   = (a) only — true ⇒ this row should have `_s` suffix.
+    // Without the `&& !gatewayType` guard, a gateway with one branch like
+    // 「條件分支至 X、調用子流程 Y」 was wrongly flagged as needing `_s`.
+    const hasSubprocessCall = /調用子流程\s*\d+-\d+-\d+/.test(flowText);
+    const isSubprocessRow = hasSubprocessCall && !gatewayType;
     const hasGTag     = /_g\d*$/.test(l4);
     const hasSTag     = /_s\d*$/.test(l4);
     const hasWTag     = /_e\d*$/.test(l4);
@@ -97,8 +106,12 @@ export function validateNumbering(allRows) {
       errors.push(`• 第 ${excelRow} 列衝突：L4「${l4}」帶「_s」（子流程）但任務關聯說明寫「${label}分支至」（閘道）— 請統一兩處`);
     }
     // Decision 4: L4 _s requires body's "調用子流程 X-Y-Z" reference (need
-    // the L3 number to know which subprocess is called).
-    if (hasSTag && !isSubprocessRow) {
+    // the L3 number to know which subprocess is called). Uses the broad
+    // `hasSubprocessCall` test rather than `isSubprocessRow` so the check
+    // also covers (rare/malformed) `_s` rows whose body somehow includes
+    // both a fork keyword AND 調用子流程 — we still want to confirm the
+    // latter is present.
+    if (hasSTag && !hasSubprocessCall) {
       errors.push(`• 第 ${excelRow} 列：L4「${l4}」帶「_s」（子流程）但任務關聯說明缺少「調用子流程 X-Y-Z」— 請補上要呼叫的 L3 編號`);
     }
     // _g / _s / _e prefix-must-match-task: 前綴必為既有 L4 任務（含 -0 開始事件）

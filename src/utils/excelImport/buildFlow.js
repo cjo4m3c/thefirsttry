@@ -13,6 +13,20 @@ import { applyExternalPrefixToRoles, applyStripExternalPrefixToRoles } from '../
 import { detectGatewayType, detectKindFromL4 } from './detectors.js';
 import { readAuxMeta } from './aux.js';
 
+// PR (2026-05-06): when a gateway branch reads「調用子流程 X-Y-Z」,
+// parseConnection encodes it as `__sub__:X-Y-Z` in branchToNumbers (etc).
+// resolveBranchTarget then either reuses an existing `<gatewayBase>_s\d*`
+// l3activity element pointing to the same called L3, or auto-creates one
+// at the gateway's anchor — surfacing to the user as a「已自動調整」warning.
+const SUB_MARKER_RE = /^__sub__:(.+)$/;
+
+function nextSubprocessSuffix(taskByNumber, base) {
+  if (!taskByNumber[`${base}_s`]) return `${base}_s`;
+  let n = 1;
+  while (taskByNumber[`${base}_s${n}`]) n++;
+  return `${base}_s${n}`;
+}
+
 const COL_L3_NUMBER = 0;
 const COL_L3_NAME   = 1;
 const COL_L4_NUMBER = 2;
@@ -100,11 +114,63 @@ export function buildFlow(rows, auxColMap = {}) {
   });
 
   // ── Second pass: resolve outgoing connections ────────────────────────────
+  // PR (2026-05-06): track auto-added L3 activity elements so the orchestrator
+  // can surface them as「已自動調整」 warnings.
+  const autoSubAdds = [];
+
   taskList.forEach(task => {
     const ann = annotationOf[task.id];
 
     if (task.type === 'gateway') {
       const seen = new Set();
+      // Resolve a branch entry's target id. Plain L4 numbers come straight
+      // from `taskByNumber`; 「調用子流程 X-Y-Z」 entries (encoded as
+      // `__sub__:X-Y-Z` by splitForkEntries) reuse an existing `_s` element
+      // at this gateway's anchor or auto-create one. `branchLabel` is captured
+      // for the warning message ("由閘道 G 的「label」分支建立").
+      const resolveBranchTarget = (n, branchLabel) => {
+        const subMatch = SUB_MARKER_RE.exec(String(n || ''));
+        if (!subMatch) return taskByNumber[n]?.id;
+        const calledL3 = subMatch[1];
+        const base = (task.l4Number || '').replace(/_g\d*$/, '');
+        if (!base) return undefined;
+        // Reuse: any existing `<base>_s\d*` element pointing to same called L3.
+        const existing = taskList.find(t =>
+          t.type === 'l3activity'
+          && t.subprocessName === calledL3
+          && (t.l4Number || '').startsWith(`${base}_s`)
+        );
+        if (existing) return existing.id;
+        // Auto-create a new _s element at this anchor.
+        const newL4 = nextSubprocessSuffix(taskByNumber, base);
+        const synth = {
+          id: generateId(),
+          name: `[L3 流程] 調用 ${calledL3}`,
+          type: 'l3activity',
+          shapeType: 'l3activity',
+          connectionType: 'subprocess',
+          subprocessName: calledL3,
+          roleId: task.roleId || '',
+          l4Number: newL4,
+          nextTaskIds: [],
+          flowAnnotation: '',
+          description: '',
+          inputItems: '',
+          outputItems: '',
+          reference: '',
+          meta: {},
+        };
+        taskByNumber[newL4] = synth;
+        taskList.push(synth);
+        annotationOf[synth.id] = parseConnection('');
+        autoSubAdds.push({
+          gateway: task.l4Number || '',
+          sub: newL4,
+          calledL3,
+          branchLabel,
+        });
+        return synth.id;
+      };
       const addCond = (toId, label = '') => {
         if (!toId || seen.has(toId)) return;
         seen.add(toId);
@@ -112,16 +178,25 @@ export function buildFlow(rows, auxColMap = {}) {
       };
 
       if (task.gatewayType === 'and') {
-        ann.parallelToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.parallelLabels[i] || ''));
-        ann.parallelMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
+        ann.parallelToNumbers.forEach((n, i) => {
+          const lbl = ann.parallelLabels[i] || '';
+          addCond(resolveBranchTarget(n, lbl), lbl);
+        });
+        ann.parallelMergeNextNums.forEach(n => addCond(resolveBranchTarget(n, ''), ''));
       } else if (task.gatewayType === 'or') {
-        ann.inclusiveToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.inclusiveLabels[i] || ''));
-        ann.inclusiveMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
+        ann.inclusiveToNumbers.forEach((n, i) => {
+          const lbl = ann.inclusiveLabels[i] || '';
+          addCond(resolveBranchTarget(n, lbl), lbl);
+        });
+        ann.inclusiveMergeNextNums.forEach(n => addCond(resolveBranchTarget(n, ''), ''));
       } else {
-        ann.branchToNumbers.forEach((n, i) => addCond(taskByNumber[n]?.id, ann.branchLabels[i] || ''));
-        ann.condMergeNextNums.forEach(n => addCond(taskByNumber[n]?.id));
+        ann.branchToNumbers.forEach((n, i) => {
+          const lbl = ann.branchLabels[i] || '';
+          addCond(resolveBranchTarget(n, lbl), lbl);
+        });
+        ann.condMergeNextNums.forEach(n => addCond(resolveBranchTarget(n, ''), ''));
       }
-      ann.nextTaskNumbers.forEach(n => addCond(taskByNumber[n]?.id));
+      ann.nextTaskNumbers.forEach(n => addCond(resolveBranchTarget(n, ''), ''));
 
     } else if (task.type !== 'end') {
       // Regular task: merge sequential + loop-back targets into nextTaskIds.
@@ -205,6 +280,10 @@ export function buildFlow(rows, auxColMap = {}) {
     id: generateId(), l3Number, l3Name,
     roles: withStrip,
     tasks: finalTasks,
+    // PR (2026-05-06): non-persistent — orchestrator extracts to global
+    // warnings list, then deletes before storage save (prefixed `__` so
+    // it's clear this is internal scaffolding, not persistent flow data).
+    __autoSubAdds: autoSubAdds,
   };
 }
 
