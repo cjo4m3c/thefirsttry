@@ -1,13 +1,13 @@
 name: Deploy Preview to GitHub Pages
 
-# Preview deploy for stagger swimlane layout (2026-05-06).
-# Builds main → /FlowSprite/, this branch → /FlowSprite/preview-stagger-layout/.
+# Preview deploy for loop-back-edge detection (2026-05-06).
+# Builds main → /FlowSprite/, this branch → /FlowSprite/preview-loop-detection/.
 # Delete this file when the feature merges into main.
 
 on:
   push:
     branches:
-      - claude/stagger-swimlane-layout-OCj4o
+      - claude/preview-loop-detection
   workflow_dispatch:
 
 permissions:
@@ -49,15 +49,15 @@ jobs:
       - name: Install + build preview at sub-path
         working-directory: preview-source
         env:
-          VITE_BASE_PATH: /FlowSprite/preview-stagger-layout/
+          VITE_BASE_PATH: /FlowSprite/preview-loop-detection/
         run: npm install && npm run build
 
       - name: Combine into single dist
         run: |
           mkdir -p combined-dist
           cp -r main-source/dist/. combined-dist/
-          mkdir -p combined-dist/preview-stagger-layout
-          cp -r preview-source/dist/. combined-dist/preview-stagger-layout/
+          mkdir -p combined-dist/preview-loop-detection
+          cp -r preview-source/dist/. combined-dist/preview-loop-detection/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

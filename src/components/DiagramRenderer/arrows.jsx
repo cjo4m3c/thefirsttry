@@ -39,7 +39,7 @@ export function ArrowMarkers() {
 }
 
 export function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredConnKey,
-  onHover, isSelected, onSelect, editable, isViolation }) {
+  onHover, isSelected, onSelect, editable, isViolation, isBackEdge }) {
   const from = positions[conn.fromId];
   const to = positions[conn.toId];
   if (!from || !to) return null;
@@ -50,6 +50,13 @@ export function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredCo
   const labelPt = pts.length >= 3
     ? [(pts[1][0] + pts[2][0]) / 2, (pts[1][1] + pts[2][1]) / 2]
     : [(pts[0][0] + pts[pts.length - 1][0]) / 2, (pts[0][1] + pts[pts.length - 1][1]) / 2];
+
+  // PR (preview-loop-detection 2026-05-06): back-edges (DAG cycle-closing)
+  // get a dashed stroke + 「↩ 迴圈」 badge so users visually identify the
+  // loop without reading the 任務關聯說明 text. Detection comes from
+  // `flowSelectors.getTaskBackEdges` — this component just receives the
+  // boolean. Doesn't override violation styling (red still wins).
+  const dashArray = isBackEdge && !isViolation ? '6 4' : undefined;
 
   // Highlight priority:
   //   (0) Violation (PR H: override causes IN+OUT mix or line-crosses-task)
@@ -94,7 +101,26 @@ export function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredCo
       {/* invisible wider stroke for easier hover / click targeting */}
       <polyline points={pointsStr} fill="none" stroke="transparent" strokeWidth={10} />
       <polyline points={pointsStr} fill="none" stroke={strokeColor}
-        strokeWidth={strokeW} markerEnd={`url(#${markerId})`} />
+        strokeWidth={strokeW} markerEnd={`url(#${markerId})`}
+        strokeDasharray={dashArray} />
+      {isBackEdge && !isViolation && (() => {
+        // 「↩ 迴圈」 badge near the midpoint of the line. Subtle: small
+        // text on a hugging white pill so it stays readable when the
+        // dashed line passes through. Doesn't replace the conn.label
+        // (gateway condition labels) — sits 14px above instead.
+        const [bx, by] = labelPt;
+        return (
+          <g pointerEvents="none">
+            <rect x={bx - 22} y={by - 22} width={44} height={14} rx={2}
+              fill="#FFFFFF" opacity={0.85} stroke={strokeColor} strokeWidth={0.5} />
+            <text x={bx} y={by - 12} textAnchor="middle" dominantBaseline="middle"
+              fontSize={10} fill={strokeColor}
+              fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
+              ↩ 迴圈
+            </text>
+          </g>
+        );
+      })()}
       {conn.label && (() => {
         // Wrap long labels onto multiple lines so they don't overflow into
         // adjacent task rectangles. maxChars is derived from the middle

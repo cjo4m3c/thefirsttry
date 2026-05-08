@@ -287,3 +287,85 @@ export function getTaskIncomingSources(tasks) {
   });
   return sources;
 }
+
+/**
+ * Identify back-edges in the flow graph (DAG cycle-detection via 3-color DFS).
+ *
+ * A back-edge is an edge `from → to` where `to` is currently on the DFS
+ * recursion stack — i.e., we entered `to` earlier on the same DFS path and
+ * haven't finished exploring its descendants. Such an edge closes a cycle
+ * and visually appears as a "loop back" in the rendered diagram.
+ *
+ * The result is a Set of edge keys `${fromId}::${toId}` so callers can
+ * O(1)-test whether a given connection is a back-edge:
+ *
+ *   const backEdges = getTaskBackEdges(tasks);
+ *   const isBack = backEdges.has(`${conn.fromId}::${conn.toId}`);
+ *
+ * Both regular `nextTaskIds` and gateway `conditions[].nextTaskId` count as
+ * outgoing edges. Self-loops (a task pointing to itself) are also flagged
+ * (rare/usually wrong, but caller may want to highlight).
+ *
+ * Pure function — no side effects, no React. Used by DiagramRenderer to
+ * stroke back-edges with dashed style + 「↩」 marker so users can visually
+ * recognise loops without reading 任務關聯說明 text.
+ *
+ * @param {object[]} tasks
+ * @returns {Set<string>} edge keys `fromId::toId`
+ */
+export function getTaskBackEdges(tasks) {
+  const backEdges = new Set();
+  if (!Array.isArray(tasks) || tasks.length === 0) return backEdges;
+
+  // Build adjacency once — outs(taskId) returns array of target ids.
+  const adj = new Map();
+  tasks.forEach(t => {
+    const outs = t.type === 'gateway'
+      ? (t.conditions || []).map(c => c.nextTaskId)
+      : (t.nextTaskIds || []);
+    adj.set(t.id, outs.filter(Boolean));
+  });
+
+  // 3-color DFS:
+  //   WHITE = unvisited, GRAY = on stack (in-progress), BLACK = finished
+  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const color = new Map();
+  tasks.forEach(t => color.set(t.id, WHITE));
+
+  // Iterative DFS to avoid call-stack blow-up on large flows. Each entry is
+  // [taskId, iterIdx] — iterIdx tracks which child we're up to so we can
+  // resume after recursing.
+  function dfs(rootId) {
+    const stack = [[rootId, 0]];
+    color.set(rootId, GRAY);
+    while (stack.length) {
+      const top = stack[stack.length - 1];
+      const [id, idx] = top;
+      const children = adj.get(id) || [];
+      if (idx >= children.length) {
+        color.set(id, BLACK);
+        stack.pop();
+        continue;
+      }
+      top[1] = idx + 1;
+      const child = children[idx];
+      const c = color.get(child);
+      if (c === GRAY) {
+        // Edge into a node still on the stack → back-edge (closes cycle).
+        backEdges.add(`${id}::${child}`);
+      } else if (c === WHITE) {
+        color.set(child, GRAY);
+        stack.push([child, 0]);
+      }
+      // BLACK: cross / forward edge — ignore for loop detection.
+    }
+  }
+
+  // Start DFS from every task; covers disconnected components / multi-start
+  // / orphan nodes uniformly.
+  tasks.forEach(t => {
+    if (color.get(t.id) === WHITE) dfs(t.id);
+  });
+
+  return backEdges;
+}

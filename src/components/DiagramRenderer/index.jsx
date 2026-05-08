@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 're
 import { toPng } from 'html-to-image';
 import { computeLayout, routeArrow } from '../../diagram/layout.js';
 import { detectOverrideViolations } from '../../diagram/violations.js';
-import { getLaneShapeViolations } from '../../model/flowSelectors.js';
+import { getLaneShapeViolations, getTaskBackEdges } from '../../model/flowSelectors.js';
 import { LAYOUT, COLORS } from '../../diagram/constants.js';
 import { exportDrawio } from '../../utils/drawioExport.js';
 import { exportFlowToExcel } from '../../utils/excelExport.js';
@@ -152,6 +152,10 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   // external lane + task). Surfaced as a red overlay rect on the offending
   // shape — display only, excluded from PNG / drawio export.
   const laneShapeViolationIds = getLaneShapeViolations(flow.tasks, flow.roles);
+  // Preview (2026-05-06): identify back-edges (DAG cycle-closing connections)
+  // so we can render them with a dashed stroke + 「↩ 迴圈」 badge. Pure visual
+  // marker — doesn't change task.connectionType or 任務關聯說明 text.
+  const backEdges = getTaskBackEdges(flow.tasks);
 
   // Drag-endpoint state machine (extracted hook). Owns dragInfo + handlers.
   const { dragInfo, setDragInfo, startDrag, moveDrag, endDrag } = useDragEndpoint({
@@ -322,7 +326,8 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
               isSelected={selectedConnKey === `c${i}`}
               onSelect={setSelectedConnKey}
               editable={editable}
-              isViolation={violatingConnIdx.has(i)} />
+              isViolation={violatingConnIdx.has(i)}
+              isBackEdge={backEdges.has(`${conn.fromId}::${conn.toId}`)} />
           ))}
 
           <TasksLayer tasks={flow.tasks} positions={positions} l4Numbers={l4Numbers}
