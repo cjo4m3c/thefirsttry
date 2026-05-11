@@ -26,7 +26,7 @@
 
 ## 後續批次拆檔（技術債、不算業務待辦）
 
-`excelImport.js` **31KB**（PR-D5/D10/D12 撐爆，最急）/ `Dashboard.jsx` 26KB / `ContextMenu/index.jsx` 16KB / 凍結 `c13.js` 拆成 c13a + c13b（17KB）。已解：`HelpPanel.jsx` 26KB → 11.3KB（PR #84）/ `taskDefs.js` 17.4KB → 14.3KB（PR #81）
+`excelImport.js` **31KB**（PR-D5/D10/D12 撐爆，最急）/ `Dashboard.jsx` 26KB / `ContextMenu/index.jsx` 16KB。已解：`HelpPanel.jsx` 26KB → 11.3KB（PR #84）/ `taskDefs.js` 17.4KB → 14.3KB（PR #81）/ `c13.js` 17.7KB → c13a 9.1KB + c13b 8.7KB（PR-1 拆檔輪 2026-05-11）
 
 ## Phase 2（model 共用層抽出）— 全部完成
 
