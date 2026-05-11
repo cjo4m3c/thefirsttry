@@ -10,7 +10,7 @@ import { fmtDateTime } from './sortFlows.js';
 
 export function FlowCard({
   flow, isSelected, onToggleSelect, onTogglePin,
-  onEdit, onDelete, onExportPng,
+  onEdit, onDelete, onClone, onExportPng,
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col gap-3">
@@ -74,6 +74,11 @@ export function FlowCard({
           <button onClick={() => onEdit(flow.id)}
             className="flex-1 py-1.5 text-sm rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors font-medium">
             編輯
+          </button>
+          <button onClick={() => onClone(flow)}
+            title="複製整條流程做延伸編輯"
+            className="px-3 py-1.5 text-sm rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors">
+            複製
           </button>
           <button onClick={() => {
               if (window.confirm(`確定要刪除「${flow.l3Name}」嗎？`)) onDelete(flow.id);

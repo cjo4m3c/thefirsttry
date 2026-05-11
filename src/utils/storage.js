@@ -318,6 +318,95 @@ export function generateId() {
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+/**
+ * Deep-clone an existing flow into a brand-new one. Used by Dashboard
+ * 「複製」button so the user can fork a finished L3 工作流 to make a
+ * variant without re-typing tasks / roles / aux-field values.
+ *
+ * Identity rewrites (everything that referenced an old uuid is repointed
+ * to the corresponding new uuid):
+ *   - flow.id, every task.id, every role.id, every gateway condition.id
+ *   - task.roleId → new role uuid
+ *   - task.nextTaskIds[] → new task uuids
+ *   - task.conditions[].nextTaskId → new task uuids
+ *   - task.connectionOverrides keys (task uuids for regular tasks, condition
+ *     uuids for gateways) → corresponding new uuid
+ *
+ * Reset (per spec):
+ *   - l3Number / l3Name → caller-supplied
+ *   - pinned → false
+ *   - importWarnings / flowAnnotation → cleared (源 Excel 匯入歷史，不該跟著複本走)
+ *   - createdAt / updatedAt → left undefined (saveFlow sets them)
+ *   - tasks[].l4Number → stripped (computeDisplayLabels regenerates from new L3)
+ *
+ * Preserved (deep copy, raw values stay):
+ *   - tasks[].meta (30 個輔助欄位)
+ *   - tasks[].subprocessName ("5-2-8" 樣的 raw L3 字串，跨流程引用)
+ *   - everything else in task / role objects
+ */
+export function cloneFlow(source, { newL3Number, newL3Name }) {
+  if (!source) return null;
+  const roleIdMap = new Map();
+  const taskIdMap = new Map();
+  const condIdMap = new Map();
+
+  const newRoles = (source.roles || []).map(r => {
+    const newId = generateId();
+    if (r?.id) roleIdMap.set(r.id, newId);
+    return { ...r, id: newId };
+  });
+
+  // First pass: allocate new ids for every task + every gateway condition
+  // so the second pass can resolve forward references regardless of order.
+  (source.tasks || []).forEach(t => {
+    if (!t) return;
+    if (t.id) taskIdMap.set(t.id, generateId());
+    (t.conditions || []).forEach(c => {
+      if (c?.id) condIdMap.set(c.id, generateId());
+    });
+  });
+
+  const remapTaskId = id => taskIdMap.get(id) || '';
+  const remapCondId = id => condIdMap.get(id) || id;
+
+  const newTasks = (source.tasks || []).map(t => {
+    if (!t) return t;
+    const { l4Number, ...rest } = t;  // strip l4Number — recomputed from new L3
+    const next = {
+      ...rest,
+      id: taskIdMap.get(t.id) || generateId(),
+      roleId: roleIdMap.get(t.roleId) || t.roleId || '',
+      nextTaskIds: (t.nextTaskIds || []).map(id => (id ? remapTaskId(id) : id)),
+      conditions: (t.conditions || []).map(c => ({
+        ...c,
+        id: condIdMap.get(c.id) || generateId(),
+        nextTaskId: c.nextTaskId ? remapTaskId(c.nextTaskId) : '',
+      })),
+      meta: t.meta ? { ...t.meta } : {},
+    };
+    if (t.connectionOverrides && typeof t.connectionOverrides === 'object') {
+      const remapKey = t.type === 'gateway' ? remapCondId : remapTaskId;
+      const newOv = {};
+      for (const [k, v] of Object.entries(t.connectionOverrides)) {
+        const newK = remapKey(k);
+        if (newK) newOv[newK] = v;
+      }
+      next.connectionOverrides = newOv;
+    }
+    return next;
+  });
+
+  return {
+    id: generateId(),
+    l3Number: newL3Number,
+    l3Name: newL3Name,
+    roles: newRoles,
+    tasks: newTasks,
+    pinned: false,
+    importWarnings: [],
+  };
+}
+
 /** Today's date as `yyyymmdd` (zero-padded). Used as suffix in download filenames. */
 export function todayYmd() {
   const d = new Date();
