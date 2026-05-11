@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-11',
+    title: '拆檔 PR-3：ContextMenu/index.jsx 17.5KB → 13.6KB（抽 position / drag hook 到 useContextMenuPosition.js）',
+    items: [
+      '**緣由**：backlog「後續批次拆檔」最後一項。ContextMenu/index.jsx 17.5KB 過 15KB 軟上限 2.5KB — pop-up menu 已經拆過一輪（PR-0 抽 subforms.jsx），剩下的 state hub + JSX 仍偏大。',
+      '**拆法**：抽 positioning / drag / dismiss 邏輯（4 種 cross-cutting 行為：初始定位、ResizeObserver reclamp、☰ pointer drag、click-outside / Esc）成 `useContextMenuPosition({ x, y, taskId, onClose })` custom hook，跟 ContextMenu 業務 state（sub-form 切換、submit handlers）脫鉤。Hook 回傳 `{ ref, adjusted, dragging, startDrag }`，caller 直接用即可。',
+      '**結果**：index.jsx 17.5KB → 13.6KB（-22%，過 15KB 軟上限的 2.5KB 全砍進 hook）/ useContextMenuPosition.js 5.8KB（新檔，純 hook）。剩下的 index.jsx 邏輯（state hub / JSX / handlers）耦合度高，再拆會 prop-drilling，留著當 state hub 即可。',
+      '**動到的檔案（2 個 + 1 新檔）**：`src/components/ContextMenu/index.jsx`（移除 80 行 position/drag/dismiss code + `useRef` / `useCallback` import + 換成 hook call）/ `src/components/ContextMenu/useContextMenuPosition.js`（新檔，5.8KB）/ `src/data/changelog/current.js`（本條）/ `.claude/backlog.md`（後續批次拆檔段加 ContextMenu 到「已解」）。',
+      '**驗證**：`npm run build` pass。Mental trace：hook 把原本散在 component 內的 4 個 effect + 2 個 callback + 2 個 state + 2 個 ref 整包移出，行為等價（同 dependencies、同 cleanup）。Caller 只需把 `ref` 接到 `<div>` + `startDrag` 接到 ☰ button + 讀 `adjusted` / `dragging` 即可。',
+      '**拆檔輪收尾**：PR-1 (c13.js)、PR-2 (storage.js)、PR-3 (ContextMenu) 全部完成，backlog「後續批次拆檔」段 3 個明確項目全部消解。',
+    ],
+  },
+  {
+    date: '2026-05-11',
     title: '拆檔 PR-2：storage.js 15.5KB → 5.9KB（抽 migration helpers 到 storage/migrations.js）+ 凍結 c27',
     items: [
       '**緣由**：PR #199（複製功能）加 `cloneFlow` 後 storage.js 從 12KB → 15.5KB 剛過 15KB 軟上限。拆檔輪第 2 個 PR — 抽 migration helpers（7 個純函式 + `normalizeNumber`）到 `src/utils/storage/migrations.js`。同 PR 順手凍結 current.js（pre-PR 已 ~10KB 過 7KB 門檻）為 c27.js。',

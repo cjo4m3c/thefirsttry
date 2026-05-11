@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import {
   applyRoleChange, detectElementKind,
   KIND_SHORT_LABEL, KIND_BADGE, KIND_BADGE_FALLBACK,
@@ -11,6 +11,7 @@ import {
   OtherSubForm,
   ConvertSubForm,
 } from './subforms.jsx';
+import { useContextMenuPosition } from './useContextMenuPosition.js';
 
 /**
  * ContextMenu — pop-up shown when the user clicks a task shape on the diagram.
@@ -23,9 +24,10 @@ import {
  *   non-gateway: 任務 / 閘道 / 連線 / L3 / 其他 / 轉換 / 刪除
  *   gateway:     任務 / 閘道 / 連線 / L3 / 編輯閘道 / 其他 / 轉換 / 刪除
  *
- * Layout split (PR-0):
- *   - this file: state hub, action list, edit fields, glue
- *   - subforms.jsx: 6 sub-form components
+ * Layout split:
+ *   - this file: state hub, action list, edit fields, glue (~13KB)
+ *   - subforms.jsx: 6 sub-form components (~14KB)
+ *   - useContextMenuPosition.js: drag / reclamp / dismiss hook (~4KB; PR-3 2026-05-11)
  *
  * Props:
  *   - task          the clicked task object (or null when closed)
@@ -52,13 +54,9 @@ export default function ContextMenu({
   onUpdate, onAddAfter, onAddConnection, onAddGateway, onAddL3Activity,
   onAddOther, onConvertType, onDelete, onClose,
 }) {
-  const ref = useRef(null);
-  const [adjusted, setAdjusted] = useState({ left: x, top: y });
-  // Drag state: per user spec 2026-05-04 the menu is always reclamped on
-  // size change (incl. after a drag), so we only need the dragging flag
-  // and the pointer offset to drive the live drag.
-  const [dragging, setDragging] = useState(false);
-  const dragOffsetRef = useRef({ dx: 0, dy: 0 });
+  const { ref, adjusted, dragging, startDrag } = useContextMenuPosition({
+    x, y, taskId: task?.id, onClose,
+  });
   // 'connection' | 'gateway' | 'l3activity' | 'gw-edit' | 'other' | 'convert' | null
   const [subForm, setSubForm] = useState(null);
   const [connTarget, setConnTarget] = useState('');
@@ -84,104 +82,6 @@ export default function ContextMenu({
     setL3Number('');
     setL3Name('');
   }, [task?.id, task?.type]);
-
-  // Initialize position from the click point whenever the menu opens for
-  // a different task. Subsequent drags / sub-form expansions only adjust
-  // from the previous adjusted position (not back to the click point).
-  useEffect(() => {
-    setAdjusted({ left: x, top: y });
-  }, [x, y, task?.id]);
-
-  // Pure clamp — given prev (left, top), shrink to viewport bounds.
-  // Reads ref.current rect inside so it always uses the latest size.
-  const reclamp = useCallback(() => {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    setAdjusted(prev => {
-      let left = prev.left;
-      let top = prev.top;
-      if (left + rect.width > vw - 8)  left = vw - rect.width - 8;
-      if (top  + rect.height > vh - 8) top  = vh - rect.height - 8;
-      if (left < 8) left = 8;
-      if (top  < 8) top  = 8;
-      return (left === prev.left && top === prev.top) ? prev : { left, top };
-    });
-  }, []);
-
-  // Auto-reclamp on size changes — covers sub-form expand/collapse + window
-  // resize + post-drag (when user drags to an edge then expands). Per user
-  // spec 2026-05-04, this runs even after manual drag (always corrects
-  // overflow). ResizeObserver fires on any element-size change.
-  useEffect(() => {
-    if (!ref.current) return;
-    const ro = new ResizeObserver(() => reclamp());
-    ro.observe(ref.current);
-    function onWinResize() { reclamp(); }
-    window.addEventListener('resize', onWinResize);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', onWinResize);
-    };
-  }, [reclamp]);
-
-  // Drag handlers — pointermove / pointerup attach to window only while
-  // actively dragging. Live position is also clamped to viewport so the
-  // user can't lose the menu off-screen.
-  function startDrag(e) {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    dragOffsetRef.current = {
-      dx: e.clientX - rect.left,
-      dy: e.clientY - rect.top,
-    };
-    setDragging(true);
-    e.preventDefault();
-  }
-  useEffect(() => {
-    if (!dragging) return;
-    function onMove(e) {
-      if (!ref.current) return;
-      const rect = ref.current.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      let left = e.clientX - dragOffsetRef.current.dx;
-      let top = e.clientY - dragOffsetRef.current.dy;
-      if (left + rect.width > vw - 8)  left = vw - rect.width - 8;
-      if (top  + rect.height > vh - 8) top  = vh - rect.height - 8;
-      if (left < 8) left = 8;
-      if (top  < 8) top  = 8;
-      setAdjusted({ left, top });
-    }
-    function onUp() { setDragging(false); }
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-  }, [dragging]);
-
-  // Click outside / Esc closes. Skipped while dragging — releasing the
-  // pointer outside the menu shouldn't accidentally close it.
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (dragging) return;
-      if (ref.current && !ref.current.contains(e.target)) onClose?.();
-    };
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
-    // Defer to next tick so the click that opened us doesn't immediately close.
-    const id = setTimeout(() => {
-      document.addEventListener('mousedown', onDocClick);
-    }, 0);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      clearTimeout(id);
-      document.removeEventListener('mousedown', onDocClick);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onClose, dragging]);
 
   if (!task) return null;
 
