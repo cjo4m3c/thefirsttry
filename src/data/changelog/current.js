@@ -5,6 +5,17 @@
  */
 export default [
   {
+    date: '2026-05-11',
+    title: 'Dashboard 卡片新增「複製」按鈕 — 一鍵 fork 整條 L3 工作流做延伸編輯',
+    items: [
+      '**緣由**：使用者：「我希望在首頁新增一個功能，可以複製一整條流程來做延伸編輯」。對應 backlog #3（原 AC）— 阿明做完 `5-1-2 報名繳費`，主管說「6 月有特別場次，流程八成一樣」，過去要從頭重建或匯出 Excel 改編號再匯入；現在卡片按一下就好。',
+      '**UX 流程**：FlowCard 第一排 [編輯] 後加 [複製] 按鈕（淺藍 px-3，跟 [刪除] 對稱）→ 點擊跳 mini-modal「新 L3 編號 + 新名稱」（編號留空、placeholder 顯示原編號當提示；名稱預設「<原名稱>（複本）」）→ 即時 inline 驗證 L3 格式（`X-Y-Z`，三段橫線）→ 確認後 silent saveFlow + 跳進 FlowEditor 看新流程。撞號不擋（依使用者規則）— 按確定走跟 `handleSave` 一樣的 `window.confirm`「L3 編號已被活動 X 使用，確定要建立複本？」，使用者按 OK 就允許並存。',
+      '**`cloneFlow` 純函式（`storage.js`）**：deep clone 全部 task / role / 閘道 condition，每個 uuid 都重新產生；交叉引用同步重映射 — `task.roleId` / `task.nextTaskIds[]` / `task.conditions[].nextTaskId` / `task.connectionOverrides` keys（regular task 是 task uuid、gateway 是 condition uuid）；`task.l4Number` 全部 strip，靠 `computeDisplayLabels` 用新 L3 編號 + task 順序重算（spec §3「_g/_s/_e 共用 anchor」自動沿用）。reset 欄位：`pinned=false` / `importWarnings=[]` / `flowAnnotation` 不帶 / `createdAt+updatedAt` 留 saveFlow 設。保留：`task.meta`（30 個輔助欄位資料）/ `task.subprocessName`（raw L3 字串，跨流程引用照舊指向原子流程，符合決策點 E1）。',
+      '**動到的檔案（5 個）**：`src/utils/storage.js`（+`cloneFlow` export，+~75 行；檔大小 12KB → 15.1KB，剛過 15KB 軟上限 ~100 bytes、未過 20KB 硬上限，未來再有大改動時順便拆）/ `src/components/Dashboard/CloneFlowModal.jsx`（新檔，4.7KB，mini-modal 含格式驗證 / Enter 提交 / 點外面取消）/ `src/components/Dashboard/FlowCard.jsx`（+ `onClone` prop + 「複製」按鈕）/ `src/components/Dashboard/index.jsx`（+ `pendingClone` state + `handleCloneResolve` + 把 modal 掛到 JSX 樹底）/ `src/App.jsx`（+ `handleClone` orchestrator：cloneFlow → 撞號 confirm → saveFlow → 跳 FlowEditor）/ `src/data/changelog/current.js`（本條）。',
+      '**Backlog 更新**：item #3「複製整個 L3 工作流」搬到「已完成」段（PR #199）。',
+    ],
+  },
+  {
     date: '2026-05-06',
     title: '閘道分支可寫「調用子流程 X-Y-Z」+ 自動補對應 _s 子流程元件',
     items: [

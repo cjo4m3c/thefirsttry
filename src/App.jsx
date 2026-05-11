@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard.jsx';
 import Wizard from './components/Wizard.jsx';
 import FlowEditor from './components/FlowEditor.jsx';
-import { loadFlows, saveFlow, deleteFlow } from './utils/storage.js';
+import { loadFlows, saveFlow, deleteFlow, cloneFlow } from './utils/storage.js';
 
 export default function App() {
   const [view, setView] = useState('dashboard');
@@ -63,6 +63,27 @@ export default function App() {
     refreshFlows();
   }
 
+  /**
+   * Clone an existing flow with a new L3 number / name. Re-uses the same
+   * window.confirm dup-check as handleSave / handleViewSave so behaviour
+   * stays consistent (撞號可存、提醒一致）。On success drops the user into
+   * FlowEditor on the new flow.
+   */
+  function handleClone(source, { newL3Number, newL3Name }) {
+    const cloned = cloneFlow(source, { newL3Number, newL3Name });
+    if (!cloned) return;
+    const duplicate = flows.find(f => f.l3Number && f.l3Number === cloned.l3Number);
+    if (duplicate) {
+      if (!window.confirm(
+        `L3 編號「${cloned.l3Number}」已被活動「${duplicate.l3Name}」使用，確定要建立複本？\n（建議先修改編號以避免重複）`
+      )) return;
+    }
+    saveFlow(cloned);
+    refreshFlows();
+    setActiveFlowId(cloned.id);
+    setView('view');
+  }
+
   function handleImportExcel(importedFlows, mode = 'keep') {
     // mode='overwrite': delete every existing flow whose l3Number matches an
     // imported one (only those L3 numbers, not the whole list), so the user
@@ -108,6 +129,7 @@ export default function App() {
       onDelete={handleDelete}
       onImportExcel={handleImportExcel}
       onTogglePin={handleTogglePin}
+      onClone={handleClone}
     />
   );
 }

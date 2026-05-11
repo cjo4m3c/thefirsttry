@@ -24,8 +24,9 @@ import { ImportErrorBanner, ImportSuccessBanner, ImportWarningsBanner } from './
 import { BulkToolbar, PngProgressBanner } from './BulkToolbar.jsx';
 import { FlowCard } from './FlowCard.jsx';
 import { DuplicateImportModal } from './DuplicateImportModal.jsx';
+import { CloneFlowModal } from './CloneFlowModal.jsx';
 
-export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExcel, onTogglePin }) {
+export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExcel, onTogglePin, onClone }) {
   const [sortKey, setSortKey] = useState('number-asc');
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
@@ -41,6 +42,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
   // per-L3 existing counts so the modal can show what will happen on each
   // button. Closing the modal discards the imported flows.
   const [pendingImport, setPendingImport] = useState(null);
+  const [pendingClone, setPendingClone] = useState(null);
   const fileInputRef = useRef(null);
 
   const sortedFlows = useMemo(() => sortFlows(flows, sortKey), [flows, sortKey]);
@@ -120,6 +122,13 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
     setPendingImport(null);
     if (!pending || mode === 'cancel') return;
     finalizeImport(pending.importedFlows, pending.warnings, mode);
+  }
+
+  function handleCloneResolve(result) {
+    const source = pendingClone;
+    setPendingClone(null);
+    if (!source || !result) return;
+    onClone(source, result);
   }
 
   function handleFileChange(e) {
@@ -260,6 +269,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                 onTogglePin={onTogglePin}
                 onEdit={onEdit}
                 onDelete={handleDelete}
+                onClone={setPendingClone}
                 onExportPng={setPendingPngFlow} />
             ))}
           </div>
@@ -297,6 +307,10 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
       <DuplicateImportModal
         pendingImport={pendingImport}
         onResolve={handleDuplicateResolve} />
+
+      <CloneFlowModal
+        source={pendingClone}
+        onResolve={handleCloneResolve} />
     </div>
   );
 }
