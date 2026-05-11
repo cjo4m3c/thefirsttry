@@ -6,6 +6,16 @@
 export default [
   {
     date: '2026-05-11',
+    title: '首頁卡片按鈕拉齊 + 編輯頁 L3 名稱欄位加寬 50%',
+    items: [
+      '**FlowCard 按鈕統一樣式**（使用者：「除了刪除之外，其他所有的按鈕樣式顏色要拉齊」）：抽 `ACTION_BTN` const = `rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors font-medium`，套用到 5 個非刪除按鈕（編輯 / 複製 / 下載 PNG / 下載 Drawio / 下載 Excel）。原本「複製」是 blue-200/600（比其他輕一階）、下載 ×3 沒 font-medium，現在 5 顆完全一致。刪除按鈕保留紅色維持視覺辨識度。',
+      '**編輯頁 L3 名稱欄位加寬 50%**（使用者：「加大編輯頁面中，編輯 L3 流程名稱的欄位寬度（加大 50%）」）：`FlowEditor/Header.jsx` 中 L3 活動名稱 input 從 `flex-1 min-w-0`（實際 ~200px，因為 parent div 沒 flex-grow，flex-1 沒生效）改為 `w-80`（320px 固定寬，比原 +50%+）。「確認客戶需求-會後更新」這類稍長的名稱不再被截。',
+      '**動到的檔案（3 個）**：`src/components/Dashboard/FlowCard.jsx`（加 ACTION_BTN const、5 顆按鈕換 className）/ `src/components/FlowEditor/Header.jsx`（L3 名稱 input 寬度）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` pass。純 UI 樣式，零邏輯變更。',
+    ],
+  },
+  {
+    date: '2026-05-11',
     title: '拆檔 PR-3：ContextMenu/index.jsx 17.5KB → 13.6KB（抽 position / drag hook 到 useContextMenuPosition.js）',
     items: [
       '**緣由**：backlog「後續批次拆檔」最後一項。ContextMenu/index.jsx 17.5KB 過 15KB 軟上限 2.5KB — pop-up menu 已經拆過一輪（PR-0 抽 subforms.jsx），剩下的 state hub + JSX 仍偏大。',
