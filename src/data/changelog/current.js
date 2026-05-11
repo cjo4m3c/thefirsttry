@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-11',
+    title: '拆檔 PR-1：c13.js 17.7KB → c13a + c13b（首輪批次拆檔暖場）',
+    items: [
+      '**緣由**：使用者：「我希望先把拆檔做完」。backlog「後續批次拆檔」第一個明確項目 c13.js 17.7KB 凍結 chunk 過 15KB 軟上限 2.7KB；本輪首批處理（暖場、零邏輯風險）。',
+      '**拆法**：c13.js 內含 6 條 entries（newest-first），對半切 — c13a 收前 3 條（2026-04-28 × 3）、c13b 收後 3 條（2026-04-27 × 3）。`index.js` import `c13` → `c13a` + `c13b`，spread 順序維持 c14 → c13a → c13b → c12（newest → oldest 內部排序不變）。',
+      '**結果**：c13a 9.1KB / c13b 8.7KB，兩半都遠在軟上限以下；總 bytes 從 17.7KB → 18.0KB（多 file header 0.3KB，可忽略）。',
+      '**動到的檔案（4 個 + 2 新檔 - 1 刪檔）**：`src/data/changelog/c13a.js`（新）/ `src/data/changelog/c13b.js`（新）/ `src/data/changelog/c13.js`（刪）/ `src/data/changelog/index.js`（import + spread 替換）/ `.claude/backlog.md`（「後續批次拆檔」段刪 c13.js 那條）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` pass（dist bundle 0.1KB 變動正常 — frozen 資料完全等價）。',
+    ],
+  },
+  {
+    date: '2026-05-11',
     title: 'Dashboard 卡片新增「複製」按鈕 — 一鍵 fork 整條 L3 工作流做延伸編輯',
     items: [
       '**緣由**：使用者：「我希望在首頁新增一個功能，可以複製一整條流程來做延伸編輯」。對應 backlog #3（原 AC）— 阿明做完 `5-1-2 報名繳費`，主管說「6 月有特別場次，流程八成一樣」，過去要從頭重建或匯出 Excel 改編號再匯入；現在卡片按一下就好。',

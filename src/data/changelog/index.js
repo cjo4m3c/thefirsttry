@@ -16,7 +16,8 @@ import c17 from './c17.js';
 import c16 from './c16.js';
 import c15 from './c15.js';
 import c14 from './c14.js';
-import c13 from './c13.js';
+import c13a from './c13a.js';
+import c13b from './c13b.js';
 import c12 from './c12.js';
 import c11 from './c11.js';
 import c10 from './c10.js';
@@ -45,7 +46,8 @@ export const CHANGELOG = [
   ...c16,
   ...c15,
   ...c14,
-  ...c13,
+  ...c13a,
+  ...c13b,
   ...c12,
   ...c11,
   ...c10,
