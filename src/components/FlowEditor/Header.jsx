@@ -88,7 +88,7 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           value={liveFlow.l3Name || ''}
           onChange={e => onPatch({ l3Name: e.target.value })}
           placeholder="L3 活動名稱"
-          className="flex-1 min-w-0 px-2 py-1 rounded text-base bg-white bg-opacity-15 border border-white border-opacity-30 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:ring-1 focus:ring-white"
+          className="w-80 px-2 py-1 rounded text-base bg-white bg-opacity-15 border border-white border-opacity-30 text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:ring-1 focus:ring-white"
         />
       </div>
       <div className="ml-auto flex items-center gap-2 flex-shrink-0">

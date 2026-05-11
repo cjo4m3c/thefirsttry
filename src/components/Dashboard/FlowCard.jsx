@@ -8,6 +8,11 @@ import { exportFlowToExcel } from '../../utils/excelExport.js';
 import { COLORS } from '../../diagram/constants.js';
 import { fmtDateTime } from './sortFlows.js';
 
+// Shared style for all non-destructive card actions (編輯 / 複製 / 下載 ×3).
+// 刪除 keeps its red palette to stay visually distinct. Per user 2026-05-11:
+// 「除了刪除之外，其他所有的按鈕樣式顏色要拉齊」.
+const ACTION_BTN = 'rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors font-medium';
+
 export function FlowCard({
   flow, isSelected, onToggleSelect, onTogglePin,
   onEdit, onDelete, onClone, onExportPng,
@@ -72,12 +77,12 @@ export function FlowCard({
       <div className="mt-auto flex flex-col gap-1.5 pt-1 border-t border-gray-100">
         <div className="flex gap-1.5">
           <button onClick={() => onEdit(flow.id)}
-            className="flex-1 py-1.5 text-sm rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors font-medium">
+            className={`flex-1 py-1.5 text-sm ${ACTION_BTN}`}>
             編輯
           </button>
           <button onClick={() => onClone(flow)}
             title="複製整條流程做延伸編輯"
-            className="px-3 py-1.5 text-sm rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors">
+            className={`px-3 py-1.5 text-sm ${ACTION_BTN}`}>
             複製
           </button>
           <button onClick={() => {
@@ -89,15 +94,15 @@ export function FlowCard({
         </div>
         <div className="flex gap-1.5">
           <button onClick={() => onExportPng(flow)}
-            className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
+            className={`flex-1 py-1.5 text-xs ${ACTION_BTN}`}>
             下載 PNG
           </button>
           <button onClick={() => exportDrawio(flow)}
-            className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
+            className={`flex-1 py-1.5 text-xs ${ACTION_BTN}`}>
             下載 Drawio
           </button>
           <button onClick={() => exportFlowToExcel(flow)}
-            className="flex-1 py-1.5 text-xs rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors">
+            className={`flex-1 py-1.5 text-xs ${ACTION_BTN}`}>
             下載 Excel
           </button>
         </div>
