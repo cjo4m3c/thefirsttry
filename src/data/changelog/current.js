@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-12',
+    title: 'fix: FlowTable 非 sticky 欄拉不動 — 拿掉 cell 上殘留的 min-w-*',
+    items: [
+      '**緣由**：使用者「只有被凍結的四欄可以改表格寬度、其他還是不行」。PR #207 修了 setPointerCapture 後、handle event 通了、但**非 sticky 欄寬還是不變**。',
+      '**Root cause**：EditCell / ReadCell / RoleCell 殘留 `min-w-[260px]` / `min-w-[140px]` Tailwind class。PR #206 改用 `<table tableLayout: fixed>` + `<colgroup>` 後、欄寬本應完全由 col widths 決定、但**瀏覽器在 fixed layout 下仍把 cell min-width 當下限**、非 sticky 欄無法縮窄到 140 / 260 以下。Sticky 欄因為條件 `widthCls = sticky ? "" : ...` 沒帶 min-w、所以正常拉動 — 這是為什麼「只有 sticky 4 欄能拉」。',
+      '**修法**：(1) EditCell：移除 `widthCls` 計算 + 從 className 拿掉 `${widthCls}` (2) ReadCell：同上 (3) RoleCell：拿掉 `min-w-[140px]`。所有欄寬交給 colgroup 唯一決定。`wide` 參數保留（給可能的未來 readability 用、但不再影響寬度）。',
+      '**驗證**：`npm run build` 通過。`grep min-w-\\[ FlowTable.jsx` 確認無殘留。手動驗證點：(a) 非 sticky 欄（任務名稱 / 重點說明 / 任務角色 等）都可拖曳調整 (b) 可縮到 60px（hook clamp 下限）(c) 可拉到 600px（上限）。',
+      '**動到的檔案（2 個）**：`src/components/FlowTable.jsx`（3 處 min-w-* 移除）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-12',
     title: 'fix: FlowTable 欄寬拖曳 handle 看得到但拉不動',
     items: [
       '**緣由**：使用者「我看到重設欄寬按鈕、也看到調整欄寬的 icon、但是點擊後不能拖曳調整」。`cursor: col-resize` 出現代表 pointerDown 事件到得了 handle、但 drag 沒生效。',
