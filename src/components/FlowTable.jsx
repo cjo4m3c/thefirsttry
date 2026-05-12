@@ -137,10 +137,12 @@ function EditCell({ value, onChange, placeholder = '', wide = false, sticky = nu
       el.style.height = '';
     }
   }, [autoFit, local]);
-  const widthCls = sticky ? '' : (wide ? 'min-w-[260px]' : 'min-w-[140px]');
+  // 欄寬由 <table tableLayout: fixed> + <colgroup> 統一決定（user-resizable
+  // via useColumnWidths）；cell 自己**不再帶 min-w-*** — 否則瀏覽器在
+  // table-layout: fixed 下仍把 min-width 當下限、非 sticky 欄無法縮窄。
   return (
     <td
-      className={`border border-gray-200 px-1 py-0.5 align-top bg-white ${widthCls}`}
+      className={`border border-gray-200 px-1 py-0.5 align-top bg-white`}
       style={cellStickyStyle(sticky)}
     >
       <textarea
@@ -157,7 +159,8 @@ function EditCell({ value, onChange, placeholder = '', wide = false, sticky = nu
 }
 
 function ReadCell({ value, muted = false, wide = false, sticky = null, danger = false, title = undefined }) {
-  const widthCls = sticky ? '' : (wide ? 'min-w-[260px]' : 'min-w-[140px]');
+  // 欄寬由 colgroup 統一決定、cell 不帶 min-w-*（參見 EditCell 同邏輯）。
+  // `wide` 參數保留但不再影響寬度（給未來 readability 用、可移除）。
   const bg = muted ? 'bg-gray-50' : 'bg-gray-50';
   // PR-D6 (rule 6): violation cells colour the L4 number text red instead of
   // outlining the row — only the diagram keeps the red border.
@@ -166,7 +169,7 @@ function ReadCell({ value, muted = false, wide = false, sticky = null, danger = 
     : 'text-gray-700';
   return (
     <td
-      className={`border border-gray-200 px-2 py-1.5 text-base whitespace-pre-wrap align-top ${bg} ${text} ${widthCls}`}
+      className={`border border-gray-200 px-2 py-1.5 text-base whitespace-pre-wrap align-top ${bg} ${text}`}
       style={cellStickyStyle(sticky)}
       title={title}
     >
@@ -177,7 +180,7 @@ function ReadCell({ value, muted = false, wide = false, sticky = null, danger = 
 
 function RoleCell({ roleId, roles, onChange }) {
   return (
-    <td className="border border-gray-200 px-1 py-0.5 align-top min-w-[140px] bg-white">
+    <td className="border border-gray-200 px-1 py-0.5 align-top bg-white">
       <select
         value={roleId || ''}
         onChange={e => onChange(e.target.value)}
