@@ -16,19 +16,7 @@ import { runPhase3f } from './phase3f.js';
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
 export function computeLayout(flow) {
-  const { roles, tasks, l3Number, staggerLanes } = flow;
-
-  // Per-lane horizontal stagger offset:
-  // odd-indexed rows shift right by COL_W/2 so tasks across adjacent
-  // swimlanes interleave instead of stacking on the same column.
-  // 邏輯保留但 Header toggle 暫時隱藏（2026-05-06，使用者「先不要出現任何
-  // 按鈕，這是還沒有確定要的功能」）。flow.staggerLanes 仍可從 stored data
-  // 讀進來（早期 preview 已開過的 flow 會 honor 這個 flag），未來決定 ship
-  // 時把 Header 按鈕加回來即可。
-  const laneXOffset = roles.map((_, r) =>
-    staggerLanes && (r % 2 === 1) ? COL_W / 2 : 0
-  );
-  const maxLaneXOffset = laneXOffset.reduce((m, v) => Math.max(m, v), 0);
+  const { roles, tasks, l3Number } = flow;
 
   // ── 1. Role index map ──────────────────────────────────────
   const roleIndexMap = {};
@@ -237,7 +225,7 @@ export function computeLayout(flow) {
 
   tasks.forEach(task => {
     const row = taskRowOf[task.id] ?? 0;
-    const cx  = LANE_HEADER_W + colOf[task.id] * COL_W + COL_W / 2 + laneXOffset[row];
+    const cx  = LANE_HEADER_W + colOf[task.id] * COL_W + COL_W / 2;
     const cy  = laneTopY[row] + NODE_VOFFSET;
     const hx  = halfExtent(task.type, 'x');
     const hy  = halfExtent(task.type, 'y');
@@ -328,7 +316,7 @@ export function computeLayout(flow) {
   // ── 11. SVG dimensions ────────────────────────────────────────────
   const maxCol    = Math.max(...Object.values(colOf));
   const totalH    = laneTopY[roles.length - 1] + laneHeights[roles.length - 1];
-  const svgWidth  = LANE_HEADER_W + (maxCol + 1) * COL_W + maxLaneXOffset + LAYOUT.PADDING_RIGHT;
+  const svgWidth  = LANE_HEADER_W + (maxCol + 1) * COL_W + LAYOUT.PADDING_RIGHT;
   const svgHeight = totalH + LAYOUT.PADDING_BOTTOM;
 
   return { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights };
