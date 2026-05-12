@@ -6,40 +6,89 @@ import {
 } from '../utils/excelExport.js';
 import { AUX_FIELDS } from '../utils/auxFieldDefs.js';
 import { getLaneShapeViolations } from '../model/flowSelectors.js';
+import { useColumnWidths } from './FlowTable/useColumnWidths.js';
 
 // EXCEL_HEADERS = 10 core (0~9) + 20 auxiliary (10~29). When the user
 // hasn't expanded aux columns we slice the header loop at the boundary
 // to keep the table at its previous width.
 const CORE_HEADER_COUNT = 10;
 
-// Sticky-left columns spec — leftmost N columns are frozen during horizontal
-// scroll so identifiers (L3 / L4 numbers + names) stay visible. Widths are
-// fixed to known values so each cell knows its `left` offset.
-//
-// Indices are positions in EXCEL_HEADERS. When showL3 is off we hide cols
-// 0/1, but L4-number / L4-name slide left and become the leftmost frozen
-// pair. Computation lives in `getStickyMap` below.
-const STICKY_WIDTHS_WITH_L3 = [
-  { col: 0, width: 100 }, // L3 編號
-  { col: 1, width: 160 }, // L3 名稱
-  { col: 2, width: 110 }, // L4 編號
-  { col: 3, width: 260 }, // L4 名稱
-];
-const STICKY_WIDTHS_WITHOUT_L3 = [
-  { col: 2, width: 110 }, // L4 編號
-  { col: 3, width: 260 }, // L4 名稱
-];
+// Per-column default widths. Sticky cols (0~3 / 2~3 depending on showL3)
+// + 6 wide / 4 narrow core cols + aux cols (separator 24px, others 140px).
+// Used as `useColumnWidths` hook input; user overrides on top via drag.
+// 為什麼用 array index 當 key：EXCEL_HEADERS order 跟 schema 對應、index
+// 是穩定 reference。schema 改（加減 column）時 user override 會錯位、
+// 但 schema 改動是罕見事件且 user 看到怪表格可一鍵「重設欄寬」。
+const DEFAULT_COL_WIDTHS = (() => {
+  // 10 core cols
+  const core = [
+    100, // 0 L3 編號
+    160, // 1 L3 名稱
+    110, // 2 L4 編號
+    260, // 3 任務名稱
+    260, // 4 重點說明
+    260, // 5 重要輸入
+    140, // 6 任務角色
+    140, // 7 產出成品
+    260, // 8 任務關聯說明
+    140, // 9 參考文件
+  ];
+  const aux = AUX_FIELDS.map(f => f.separator ? 24 : 140);
+  return [...core, ...aux];
+})();
 
-function getStickyMap(showL3) {
-  const list = showL3 ? STICKY_WIDTHS_WITH_L3 : STICKY_WIDTHS_WITHOUT_L3;
+// Sticky-left column indices (depend on showL3 toggle). Widths now come
+// from useColumnWidths hook so user resize on sticky cols reflows the
+// subsequent sticky cols' left offset correctly.
+const STICKY_COLS_WITH_L3 = [0, 1, 2, 3];
+const STICKY_COLS_WITHOUT_L3 = [2, 3];
+
+function getStickyMap(showL3, widths) {
+  const list = showL3 ? STICKY_COLS_WITH_L3 : STICKY_COLS_WITHOUT_L3;
   const map = {};
   let acc = 0;
-  list.forEach(({ col, width }) => {
-    map[col] = { left: acc, width };
-    acc += width;
+  list.forEach(col => {
+    map[col] = { left: acc, width: widths[col] };
+    acc += widths[col];
   });
   return map;
 }
+
+// ColResizeHandle — 8px transparent strip on right edge of each resizable
+// th. pointerDown 開始 drag、pointerMove 即時更新欄寬、pointerUp 結束。
+// 使用 window-level event listeners 避免 pointer 離開 th 時失去事件。
+function ColResizeHandle({ idx, onResize, currentWidth }) {
+  function start(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = currentWidth;
+    function move(ev) {
+      onResize(idx, startW + (ev.clientX - startX));
+    }
+    function up() {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    }
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+  return (
+    <div
+      onPointerDown={start}
+      title="拖曳調整欄寬"
+      style={{
+        position: 'absolute', top: 0, right: 0, height: '100%', width: 8,
+        cursor: 'col-resize', touchAction: 'none', zIndex: 10,
+      }}
+      className="hover:bg-blue-400 hover:bg-opacity-50"
+    />
+  );
+}
+
+
 
 // Shared cell builder. Pass `sticky={ left, width }` to freeze this cell on
 // horizontal scroll; opaque background is required (sticky cells overlay
@@ -184,7 +233,12 @@ export default function FlowTable({ flow, onUpdateTask }) {
   // default fixed rows={2}. Session-only — refresh resets to default.
   const [autoFitRows, setAutoFitRows] = useState(false);
 
-  const stickyMap = useMemo(() => getStickyMap(showL3), [showL3]);
+  // Per-user column widths (drag handle on th right edge to resize).
+  // Persisted to localStorage; min 60 / max 600 px; reset via toolbar button.
+  const { widths: colWidths, setWidth: setColWidth, resetAll: resetColWidths, hasOverrides: hasColOverrides } =
+    useColumnWidths(DEFAULT_COL_WIDTHS);
+
+  const stickyMap = useMemo(() => getStickyMap(showL3, colWidths), [showL3, colWidths]);
 
   function updateField(taskId, field, value) {
     const task = tasks.find(t => t.id === taskId);
@@ -213,6 +267,17 @@ export default function FlowTable({ flow, onUpdateTask }) {
           容高度 inactive on first visit; user-toggled state persists per
           localStorage). Layout: left-to-right per spec. */}
       <div className="mb-2 flex justify-end gap-2">
+        {/* 重設欄寬 — only shown when user has customized at least one column. */}
+        {hasColOverrides && (
+          <button
+            type="button"
+            onClick={resetColWidths}
+            className="shrink-0 px-3 py-1.5 text-sm rounded border bg-white text-blue-600 border-blue-200 hover:bg-blue-50 transition-colors whitespace-nowrap"
+            title="清除所有手動拉過的欄寬、回到預設值"
+          >
+            重設欄寬
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setAutoFitRows(v => !v)}
@@ -265,7 +330,19 @@ export default function FlowTable({ flow, onUpdateTask }) {
         className="overflow-auto border border-gray-200 rounded-lg"
         style={{ maxHeight: 'calc(100vh - 80px)' }}
       >
-        <table className="border-collapse text-base" style={{ minWidth: '1100px' }}>
+        <table className="border-collapse text-base" style={{ minWidth: '1100px', tableLayout: 'fixed' }}>
+          {/* colgroup — drives every column's authoritative width.
+              tableLayout: fixed means col widths win; cells overflow into
+              wrap (textarea wraps text, ReadCell text wraps). User drags
+              th right-edge handle to change colWidths state; persisted
+              to localStorage via useColumnWidths hook. */}
+          <colgroup>
+            {EXCEL_HEADERS.map((_, i) => {
+              if (!showL3 && (i === 0 || i === 1)) return null;
+              if (!showAux && i >= CORE_HEADER_COUNT) return null;
+              return <col key={i} style={{ width: `${colWidths[i]}px` }} />;
+            })}
+          </colgroup>
           <thead>
             <tr className="align-middle">
               {EXCEL_HEADERS.map((h, i) => {
@@ -280,21 +357,24 @@ export default function FlowTable({ flow, onUpdateTask }) {
                 const z = sticky ? 7 : 5;
                 // Auxiliary separator entries (4 of 20) become narrow visual
                 // gaps mirroring the empty grouping columns in the Excel
-                // template — no header text, just a divider.
+                // template — no header text, just a divider. Not resizable.
                 const isAuxSep = i >= CORE_HEADER_COUNT
                   && AUX_FIELDS[i - CORE_HEADER_COUNT]?.separator;
-                const widthStyle = sticky
-                  ? { width: `${sticky.width}px`, minWidth: `${sticky.width}px`, left: `${sticky.left}px` }
-                  : isAuxSep
-                  ? { width: `${AUX_SEP_WIDTH}px`, minWidth: `${AUX_SEP_WIDTH}px` }
-                  : {};
+                // Sticky cells need explicit left offset (computed from
+                // current widths via getStickyMap). Width still comes from
+                // colgroup, but sticky positioning requires the cell to
+                // know its left.
+                const stickyLeftStyle = sticky ? { left: `${sticky.left}px` } : {};
                 return (
                   <th
                     key={i}
-                    className={`border border-gray-200 px-2 py-2 text-left font-semibold text-gray-700 align-middle bg-gray-100 sticky top-0`}
-                    style={{ ...widthStyle, zIndex: z, ...(sticky ? { position: 'sticky' } : {}) }}
+                    className={`border border-gray-200 px-2 py-2 text-left font-semibold text-gray-700 align-middle bg-gray-100 sticky top-0 relative`}
+                    style={{ ...stickyLeftStyle, zIndex: z, ...(sticky ? { position: 'sticky' } : {}) }}
                   >
                     {h}
+                    {!isAuxSep && (
+                      <ColResizeHandle idx={i} onResize={setColWidth} currentWidth={colWidths[i]} />
+                    )}
                   </th>
                 );
               })}

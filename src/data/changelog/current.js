@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-12',
+    title: 'FlowTable 欄寬可拖曳調整 — 每 user 跨流程記住偏好 + 一鍵重設',
+    items: [
+      '**緣由**：使用者「下方表格可以自己調整欄寬」+「Q4 採用 a 重設欄寬」（只 toolbar 按鈕、不雙擊邊）。FlowTable 30 欄、固定 sticky width / min-w-260 / min-w-140，內容多時擠到看不清。',
+      '**實作（方案 B：自製 drag handle + colgroup）**：(1) 新增 `src/components/FlowTable/useColumnWidths.js` hook — state + localStorage I/O + min 60 / max 600 clamp + 「user override 才存」sparse 格式 (2) `<table>` 改 `tableLayout: fixed` + 加 `<colgroup>` 每欄一個 `<col style.width>`、widths 從 hook 來、user 改 → col 改 → 整欄（th + td）跟著縮放 (3) `ColResizeHandle` 8px 透明 strip on th 右邊緣，hover 變藍、pointerDown 開始 drag、window-level pointermove/pointerup 處理（防止 cursor 離開 th 失去事件）(4) Toolbar 加「重設欄寬」按鈕 — only `hasOverrides` 時顯示、一鍵清掉所有 user override (5) `getStickyMap` 改成吃 current widths、user resize 後 sticky 欄 left offset 自動重算。',
+      '**Per-user localStorage 跨流程**：key `bpm_flow_table_col_widths`、儲存格式 sparse object `{ "3": 320, "5": 180 }` 只記改過的、未改的維持 defaults。schema 改動（加減 column）user override 仍對得上（用 index 當 key）。',
+      '**Default widths**：sticky 4 欄維持原值 100/160/110/260；wide 欄 260（任務名稱 / 重點 / 重要輸入 / 任務關聯說明）；narrow 欄 140（任務角色 / 產出 / 參考文件）；aux 欄 separator 24px（不可拉）/ 非 separator 140px。',
+      '**對其他 toggle 不影響**：(a) 「適應內容高度」開啟 + user 縮窄欄寬 → textarea 換行更多 → row 變高（user 自負，trade-off acceptable）(b) 「隱藏輔助欄位 / L3」隱藏的 column 不在 colgroup 渲染、widths state 仍保留供再開時用 (c) 匯出 PNG / Excel 不受影響（兩者跟網頁 col widths 無關）。',
+      '**驗證**：`npm run build` 通過。FlowTable.jsx 從 16.6KB → 19.5KB（仍在 20KB 硬上限內、但接近、後續若再大需拆檔）。useColumnWidths 獨立檔 2KB。',
+      '**動到的檔案（3 個）**：`src/components/FlowTable/useColumnWidths.js`（新檔 hook）/ `src/components/FlowTable.jsx`（DEFAULT_COL_WIDTHS + ColResizeHandle + colgroup + toolbar 按鈕 + 改 getStickyMap）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-12',
     title: '移除錯落 toggle 功能（含 staggerLanes 底層邏輯）+ 補 PR #204 日期',
     items: [
       '**緣由**：使用者：「錯落 toggle 功能請移除，測試後確定不要錯落了」。錯落是 preview branch 的視覺實驗（奇數泳道右移 COL_W/2 = 92px）— Header 按鈕在 PR #197 已隱藏、底層 staggerLanes / laneXOffset 邏輯保留至今、確定不採用後一併清除避免 dead code。',
