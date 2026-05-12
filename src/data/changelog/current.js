@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-11',
+    title: 'fix: parseL4SortKey 公式溢位 — `_s2` / `_e2+` 視覺跑到下個 sequence 後面',
+    items: [
+      '**緣由**：使用者匯入 5-1-1 流程後發現 `5-1-1-2_s1` / `5-1-1-2_s2` / `5-1-1-3` 編輯器順序對、但流程圖視覺變成 `_s1 → 5-1-1-3 → _s2`（-3 夾在兩個 _s 中間）。Trace parseL4SortKey：舊公式 `base + offsetUnit × K` 對 _s 用 `0.501×K`、_e 用 `0.801×K`、K=2 時就會撞下個 sequence base — `_s2 = 2 + 0.501×2 = 3.002 > 3 = 5-1-1-3` → 排序錯亂。',
+      '**Root cause**：sortKey 設計當初假設 K=1，沒考慮同 anchor 多個 _s / _e 元件（業務上閘道分支寫多條「調用子流程」會產生 _s2 _s3）。`_g` 用 0.001×K 安全（K 999 才會出問題）；`_s` / `_e` 的 0.501 / 0.801 是 base offset、不該乘 K。',
+      '**修法（Option A）**：parseL4SortKey 公式改成 `base + baseOffset[type] + 0.001 × K`，其中 `baseOffset = { g: 0, s: 0.25, e: 0.5 }`。三 type 各佔 [N, N+1) 內一段（_g 在 [0, 0.25)、_s 在 [0.25, 0.5)、_e 在 [0.5, 1)），K 達 249 才會跨區段、業務上 K 通常 1-5 完全安全。',
+      '**為什麼選 A 不選 B**：B 是把 sortKey 從 number 改成 tuple `[base, typeOrder, k]`、需要新增 compareSortKeys helper + 改寫 2 處比較邏輯（`sort()` comparator 跟 `>` 過濾）+ 規格文件加解釋 lexicographic ordering、心智負擔轉嫁未來新人。A 只改 4 行公式、其他不動、規格文件對應度高、K 上限 249 對業務遠超夠用。',
+      '**驗證**：trace 三個情境 (a) 阿明 case：`_s1`=2.251 / `5-1-1-3`=3.000 / `_s2`=2.252 → 順序對 (b) 混合 K=1 場景：`_g1`=3.001 / `_s1`=3.251 / `_e1`=3.501 / `_4`=4 順序仍對 (c) 沒中 bug 的舊流程（單 _s1）：絕對 sortKey 從 3.501 變 3.251、相對順序不變、視覺位置完全相同。`npm run build` 通過。',
+      '**動到的檔案（3 個）**：`src/diagram/layout/columnAssign.js`（parseL4SortKey 公式 4 行 + docstring）/ `docs/business-spec.md` §5.2（sortKey 公式說明改寫 + 修正歷史說明）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-11',
     title: '首頁卡片按鈕拉齊 + 編輯頁 L3 名稱欄位加寬 50%',
     items: [
       '**FlowCard 按鈕統一樣式**（使用者：「除了刪除之外，其他所有的按鈕樣式顏色要拉齊」）：抽 `ACTION_BTN` const = `rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors font-medium`，套用到 5 個非刪除按鈕（編輯 / 複製 / 下載 PNG / 下載 Drawio / 下載 Excel）。原本「複製」是 blue-200/600（比其他輕一階）、下載 ×3 沒 font-medium，現在 5 顆完全一致。刪除按鈕保留紅色維持視覺辨識度。',
