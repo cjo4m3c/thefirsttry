@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-12',
+    title: 'fix: FlowTable 欄寬拖曳 handle 看得到但拉不動',
+    items: [
+      '**緣由**：使用者「我看到重設欄寬按鈕、也看到調整欄寬的 icon、但是點擊後不能拖曳調整」。`cursor: col-resize` 出現代表 pointerDown 事件到得了 handle、但 drag 沒生效。',
+      '**Root cause**：上 PR (#206) ColResizeHandle 用 window-level `addEventListener` 監聽 pointermove / pointerup。pointerdown 設了 `e.preventDefault()` + `stopPropagation()`，但 window listener 不可靠 — React 在拖曳中觸發 re-render 時 cursor 可能離開 handle、window 事件路徑可能被其他 listener 干擾、且**沒做 pointer capture**。',
+      '**修法**：改用 `setPointerCapture` + 同元素 React `onPointerMove` / `onPointerUp`（跟 `useDragEndpoint.js` 一致的 proven pattern）。pointerDown 時 capture pointer、所有後續 pointer 事件強制送到 handle div、即使 cursor 移出去也不掉事件。`draggingRef` 用 `useRef` 而非 state、避免本元件因 drag 中 setState 觸發 re-render。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) 拖 th 右邊緣可即時調整欄寬 (b) 拖曳中 cursor 離開 handle 仍持續 drag (c) pointer up 後正確結束 drag (d) 拖 sticky 欄後其他 sticky 欄 left offset 自動推。',
+      '**動到的檔案（2 個）**：`src/components/FlowTable.jsx`（ColResizeHandle 改寫 ~25 行）/ `src/data/changelog/current.js`（本條）。',
+    ],
+  },
+  {
+    date: '2026-05-12',
     title: 'FlowTable 欄寬可拖曳調整 — 每 user 跨流程記住偏好 + 一鍵重設',
     items: [
       '**緣由**：使用者「下方表格可以自己調整欄寬」+「Q4 採用 a 重設欄寬」（只 toolbar 按鈕、不雙擊邊）。FlowTable 30 欄、固定 sticky width / min-w-260 / min-w-140，內容多時擠到看不清。',
