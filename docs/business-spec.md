@@ -256,7 +256,7 @@ l4Bound = (t 跟 prevTask 是同 parallel source 的 siblings)
           : prevTask.col + 1          (嚴格大於，L4 monotonic)
 ```
 
-**sortKey 計算**：`5-1-2-N` → N、`5-1-2-N_g[K]` → N+0.001×K、`5-1-2-N_s[K]` → N+0.501×K、`5-1-2-N_e[K]` → N+0.801×K、start `-0` → 0、end `-99` → 99。
+**sortKey 計算**（base offset + step、2026-05-08 修正）：`5-1-2-N` → N、`5-1-2-N_g[K]` → N + 0 + 0.001×K、`5-1-2-N_s[K]` → N + 0.25 + 0.001×K、`5-1-2-N_e[K]` → N + 0.5 + 0.001×K、start `-0` → 0、end `-99` → 99。三 type 各佔 anchor 後 [N, N+1) 區間內一段（`_g` 在 [0, 0.25)、`_s` 在 [0.25, 0.5)、`_e` 在 [0.5, 1)），K 達 249 才會跨區段（業務上 K 通常 1-5）。**舊公式 `0.501×K`、`0.801×K` 在 K=2 時就會超出 [N, N+1) 撞下個 sequence 編號**，已修正。
 
 同時滿足三個視覺需求：
 1. **parallel siblings 連續 contiguous**（5-1-5-7/8/9 都是同閘道 fork target）→ 同 col 對齊
