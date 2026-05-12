@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-12',
+    title: 'fix: FlowTable 預設欄寬被擠壓 — table 加 `width: max-content` + 「重設欄寬」永遠顯示',
+    items: [
+      '**緣由**：使用者回報 PR #206-208 後「所有欄位都擠在一起，且無法自行調整任何欄位的寬度」。30 欄 × 預設總寬 4770px 的表格被等分擠進 viewport（每欄 ~62px），單字一行顯示。',
+      '**Root cause**：`<table style={{ minWidth: "1100px", tableLayout: "fixed" }}>` **沒設 `width`**。`table-layout: fixed` + `width: auto` + 巢狀 `overflow-auto` 容器 → 瀏覽器把 table 視為 100% container 寬度、colgroup 的 px 值**被當比例分配**（而不是 literal pixel）。drag handle 其實有觸發 `setColWidth`、localStorage 也有更新、但畫面只看到比例微增 — 使用者感覺「拉不動」是視覺結果、不是事件失敗。',
+      '**修法 A（最小改動）**：`<table>` 加 `width: "max-content"` — 強迫 table 寬 = colgroup sum、col widths 變 literal pixel、drag 立即可見變化。同時保留 `minWidth: "1100px"` 當下限（欄全關時不會塌掉）。`max-content` 支援度 Chrome 46+ / Firefox 66+ / Safari 11+ 全 OK。',
+      '**修法配套**：「重設欄寬」按鈕從「`hasOverrides` 才顯示」改成**永遠顯示**（沒 override 時 disabled）— 讓使用者隨時看得到入口、不會在「擠壓狀態 + 還沒拉過」時看不到救命按鈕。disabled 加 `opacity-50` + `cursor-not-allowed` 樣式、title 提示「尚未調整任何欄寬」。',
+      '**動到的檔案（2 個）**：`src/components/FlowTable.jsx`（table 加 width:max-content + 重設按鈕去掉 hasColOverrides 條件渲染、改 disabled）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) 開啟任一流程、預設 30 欄各自正確寬、水平 scroll 可達末端 (b) 拖任務名稱右邊緣、該欄寬度立即變化 (c) 拖完按「重設欄寬」回預設 (d) 沒拉過時「重設欄寬」disabled 但可見。',
+    ],
+  },
+  {
+    date: '2026-05-12',
     title: 'fix: FlowTable 非 sticky 欄拉不動 — 拿掉 cell 上殘留的 min-w-*',
     items: [
       '**緣由**：使用者「只有被凍結的四欄可以改表格寬度、其他還是不行」。PR #207 修了 setPointerCapture 後、handle event 通了、但**非 sticky 欄寬還是不變**。',

@@ -280,17 +280,18 @@ export default function FlowTable({ flow, onUpdateTask }) {
           容高度 inactive on first visit; user-toggled state persists per
           localStorage). Layout: left-to-right per spec. */}
       <div className="mb-2 flex justify-end gap-2">
-        {/* 重設欄寬 — only shown when user has customized at least one column. */}
-        {hasColOverrides && (
-          <button
-            type="button"
-            onClick={resetColWidths}
-            className="shrink-0 px-3 py-1.5 text-sm rounded border bg-white text-blue-600 border-blue-200 hover:bg-blue-50 transition-colors whitespace-nowrap"
-            title="清除所有手動拉過的欄寬、回到預設值"
-          >
-            重設欄寬
-          </button>
-        )}
+        {/* 重設欄寬 — 永遠顯示（讓使用者隨時看得到入口）；沒 override 時 disabled。 */}
+        <button
+          type="button"
+          onClick={resetColWidths}
+          disabled={!hasColOverrides}
+          className="shrink-0 px-3 py-1.5 text-sm rounded border bg-white text-blue-600 border-blue-200 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors whitespace-nowrap"
+          title={hasColOverrides
+            ? '清除所有手動拉過的欄寬、回到預設值'
+            : '尚未調整任何欄寬'}
+        >
+          重設欄寬
+        </button>
         <button
           type="button"
           onClick={() => setAutoFitRows(v => !v)}
@@ -343,7 +344,7 @@ export default function FlowTable({ flow, onUpdateTask }) {
         className="overflow-auto border border-gray-200 rounded-lg"
         style={{ maxHeight: 'calc(100vh - 80px)' }}
       >
-        <table className="border-collapse text-base" style={{ minWidth: '1100px', tableLayout: 'fixed' }}>
+        <table className="border-collapse text-base" style={{ width: 'max-content', minWidth: '1100px', tableLayout: 'fixed' }}>
           {/* colgroup — drives every column's authoritative width.
               tableLayout: fixed means col widths win; cells overflow into
               wrap (textarea wraps text, ReadCell text wraps). User drags
