@@ -5,7 +5,18 @@
  */
 export default [
   {
-    date: '2026-05-11',
+    date: '2026-05-12',
+    title: '移除錯落 toggle 功能（含 staggerLanes 底層邏輯）+ 補 PR #204 日期',
+    items: [
+      '**緣由**：使用者：「錯落 toggle 功能請移除，測試後確定不要錯落了」。錯落是 preview branch 的視覺實驗（奇數泳道右移 COL_W/2 = 92px）— Header 按鈕在 PR #197 已隱藏、底層 staggerLanes / laneXOffset 邏輯保留至今、確定不採用後一併清除避免 dead code。',
+      '**移除內容**：(1) `computeLayout.js` 拿掉 `flow.staggerLanes` 解構 + `laneXOffset` array + `maxLaneXOffset` reduce + cx 計算的 offset 加項 + svgWidth 的 maxLaneXOffset 加項 (2) `Header.jsx` 清掉「未來決定 ship 時把按鈕加回來」comment block (3) **不需 migration**：舊有 stored data 若帶 `flow.staggerLanes: true` 在新版會被自動忽略（computeLayout 不再解構）、無視覺差。',
+      '**順手補 PR #204 日期**：上輪 fix `parseL4SortKey` PR #204 寫條目時用 local 日期 `2026-05-11`、但實際 merge 在 UTC `2026-05-12T06:04:53Z`（跨 UTC 日界）— 違反 CLAUDE.md §4 規則 5「date 對齊 merged_at」。此 PR 把該條目 date 改成 `2026-05-12`。',
+      '**驗證**：`grep staggerLanes\\|laneXOffset\\|maxLaneXOffset src/` 只剩凍結 `c27.js` 歷史記錄（不動）。`npm run build` 通過。',
+      '**動到的檔案（4 個）**：`src/diagram/layout/computeLayout.js`（拿掉 stagger 邏輯）/ `src/components/FlowEditor/Header.jsx`（清 stale comment）/ `.claude/backlog.md`（錯落 OBSOLETED 條目）/ `src/data/changelog/current.js`（本條 + PR #204 日期修正）。',
+    ],
+  },
+  {
+    date: '2026-05-12',
     title: 'fix: parseL4SortKey 公式溢位 — `_s2` / `_e2+` 視覺跑到下個 sequence 後面',
     items: [
       '**緣由**：使用者匯入 5-1-1 流程後發現 `5-1-1-2_s1` / `5-1-1-2_s2` / `5-1-1-3` 編輯器順序對、但流程圖視覺變成 `_s1 → 5-1-1-3 → _s2`（-3 夾在兩個 _s 中間）。Trace parseL4SortKey：舊公式 `base + offsetUnit × K` 對 _s 用 `0.501×K`、_e 用 `0.801×K`、K=2 時就會撞下個 sequence base — `_s2 = 2 + 0.501×2 = 3.002 > 3 = 5-1-1-3` → 排序錯亂。',
