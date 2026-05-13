@@ -5,6 +5,18 @@
  */
 export default [
   {
+    date: '2026-05-12',
+    title: 'fix: 開始事件連線兩端點都拉不動 — phase3e 漏處理 start',
+    items: [
+      '**緣由**：使用者「我發現連到開始事件元件的線段不能自主拖曳選擇要連線的出發端點，及連過去其他元件的結束端點」。從 start 出發的連線、任一端點拖了沒效。',
+      '**Root cause**：`src/diagram/layout/phase3e.js` line 46 排除 start：`else if (task.type !== "end" && task.type !== "start")`。phase3e 是把 `task.connectionOverrides` apply 到 routing map 的階段。`useDragEndpoint` → `updateConnectionOverride` 把 override **儲存** 到 `startTask.connectionOverrides[nextTaskId]` 是 OK 的、但下次 render `runPhase3e` 跳過 start → routing map 沒拿到 override → 視覺上仍是預設 `right` / `left`。',
+      '**兩個端點同 bug**：source 端拖（exitSide on start）和 target 端拖（entrySide on next-task）都被同一個 gate 擋 — 因為 override 都存在 `start.connectionOverrides`（fromId = start.id）。',
+      '**修法**：拿掉 `&& task.type !== "start"`，讓 start 走跟一般 task / l3activity / interaction 同一個 override apply 路徑（一行 + 三行註解）。`end` 排除保留 — end 沒有 outgoing → 永遠不會有 override，是 defensive dead code。',
+      '**動到的檔案（2 個）**：`src/diagram/layout/phase3e.js`（一行 + 註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) 點「start → 5-1-1-1」連線、看到兩端點 (b) 拖 source 端從 right → bottom、連線從 start 底部出 (c) 拖 target 端從 left → top、連線進 next task 頂部 (d) 「重設此連線端點」清掉 override。',
+    ],
+  },
+  {
     date: '2026-05-13',
     title: 'feat: 多結束事件編號用 `_x{K}` 後綴 — 拉齊外部 BPMN 連線 / Excel 公式規則',
     items: [
