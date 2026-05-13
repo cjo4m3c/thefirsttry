@@ -6,6 +6,16 @@
 export default [
   {
     date: '2026-05-13',
+    title: 'hover 箭頭恢復原尺寸（8×6）— 預設 / 違規 / dashed 仍維持 PR #213 的 12×9',
+    items: [
+      '**緣由**：使用者「hover 過的箭頭不要跟著變大、維持原本就好」。PR #213 把 6 個 marker 全部 +50% 後、hover 連線（藍色）的箭頭跟著放大，但 hover state 的線 stroke 本來就從 1.4 加粗到 2.5 — 線粗 + marker 大兩個一起、整體變得過於厚重。',
+      '**修法**：`src/components/DiagramRenderer/arrows.jsx` 只把 3 個 hover 變體（`ah-hover` / `ah-hover-out` / `ah-hover-in`）revert 回原本 8×6 / refX=8 / refY=3。保留：`ah`（預設）/ `ah-dashed`（虛線）/ `ah-violation`（紅色違規）仍是 +50% 後的 12×9 — 這 3 個是「靜態」狀態、加大提升辨識度有意義。hover 是「臨時」狀態、保持精緻。',
+      '**動到的檔案（2 個）**：`src/components/DiagramRenderer/arrows.jsx`（3 個 hover marker 尺寸 + 註解更新）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) 沒 hover 時箭頭是大的（12×9 = PR #213 效果）(b) hover 連線時箭頭變藍 + 線變粗、但箭頭尺寸回到原本 8×6（不再放大）(c) hover 任務看「進」「出」雙色箭頭：兩個都是 8×6 (d) 違規紅線箭頭仍 12×9（突出顯示）。',
+    ],
+  },
+  {
+    date: '2026-05-13',
     title: '流程圖箭頭尖端 +50% — 提升與 L4 編號 pill 重疊時的辨識度（試 Option A）',
     items: [
       '**緣由**：使用者「箭頭的前端三角形位置跟編號重疊，還是會看不清楚」。根因：`TasksLayer` 在 `ConnectionArrow` 之後渲染（index.jsx line 319 → 328），L4 number pill (opacity 0.6 白底) 蓋在箭頭尖端上方、tip 被淡化 60% 看不清。',
