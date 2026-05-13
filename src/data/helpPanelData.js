@@ -249,15 +249,6 @@ export const VALIDATION = [
   },
   {
     tier: 'warning',
-    rule: '多個開始 / 結束事件',
-    detail: [
-      '流程有 ≥2 個「流程開始」→ warning「BPMN 一般建議單一起點，請確認是否刻意設計多個入口」',
-      '流程有 ≥2 個「流程結束 / 流程斷點」→ warning「多個終點可接受（不同情境收尾），請確認」',
-      '都是建議性 warning，可選「仍然儲存」',
-    ],
-  },
-  {
-    tier: 'warning',
     rule: '閘道應有至少 2 條分支',
     detail: [
       '排他 / 並行 / 包容閘道**規則一致**：都至少需要 2 條分支條件（fork 才有意義）',
