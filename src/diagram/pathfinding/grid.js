@@ -1,21 +1,14 @@
 /**
  * grid.js — 把 SVG 畫布網格化，提供 A* 用的 blocked / occupied 查詢。
  *
- * Grid offset 設計：cellSize=8 + Y offset 讓 lane centers 精確落在 cell 邊界。
- *   lane center y = TITLE_H(66) + NODE_VOFFSET(68) = 134
- *   134 % 8 = 6 → 用 OFFSET_Y = 6 讓 134 = 16*8 + 6 對齊 cell row 16
- *   lane 2 center 270 = 33*8 + 6 ✓
- *   所有 lane center 都在 cell row 邊界（差距是 8 的倍數）
- *
- * 結果：path 的水平段 y 值會落在 lane center，**徹底消除 6px notch**。
+ * Grid cell size 來自 constants.js 的 GRID_CELL。constants.js 已確保所有
+ * task / lane / column 尺寸都是 GRID_CELL 倍數（cx/cy 也對齊），因此
+ * 不再需要 OFFSET — task 邊界永遠落在 cell 邊界上，A* 永遠走 cell 中央。
  */
 
-import { LAYOUT } from '../constants.js';
+import { GRID_CELL } from '../constants.js';
 
-export const CELL_SIZE = 8;
-const OFFSET_X = 0;
-// (TITLE_H + LANE_H/2) % CELL_SIZE = 134 % 8 = 6
-const OFFSET_Y = (LAYOUT.TITLE_H + LAYOUT.LANE_H / 2) % CELL_SIZE;
+export const CELL_SIZE = GRID_CELL;
 
 // task 周圍留多少 padding cells（避免線剛好擦到 task 邊）
 const TASK_PADDING_CELLS = 0;
@@ -33,10 +26,11 @@ export class RoutingGrid {
   markTasks(positions) {
     for (const id in positions) {
       const p = positions[id];
-      const left   = Math.floor((p.left.x   - OFFSET_X) / this.cellSize) - TASK_PADDING_CELLS;
-      const right  = Math.ceil ((p.right.x  - OFFSET_X) / this.cellSize) + TASK_PADDING_CELLS;
-      const top    = Math.floor((p.top.y    - OFFSET_Y) / this.cellSize) - TASK_PADDING_CELLS;
-      const bottom = Math.ceil ((p.bottom.y - OFFSET_Y) / this.cellSize) + TASK_PADDING_CELLS;
+      // 因為 constants.js 保證 task 邊界對齊 GRID_CELL，這裡用整除即可
+      const left   = (p.left.x   / this.cellSize) - TASK_PADDING_CELLS;
+      const right  = (p.right.x  / this.cellSize) + TASK_PADDING_CELLS;
+      const top    = (p.top.y    / this.cellSize) - TASK_PADDING_CELLS;
+      const bottom = (p.bottom.y / this.cellSize) + TASK_PADDING_CELLS;
       for (let y = top; y < bottom; y++) {
         for (let x = left; x < right; x++) {
           if (this.inBounds(x, y)) this.blocked[y * this.cols + x] = 1;
@@ -58,15 +52,15 @@ export class RoutingGrid {
     if (this.inBounds(x, y)) this.occupied[y * this.cols + x] = 1;
   }
 
-  /** Pixel coord → grid cell（含 OFFSET_X/Y 對齊 lane center）*/
+  /** Pixel coord → grid cell */
   toCell(px, py) {
     return {
-      x: Math.round((px - OFFSET_X) / this.cellSize),
-      y: Math.round((py - OFFSET_Y) / this.cellSize),
+      x: Math.round(px / this.cellSize),
+      y: Math.round(py / this.cellSize),
     };
   }
-  /** Grid cell → pixel coord（含 OFFSET_X/Y 對齊 lane center）*/
+  /** Grid cell → pixel coord */
   toPx(c) {
-    return { x: c.x * this.cellSize + OFFSET_X, y: c.y * this.cellSize + OFFSET_Y };
+    return { x: c.x * this.cellSize, y: c.y * this.cellSize };
   }
 }

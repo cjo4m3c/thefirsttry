@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { toPng } from 'html-to-image';
-import { computeLayout, routeArrow, warmElk, isElkReady, ROUTER_MODE } from '../../diagram/layout.js';
+import { computeLayout, routeArrow } from '../../diagram/layout.js';
 import { detectOverrideViolations } from '../../diagram/violations.js';
 import { getLaneShapeViolations } from '../../model/flowSelectors.js';
 import { LAYOUT, COLORS } from '../../diagram/constants.js';
@@ -78,17 +78,6 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   const stickyHeadersRef = useRef(null);
   const [hoveredId, setHoveredId] = useState(null);
   const [hoveredConnKey, setHoveredConnKey] = useState(null);
-  // 非 sync router 都可能有 async warm 階段（ELK 系列；A* 是 sync 但 interface
-  // 相容）。warm 完用 elkTick 觸發 re-render，這時 cache hit 後 computeLayout(flow)
-  // 會回實際結果。sync mode 下 warmElk 是 no-op 回 resolved promise，但 useEffect
-  // 仍會跑（無害）。
-  const [elkTick, setElkTick] = useState(0);
-  useEffect(() => {
-    if (ROUTER_MODE === 'sync') return;
-    let cancelled = false;
-    warmElk(flow).then(() => { if (!cancelled) setElkTick(t => t + 1); });
-    return () => { cancelled = true; };
-  }, [flow]);
   // Tooltip state for hover-on-task description preview.
   // { taskId, x, y } where x/y anchor the tooltip *above* the task shape.
   const [tooltip, setTooltip] = useState(null);
@@ -157,8 +146,6 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   // 把整個 component tree crash 掉（→ 白頁）。所以這裡先算 layout
   // （ELK pending 時 computeLayout 回 empty fallback），讓後續 hooks
   // 有穩定輸入。
-  // sync mode 永遠 ready；async router 等到 cache 填好
-  const elkPending = ROUTER_MODE !== 'sync' && !isElkReady(flow);
   const layoutResult = computeLayout(flow);
 
   const { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights } = layoutResult;
@@ -281,15 +268,6 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   // BOTH tasks that a hovered line connects.
   const hc = hoveredConnKey ? connections[parseInt(hoveredConnKey.slice(1), 10)] : null;
   const hoveredConnEndpoints = hc ? new Set([hc.fromId, hc.toId]) : null;
-
-  // ELK 還沒 warm 完前先 render loading 訊息。所有 hooks 已在前面跑完。
-  if (elkPending) {
-    return (
-      <div className="flex items-center justify-center h-64 text-gray-400 text-sm border border-dashed border-gray-300 rounded-lg">
-        ELK 連線排版運算中…
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-3 w-full">
