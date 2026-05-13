@@ -22,7 +22,14 @@
  *
  * Rules (mirrors business-spec.md §2):
  *   start event           → `${l3}-0`
- *   end event / breakpt.  → `${l3}-99`
+ *   end event / breakpt.  → single   → `${l3}-99`
+ *                           multi    → `${l3}-99_x1` / `_x2` / `_x3`…
+ *                           (2026-05-13 spec alignment with external BPMN /
+ *                           Excel rule. Position-based, not name-derived —
+ *                           stored l4Number is intentionally ignored for end
+ *                           events; localStorage data is auto-rewritten by
+ *                           `storage.migrateEndSuffix` so the persisted form
+ *                           matches the displayed form.)
  *   gateway (XOR/AND/OR)  → single   → `${base}_g`
  *                           consec.  → `${base}_g1` / `_g2` / `_g3`…
  *                           (連續 = no independent L4 task between them;
@@ -69,11 +76,23 @@ export function computeDisplayLabels(tasks, l3Number) {
     }
   });
 
+  // 2026-05-13: count end events up-front so `_x{K}` only kicks in for
+  // multi-end flows. Single end stays plain `-99` per spec alignment
+  // decision (情境 2). Stored l4Number is intentionally NOT consulted —
+  // _x index is derived from position, not user-named.
+  let endTotal = 0;
+  tasks.forEach(t => {
+    if (!t) return;
+    const ct2 = t.connectionType || 'sequence';
+    if (t.type === 'end' || ct2 === 'end' || ct2 === 'breakpoint') endTotal++;
+  });
+
   let taskCounter = 1;
   let lastTaskBase = null;  // anchor for `_g` / `_s` / `_e` suffixes
   let gwConsec = 0;         // consecutive gateways after lastTaskBase
   let spConsec = 0;         // consecutive subprocess calls after lastTaskBase
   let intConsec = 0;        // consecutive interactions (`_e`) after lastTaskBase
+  let endConsec = 0;        // running count of end events seen (1-indexed)
 
   tasks.forEach(task => {
     const ct = task.connectionType || 'sequence';
@@ -90,11 +109,13 @@ export function computeDisplayLabels(tasks, l3Number) {
     // 1. Respect stored l4Number (imported flows). Stored data that lacks
     //    the expected suffix for its type is intentionally dropped — the
     //    base is wrong under the spec; fall through to generated logic.
+    //    End events are excluded — `_x{K}` is position-derived (see endTotal
+    //    pre-scan above), so stored `-99` / `-99_x*` is recomputed below.
     const stored = task.l4Number ? String(task.l4Number) : null;
     const skipStored =
       (isSubprocess && stored && !/_s\d*$/.test(stored)) ||
       (isInteraction && stored && !/_e\d*$/.test(stored));
-    if (stored && !skipStored) {
+    if (stored && !skipStored && !isEnd) {
       let label = stored;
       if (isGateway && !/_g\d*$/.test(label)) label += '_g';
       labels[task.id] = label;
@@ -136,7 +157,10 @@ export function computeDisplayLabels(tasks, l3Number) {
       spConsec = 0;
       intConsec = 0;
     } else if (isEnd) {
-      labels[task.id] = `${prefix}-99`;
+      endConsec += 1;
+      labels[task.id] = endTotal > 1
+        ? `${prefix}-99_x${endConsec}`
+        : `${prefix}-99`;
     } else if (isSubprocess) {
       const base = lastTaskBase || `${prefix}-0`;
       spConsec += 1;

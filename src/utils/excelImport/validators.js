@@ -43,7 +43,9 @@ export function validateNumbering(allRows) {
   const l4TaskSet = new Set();
   for (let i = 1; i < allRows.length; i++) {
     const l4 = String(allRows[i][COL_L4_NUMBER] ?? '').trim();
-    if (l4 && !/(_g\d*|_s\d*|_e\d*)$/.test(l4)) l4TaskSet.add(l4);
+    // Exclude `_g` / `_s` / `_e` (they need a separate anchor lookup) and
+    // multi-end `-99_x*` (ends aren't valid anchors for any other suffix).
+    if (l4 && !/(_g\d*|_s\d*|_e\d*|-99_x\d+)$/.test(l4)) l4TaskSet.add(l4);
   }
 
   // Second pass: validate each row
@@ -85,7 +87,7 @@ export function validateNumbering(allRows) {
       errors.push(`• 第 ${excelRow} 列為「開始事件」，L4 編號「${l4}」尾碼應為 0（範例:1-1-7-0）`);
     }
     if (isEnd && !L4_END_PATTERN.test(l4)) {
-      errors.push(`• 第 ${excelRow} 列為「結束事件」，L4 編號「${l4}」尾碼應為 99（範例:1-1-7-99）`);
+      errors.push(`• 第 ${excelRow} 列為「結束事件」，L4 編號「${l4}」尾碼應為 99（單一範例:1-1-7-99；多結束範例:1-1-7-99_x1、1-1-7-99_x2）`);
     }
     if (gatewayType && !L4_GATEWAY_PATTERN.test(l4)) {
       const label = gatewayType === 'and' ? 'AND（並行）'
@@ -133,7 +135,7 @@ export function validateNumbering(allRows) {
     `  • L3：1-1-1（三段）\n` +
     `  • L4：1-1-1-1（四段）\n` +
     `  • 開始事件：尾碼為 0，例如 1-1-7-0\n` +
-    `  • 結束事件：尾碼為 99，例如 1-1-7-99\n` +
+    `  • 結束事件：單一用 1-1-7-99；多個結束時依序用 1-1-7-99_x1、1-1-7-99_x2…\n` +
     `  • 閘道（XOR / AND / OR）：加「_g」後綴，例如 1-1-9-5_g；連續多個用 1-1-9-5_g1、1-1-9-5_g2…\n` +
     `  • 子流程調用：加「_s」後綴，例如 1-1-9-5_s；連續多個用 1-1-9-5_s1、1-1-9-5_s2…\n` +
     `  • 外部關係人互動：加「_e」後綴，例如 1-1-9-5_e；連續多個用 1-1-9-5_e1、1-1-9-5_e2…\n` +

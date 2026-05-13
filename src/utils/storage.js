@@ -4,6 +4,7 @@ import {
   migrateGatewaySuffix,
   migrateSubprocessSuffix,
   migrateInteractionSuffix,
+  migrateEndSuffix,
   migrateMergeConnectionType,
   migrateTaskMeta,
   migrateTypeFromL4Suffix,
@@ -21,6 +22,12 @@ function migrateFlow(flow) {
   tasks = migrateGatewaySuffix(tasks);
   tasks = migrateSubprocessSuffix(tasks);
   tasks = migrateInteractionSuffix(tasks);
+  // 2026-05-13: end events get `_x{K}` when multi-end exists (spec
+  // alignment with external BPMN / Excel rule). Auto-rewrite legacy
+  // multi-end on `-99` only, and gap-fix mis-numbered `_x` runs. The
+  // fix list goes into importWarnings via loadFlows below.
+  const endFix = migrateEndSuffix(tasks, flow.l3Number);
+  tasks = endFix.tasks;
   tasks = migrateMergeConnectionType(tasks);
   tasks = migrateTaskMeta(tasks);
   tasks = cleanStaleOverrides(tasks);
@@ -33,14 +40,35 @@ function migrateFlow(flow) {
   // PR-D4: ensure `[外部角色]` prefix on legacy external roles missing it.
   // Idempotent — same-ref when already prefixed.
   const roles = applyExternalPrefixToRoles(flow.roles || []);
-  return { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks, roles };
+  const out = { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks, roles };
+  // Stash end-suffix fixes on the flow; loadFlows turns them into an
+  // importWarning entry and persists the rewritten data so the notice
+  // fires once. Underscore-prefixed key so it can't collide with real
+  // flow fields and gets stripped before persist.
+  if (endFix.fixes.length > 0) out._endMigrationFixes = endFix.fixes;
+  return out;
 }
 
 export function loadFlows() {
   try {
     const raw = localStorage.getItem(FLOWS_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(migrateFlow) : [];
+    if (!Array.isArray(parsed)) return [];
+    const flows = parsed.map(migrateFlow);
+    let mutated = false;
+    flows.forEach(f => {
+      if (!f._endMigrationFixes) return;
+      const diffs = f._endMigrationFixes
+        .map(x => `${x.before} → ${x.after}`).join('、');
+      const msg = `🔧 結束事件編號已自動更新（多結束事件對齊 BPMN 規則）：${diffs}`;
+      f.importWarnings = [...(Array.isArray(f.importWarnings) ? f.importWarnings : []), msg];
+      delete f._endMigrationFixes;
+      mutated = true;
+    });
+    if (mutated) {
+      try { localStorage.setItem(FLOWS_KEY, JSON.stringify(flows)); } catch { /* quota / disabled */ }
+    }
+    return flows;
   } catch {
     return [];
   }
