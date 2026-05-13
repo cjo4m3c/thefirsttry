@@ -6,7 +6,8 @@
  * Tie-break：優先沿 sourceExitDir 方向，避免左右搖擺。
  */
 
-const TURN_PENALTY = 5;
+// TURN_PENALTY=10 比 5 給出更乾淨的路徑（少轉彎，多走長直線）
+const TURN_PENALTY = 10;
 const OCCUPY_PENALTY = 100;  // 走前一條已畫過的 path 上的 cell
 
 const DIRS = {

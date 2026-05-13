@@ -46,7 +46,8 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
       results.push({ ...conn, exitSide: 'right', entrySide: 'left', _bendPoints: [] });
       continue;
     }
-    const sides = pickSides(src, tgt);
+    // 優先讀 user override（拖曳端點過的客製端口方向）
+    const sides = pickSides(src, tgt, conn._override);
 
     let pathPx = null;
     try {
@@ -83,19 +84,32 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
   return results;
 }
 
-function pickSides(src, tgt) {
+function pickSides(src, tgt, override) {
+  // user override 優先（drag endpoint 拖過）
+  if (override?.exitSide && override?.entrySide) {
+    return { exit: override.exitSide, entry: override.entrySide };
+  }
+  if (override?.exitSide) {
+    // 只有 exit 被拖：entry 用自動推斷
+    const auto = autoPickSides(src, tgt);
+    return { exit: override.exitSide, entry: auto.entry };
+  }
+  if (override?.entrySide) {
+    const auto = autoPickSides(src, tgt);
+    return { exit: auto.exit, entry: override.entrySide };
+  }
+  return autoPickSides(src, tgt);
+}
+
+function autoPickSides(src, tgt) {
   // Forward edge defaults: source.right → target.left
-  // If target is significantly above source: source.top → target.bottom
-  // If target is significantly below source: source.bottom → target.top
-  // Note: "above/below" 同 col 才用 vertical entry，否則一律走 right/left
+  // 同 col 跨 lane：vertical port
   const dx = tgt.cx - src.cx;
   const dy = tgt.cy - src.cy;
   if (Math.abs(dx) > 30) {
-    // 有明顯水平距離 → 水平 port
     if (dx > 0) return { exit: 'right', entry: 'left' };
     return { exit: 'left', entry: 'right' };
   }
-  // 幾乎同 col → 垂直 port
   if (dy > 0) return { exit: 'bottom', entry: 'top' };
   return { exit: 'top', entry: 'bottom' };
 }

@@ -22,14 +22,58 @@ import { routeAll } from './pathfinding/router.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
-const cache = new WeakMap();  // flow → layout
+// 兩層 cache：
+//   1. WeakMap by flow object identity（無 hash 開銷，命中時直接回）
+//   2. structural hash — 同樣結構的不同 flow object（例如 React 編輯後新 flow）
+//      不重算。Hash 只看影響 layout 的欄位（id/role/nextTask/conditions/override），
+//      不看 name 等顯示欄位。
+const objCache = new WeakMap();   // flow → layout
+const hashCache = new Map();      // structuralHash → layout
+const HASH_CACHE_LIMIT = 20;
+
+function structuralHash(flow) {
+  const parts = [];
+  parts.push('R');
+  (flow.roles || []).forEach(r => parts.push(r.id || ''));
+  parts.push('T');
+  (flow.tasks || []).forEach(t => {
+    parts.push(t.id, '|', t.type || '', '|', t.roleId || '', '|',
+      t.shapeType || '', '|',
+      (t.nextTaskIds?.join(',') || t.nextTaskId || ''), '|');
+    if (t.type === 'gateway') {
+      (t.conditions || []).forEach(c => {
+        parts.push(c.id || '', '>', c.nextTaskId || '', ';');
+      });
+    }
+    if (t.connectionOverrides) {
+      Object.entries(t.connectionOverrides).forEach(([k, v]) => {
+        parts.push('O', k, '=', v.exitSide || '', '/', v.entrySide || '', ';');
+      });
+    }
+    parts.push('\n');
+  });
+  parts.push('L', flow.l3Number || '');
+  return parts.join('');
+}
 
 export function computeLayout(flow) {
   if (!flow) return emptyLayout();
-  if (cache.has(flow)) return cache.get(flow);
+  if (objCache.has(flow)) return objCache.get(flow);
+  const hash = structuralHash(flow);
+  const cached = hashCache.get(hash);
+  if (cached) {
+    objCache.set(flow, cached);
+    return cached;
+  }
   try {
     const r = doLayout(flow);
-    cache.set(flow, r);
+    objCache.set(flow, r);
+    hashCache.set(hash, r);
+    // Trim cache to keep memory bounded
+    if (hashCache.size > HASH_CACHE_LIMIT) {
+      const firstKey = hashCache.keys().next().value;
+      hashCache.delete(firstKey);
+    }
     return r;
   } catch (e) {
     console.error('[A* router] failed:', e);
@@ -99,16 +143,18 @@ function doLayout(flow) {
     };
   });
 
-  // ── 4. 收集所有 raw connections（不算 exitSide/entrySide，全給 A*）──
+  // ── 4. 收集所有 raw connections（含 user drag override）──
   const rawConns = [];
   const taskIds = new Set(tasks.map(t => t.id));
   tasks.forEach(task => {
+    const overrides = task.connectionOverrides || {};
     if (task.type === 'gateway' && task.conditions?.length) {
       task.conditions.forEach(cond => {
         if (cond.nextTaskId && taskIds.has(cond.nextTaskId)) {
           rawConns.push({
             fromId: task.id, toId: cond.nextTaskId,
             label: cond.label || '', overrideKey: cond.id, condId: cond.id,
+            _override: overrides[cond.id],
           });
         }
       });
@@ -120,6 +166,7 @@ function doLayout(flow) {
         if (nextId && taskIds.has(nextId)) {
           rawConns.push({
             fromId: task.id, toId: nextId, label: '', overrideKey: nextId,
+            _override: overrides[nextId],
           });
         }
       });
