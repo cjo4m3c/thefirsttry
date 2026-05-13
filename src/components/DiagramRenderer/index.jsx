@@ -78,11 +78,13 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   const stickyHeadersRef = useRef(null);
   const [hoveredId, setHoveredId] = useState(null);
   const [hoveredConnKey, setHoveredConnKey] = useState(null);
-  // ELK mode：warm ELK async；warm 完用 elkTick 觸發 re-render，這時 cache hit
-  // 後 computeLayout(flow) 會回實際結果。default sync mode 下 warmElk 是 no-op。
+  // 非 sync router 都可能有 async warm 階段（ELK 系列；A* 是 sync 但 interface
+  // 相容）。warm 完用 elkTick 觸發 re-render，這時 cache hit 後 computeLayout(flow)
+  // 會回實際結果。sync mode 下 warmElk 是 no-op 回 resolved promise，但 useEffect
+  // 仍會跑（無害）。
   const [elkTick, setElkTick] = useState(0);
   useEffect(() => {
-    if (ROUTER_MODE !== 'elk') return;
+    if (ROUTER_MODE === 'sync') return;
     let cancelled = false;
     warmElk(flow).then(() => { if (!cancelled) setElkTick(t => t + 1); });
     return () => { cancelled = true; };
@@ -155,7 +157,8 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   // 把整個 component tree crash 掉（→ 白頁）。所以這裡先算 layout
   // （ELK pending 時 computeLayout 回 empty fallback），讓後續 hooks
   // 有穩定輸入。
-  const elkPending = ROUTER_MODE === 'elk' && !isElkReady(flow);
+  // sync mode 永遠 ready；async router 等到 cache 填好
+  const elkPending = ROUTER_MODE !== 'sync' && !isElkReady(flow);
   const layoutResult = computeLayout(flow);
 
   const { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights } = layoutResult;

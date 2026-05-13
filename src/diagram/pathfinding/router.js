@@ -41,16 +41,29 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
   for (const conn of sorted) {
     const src = positions[conn.fromId];
     const tgt = positions[conn.toId];
-    if (!src || !tgt) continue;
+    if (!src || !tgt) {
+      // Skip orphan connection — won't render but won't crash either
+      results.push({ ...conn, exitSide: 'right', entrySide: 'left', _bendPoints: [] });
+      continue;
+    }
     const sides = pickSides(src, tgt);
-    const pathPx = computePath(grid, src, tgt, sides);
-    if (!pathPx) {
-      // No path found — fall back to straight L (very rare)
+
+    let pathPx = null;
+    try {
+      pathPx = computePath(grid, src, tgt, sides);
+    } catch (e) {
+      console.warn('[A* route] computePath failed:', e, conn);
+    }
+
+    if (!pathPx || pathPx.length < 2) {
+      // No path or A* errored — fall back to straight L
+      const srcPort = src[sides.exit] || { x: src.cx, y: src.cy };
+      const tgtPort = tgt[sides.entry] || { x: tgt.cx, y: tgt.cy };
       results.push({
         ...conn,
         exitSide: sides.exit,
         entrySide: sides.entry,
-        _bendPoints: fallbackOrthoPath(src[sides.exit], tgt[sides.entry], sides),
+        _bendPoints: fallbackOrthoPath(srcPort, tgtPort, sides),
       });
       continue;
     }
