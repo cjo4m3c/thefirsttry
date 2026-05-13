@@ -150,15 +150,15 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
     );
   }
 
-  if (ROUTER_MODE === 'elk' && !isElkReady(flow)) {
-    return (
-      <div className="flex items-center justify-center h-64 text-gray-400 text-sm border border-dashed border-gray-300 rounded-lg">
-        ELK 連線排版運算中…
-      </div>
-    );
-  }
+  // ELK 還沒 warm 完，後面 render 階段 short-circuit 成 loading；
+  // 但 hooks 一定要跑完，否則 hook count 在兩次 render 間不一致會
+  // 把整個 component tree crash 掉（→ 白頁）。所以這裡先算 layout
+  // （ELK pending 時 computeLayout 回 empty fallback），讓後續 hooks
+  // 有穩定輸入。
+  const elkPending = ROUTER_MODE === 'elk' && !isElkReady(flow);
+  const layoutResult = computeLayout(flow);
 
-  const { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights } = computeLayout(flow);
+  const { positions, connections, l4Numbers, svgWidth, svgHeight, laneTopY, laneHeights } = layoutResult;
 
   // PR H: detect override-induced violations so we can stroke the offending
   // connections red in real time. Two categories (see violations.js):
@@ -278,6 +278,15 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
   // BOTH tasks that a hovered line connects.
   const hc = hoveredConnKey ? connections[parseInt(hoveredConnKey.slice(1), 10)] : null;
   const hoveredConnEndpoints = hc ? new Set([hc.fromId, hc.toId]) : null;
+
+  // ELK 還沒 warm 完前先 render loading 訊息。所有 hooks 已在前面跑完。
+  if (elkPending) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-400 text-sm border border-dashed border-gray-300 rounded-lg">
+        ELK 連線排版運算中…
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 w-full">
