@@ -20,6 +20,48 @@ const OPPOSITE = { east: 'west', west: 'east', south: 'north', north: 'south' };
 function manhattan(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
 function cellKey(c, d) { return `${c.x},${c.y},${d}`; }
 
+// 簡易二元堆（min-heap）取代 array sort，A* 主迴圈從 O(n²) 降到 O(n log n)
+class MinHeap {
+  constructor() { this.arr = []; }
+  push(node) {
+    this.arr.push(node);
+    this._bubbleUp(this.arr.length - 1);
+  }
+  pop() {
+    if (this.arr.length === 0) return undefined;
+    const top = this.arr[0];
+    const last = this.arr.pop();
+    if (this.arr.length > 0) {
+      this.arr[0] = last;
+      this._sinkDown(0);
+    }
+    return top;
+  }
+  get size() { return this.arr.length; }
+  _bubbleUp(i) {
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (this._cmp(this.arr[i], this.arr[parent]) < 0) {
+        [this.arr[i], this.arr[parent]] = [this.arr[parent], this.arr[i]];
+        i = parent;
+      } else break;
+    }
+  }
+  _sinkDown(i) {
+    const n = this.arr.length;
+    while (true) {
+      const l = 2 * i + 1, r = 2 * i + 2;
+      let smallest = i;
+      if (l < n && this._cmp(this.arr[l], this.arr[smallest]) < 0) smallest = l;
+      if (r < n && this._cmp(this.arr[r], this.arr[smallest]) < 0) smallest = r;
+      if (smallest === i) break;
+      [this.arr[i], this.arr[smallest]] = [this.arr[smallest], this.arr[i]];
+      i = smallest;
+    }
+  }
+  _cmp(a, b) { return (a.g + a.h) - (b.g + b.h); }
+}
+
 /**
  * @param {object} grid 必須有 .isBlocked(x, y) 跟 .isOccupied(x, y) 方法（佔用是 prior edge）
  * @param {{x:number,y:number}} start 起點 grid cell
@@ -28,8 +70,7 @@ function cellKey(c, d) { return `${c.x},${c.y},${d}`; }
  * @returns {Array<{x,y,dir}>|null} cell sequence (含起終點) 或 null（找不到）
  */
 export function findPath(grid, start, goal, sourceExitDir) {
-  // Open set: array sorted by f. 簡易用 array sort（POC 等級，~100 nodes 沒效能問題）
-  const open = [];
+  const open = new MinHeap();
   const closed = new Map();  // key → bestG
 
   const startNode = {
@@ -44,12 +85,10 @@ export function findPath(grid, start, goal, sourceExitDir) {
   let iterations = 0;
   const MAX_ITER = 50000;
 
-  while (open.length > 0) {
+  while (open.size > 0) {
     if (++iterations > MAX_ITER) return null;
 
-    // Pop lowest f. 慢但 POC 夠用
-    open.sort((a, b) => (a.g + a.h) - (b.g + b.h));
-    const cur = open.shift();
+    const cur = open.pop();
 
     if (cur.cell.x === goal.x && cur.cell.y === goal.y) {
       return reconstruct(cur);

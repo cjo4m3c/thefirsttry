@@ -129,8 +129,46 @@ function computePath(grid, src, tgt, sides) {
   }
   pxPath.push([tgtPortPx.x, tgtPortPx.y]);
 
+  // 強制第一段沿 exitSide 方向、最後一段沿 entry 反向（避免端點段
+  // 變成垂直/水平錯軸 → 視覺上「從上下方進入元件而不是側邊」）
+  alignPortSegments(pxPath, sides);
+
   // Snap path to clean ortho: remove collinear / redundant points
   return cleanOrtho(pxPath);
+}
+
+/**
+ * 第一段強制跟 exitSide 同軸；最後一段強制跟 entrySide 反向同軸。
+ *   exitSide=right/left → 第一段水平
+ *   exitSide=top/bottom → 第一段垂直
+ *   entrySide=left/right → 最後一段水平
+ *   entrySide=top/bottom → 最後一段垂直
+ * 做法：在 port 跟第一/最後 A* 點之間插入「對齊軸線的中介點」
+ */
+function alignPortSegments(pts, sides) {
+  if (pts.length < 2) return;
+  const srcHorizontal = sides.exit === 'right' || sides.exit === 'left';
+  const tgtHorizontal = sides.entry === 'left' || sides.entry === 'right';
+
+  // Source side：pts[0] = port, pts[1] = first A* cell
+  const [sx, sy] = pts[0];
+  const [s1x, s1y] = pts[1];
+  if (srcHorizontal && Math.abs(s1y - sy) > 0.5) {
+    // 第一段應該水平但 y 不一致 → 插入 (s1x, sy) 讓第一段純水平
+    pts.splice(1, 0, [s1x, sy]);
+  } else if (!srcHorizontal && Math.abs(s1x - sx) > 0.5) {
+    pts.splice(1, 0, [sx, s1y]);
+  }
+
+  // Target side：pts[N-1] = port, pts[N-2] = last A* cell
+  const n = pts.length;
+  const [tx, ty] = pts[n - 1];
+  const [t1x, t1y] = pts[n - 2];
+  if (tgtHorizontal && Math.abs(t1y - ty) > 0.5) {
+    pts.splice(n - 1, 0, [t1x, ty]);
+  } else if (!tgtHorizontal && Math.abs(t1x - tx) > 0.5) {
+    pts.splice(n - 1, 0, [tx, t1y]);
+  }
 }
 
 function dirDelta(side) {
