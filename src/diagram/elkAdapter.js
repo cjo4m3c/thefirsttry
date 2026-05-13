@@ -167,10 +167,12 @@ function buildPositions(elkResult, taskRowOf, roles) {
 
 function buildEdges(elkResult, edgeMeta, xShift, yShift) {
   const remapped = [];
-  elkResult.edges.forEach((edge, i) => {
+  (elkResult.edges || []).forEach((edge, i) => {
     const meta = edgeMeta[i];
+    if (!meta) return;
     const allPts = [];
-    edge.sections.forEach(s => {
+    (edge.sections || []).forEach(s => {
+      if (!s || !s.startPoint || !s.endPoint) return;
       const start = { x: s.startPoint.x + xShift, y: s.startPoint.y + yShift };
       const end = { x: s.endPoint.x + xShift, y: s.endPoint.y + yShift };
       const bends = (s.bendPoints || []).map(p => ({ x: p.x + xShift, y: p.y + yShift }));
