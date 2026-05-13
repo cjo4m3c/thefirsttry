@@ -7,6 +7,7 @@
  * Order matters when chained: see `migrateFlow` in `../storage.js`.
  */
 import { ensureMeta } from '../auxFieldDefs.js';
+import { computeDisplayLabels } from '../../model/flowSelectors.js';
 
 export function normalizeNumber(raw) {
   return raw == null ? raw : String(raw).replace(/\./g, '-');
@@ -224,6 +225,62 @@ export function migrateInteractionSuffix(tasks) {
     }
     return t;
   });
+}
+
+/**
+ * 2026-05-13: end-event `_x{K}` suffix alignment (spec lift to match the
+ * external BPMN connection rule + Excel formula). Two legacy shapes get
+ * rewritten so persisted l4Number matches what `computeDisplayLabels`
+ * renders:
+ *   (a) Multi-end flow with all ends still on plain `-99` — rewrite to
+ *       `-99_x1` / `-99_x2` / … in task-array order.
+ *   (b) Multi-end flow with gap or mis-ordered `_x` indices (e.g. `_x3`
+ *       but only 2 ends) — renumber consecutively from 1.
+ *   (c) Single-end flow with stale `-99_x1` — rewrite back to `-99`.
+ *
+ * Returns `{ tasks, fixes }`. Caller (storage.migrateFlow) emits a
+ * user-visible importWarning when fixes is non-empty and persists the
+ * rewritten flow back to localStorage so the warning fires once, not on
+ * every load.
+ *
+ * Idempotent — re-running on already-correct data returns `fixes: []`
+ * and same-ref tasks.
+ */
+export function migrateEndSuffix(tasks, l3Number) {
+  if (!Array.isArray(tasks) || !l3Number) return { tasks, fixes: [] };
+  const isEndTask = t => {
+    if (!t) return false;
+    const ct = t.connectionType || 'sequence';
+    return t.type === 'end' || ct === 'end' || ct === 'breakpoint';
+  };
+  const hasAnyEnd = tasks.some(isEndTask);
+  if (!hasAnyEnd) return { tasks, fixes: [] };
+
+  // Strip end l4Numbers so computeDisplayLabels regenerates by position.
+  // Non-end tasks keep their stored l4Number — those have their own
+  // suffix migrations and we don't want to disturb them.
+  const stripped = tasks.map(t => {
+    if (!isEndTask(t)) return t;
+    if (!t.l4Number) return t;
+    const { l4Number, ...rest } = t;
+    return rest;
+  });
+  const expected = computeDisplayLabels(stripped, l3Number);
+
+  const fixes = [];
+  const next = tasks.map(t => {
+    if (!isEndTask(t)) return t;
+    const exp = expected[t.id];
+    if (!exp) return t;
+    if (t.l4Number === exp) return t;
+    fixes.push({
+      before: t.l4Number || '(無編號)',
+      after: exp,
+      name: t.name || '（未命名）',
+    });
+    return { ...t, l4Number: exp };
+  });
+  return fixes.length ? { tasks: next, fixes } : { tasks, fixes: [] };
 }
 
 /**

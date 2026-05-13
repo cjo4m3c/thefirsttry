@@ -21,7 +21,8 @@
  *
  * `parseL4SortKey(label)`：把 display label 轉成數字排序鍵：
  *   `${pfx}-0`        → 0          (start)
- *   `${pfx}-99`       → 99         (end)
+ *   `${pfx}-99`       → 99         (single end)
+ *   `${pfx}-99_xK`    → 99 + 0.001 × K   (multi end; 2026-05-13)
  *   `${pfx}-N`        → N          (sequence task)
  *   `${pfx}-N_g[K]`   → N + 0     + 0.001 × K
  *   `${pfx}-N_s[K]`   → N + 0.25  + 0.001 × K
@@ -30,6 +31,7 @@
  * 公式設計：base offset 給 type 區段（_g 在 [0,0.25)、_s 在 [0.25,0.5)、
  * _e 在 [0.5,1)）+ stepUnit 0.001 給同 type 不同 K 排序。三個 type 在
  * [N, N+1) 區間內互不重疊，K 最多可達 249 才會跨區段（業務上 K 通常 1-5）。
+ * `_x` 一律在 base=99 上，沒有後續 sequence base 可撞，offset=0 即可。
  *
  * 歷史 bug 修正（2026-05-08）：舊公式 `offsetUnit × K`（s=0.501, e=0.801）
  * 在 K=2 時就會撞下個 sequence base — 例 `5-1-1-2_s2 = 2 + 0.501×2 = 3.002`
@@ -38,11 +40,11 @@
  */
 function parseL4SortKey(label) {
   if (!label) return Infinity;
-  const m = String(label).match(/^\d+-\d+-\d+-(\d+)(?:_([gse])(\d*))?$/);
+  const m = String(label).match(/^\d+-\d+-\d+-(\d+)(?:_([gsex])(\d*))?$/);
   if (!m) return Infinity;
   const base = parseInt(m[1], 10);
   if (!m[2]) return base;
-  const baseOffset = { g: 0, s: 0.25, e: 0.5 }[m[2]];
+  const baseOffset = { g: 0, s: 0.25, e: 0.5, x: 0 }[m[2]];
   const stepUnit = 0.001;
   const k = m[3] === '' ? 1 : parseInt(m[3], 10);
   return base + baseOffset + stepUnit * k;
