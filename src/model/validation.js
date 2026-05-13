@@ -77,17 +77,11 @@ export function validateFlow(flow) {
     if (!(incoming[e.id] > 0)) blocking.push('「流程結束」必須有其他任務連接到它');
   });
 
-  // ── Multi-start / multi-end warnings (2026-04-29) ──────────────
-  // User decision: allow multiple start / end events but surface a save-time
-  // notice so the user can confirm the topology was intentional.
-  if (startTasks.length >= 2) {
-    warnings.push(`流程有 ${startTasks.length} 個「流程開始」節點。BPMN 一般建議單一起點，建議確認是否刻意設計多個入口`);
-  }
-  if (endTasks.length >= 2) {
-    warnings.push(`流程有 ${endTasks.length} 個「流程結束」節點。多個終點可接受（不同情境收尾），建議確認是否刻意設計`);
-  }
-
   // ── Warning-level checks ───────────────────────────────
+  // 注意：多 start / end 已是合法 BPMN 拓樸（不同入口 / 不同收尾情境），
+  // 不再跳 warning（原 rule 7 / 8 已於 2026-05-13 移除、使用者：「不跳提醒」）。
+  // 「必須要有 start / end」「start 不能有 incoming」等 hard structural 規則仍由
+  // 上方 blocking checks 守。
   tasks.forEach((t, i) => {
     const ct = t.connectionType || 'sequence';
     // PR (2026-05-06): label uses the element's actual L4 number from the

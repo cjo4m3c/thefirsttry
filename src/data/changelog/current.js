@@ -5,6 +5,17 @@
  */
 export default [
   {
+    date: '2026-05-13',
+    title: '移除多 start / 多 end 儲存警告 — 合法 BPMN 拓樸不該每次跳 modal',
+    items: [
+      '**緣由**：使用者「上傳及儲存時，有多個開始事件不跳提醒（現在會提示）」+「有多個結束事件不跳提醒（現在會提示）」。原 rule 7 / 8（2026-04-29 加）跳的「BPMN 一般建議單一起點，建議確認是否刻意設計多個入口」/「多個終點可接受（不同情境收尾），建議確認」每次儲存都打斷流程。',
+      '**研究結論**：審計 38 條規則後確認 — (a) 多 start / end 是合法 BPMN 拓樸（PR #210 剛加的 `_x{K}` 後綴就是為多 end 而設）(b) 移除這兩條 warning 不影響「必須要有 start / end」「start 不能有 incoming」「end 必須有 incoming」等 6 條 blocking 規則。',
+      '**修法**：(1) 刪 `src/model/validation.js` 第 80-88 行（9 行 multi-start / multi-end warnings block）+ 留 4 行註解說明歷史 (2) 刪 `src/data/helpPanelData.js` 第 250-258 行對應規則描述條目。「上傳路徑」沒有直接觸發這兩條警告 — 但使用者匯入單一 L3 後自動進 FlowEditor、習慣性點儲存就會中 → 移除後同步消失。',
+      '**動到的檔案（3 個）**：`src/model/validation.js`（移除 9 行 + 加 4 行歷史註解）/ `src/data/helpPanelData.js`（移除 1 個規則條目）/ `src/data/changelog/current.js`（本條）。docs/business-spec.md 沒提到這兩條 warning、不用改。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) 建有 2 個 start 的流程、儲存 → 不再跳 warning modal、直接存 (b) 建有 2 個 end 的流程、儲存 → 同上 (c) 沒有 start 的流程仍 block 儲存（rule 1）(d) start 被連入仍 block 儲存（rule 4） — blocking 規則完整保留。',
+    ],
+  },
+  {
     date: '2026-05-12',
     title: 'fix: 開始事件連線兩端點都拉不動 — phase3e 漏處理 start',
     items: [
