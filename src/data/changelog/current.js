@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-13',
+    title: '流程圖箭頭尖端 +50% — 提升與 L4 編號 pill 重疊時的辨識度（試 Option A）',
+    items: [
+      '**緣由**：使用者「箭頭的前端三角形位置跟編號重疊，還是會看不清楚」。根因：`TasksLayer` 在 `ConnectionArrow` 之後渲染（index.jsx line 319 → 328），L4 number pill (opacity 0.6 白底) 蓋在箭頭尖端上方、tip 被淡化 60% 看不清。',
+      '**討論的 4 個方案**：(A) 放大 marker +50% (B) 降 pill opacity 0.6→0.4 (C) A+B 複合 (D) 拆 ArrowTipsLayer 到 TasksLayer 之後渲染。使用者選擇先試 A、最小改動可逆。',
+      '**修法**：`src/components/DiagramRenderer/arrows.jsx` 6 個 marker 同比例放大：`markerWidth 8→12` / `markerHeight 6→9` / `refX 8→12` / `refY 3→4.5` / polygon points `"0 0, 8 3, 0 6"` → `"0 0, 12 4.5, 0 9"`。所有變體（ah / ah-hover / ah-hover-out / ah-hover-in / ah-dashed / ah-violation）統一放大維持 hover / violation 切色一致性。refX 同比例縮放確保 apex 仍對齊連線端點。',
+      '**動到的檔案（2 個）**：`src/components/DiagramRenderer/arrows.jsx`（6 個 marker、加 3 行歷史註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) 一般連線箭頭尖端比原本明顯（佔 12×9 像素 vs 8×6）(b) hover 連線時藍色箭頭也跟著大 (c) 違規紅線箭頭也跟著大 (d) PNG / drawio 匯出仍正常 (e) 跟 L4 pill 重疊時辨識度提升、若仍不夠下一輪可考慮 D（ArrowTipsLayer 分層）。',
+    ],
+  },
+  {
+    date: '2026-05-13',
     title: '移除多 start / 多 end 儲存警告 — 合法 BPMN 拓樸不該每次跳 modal',
     items: [
       '**緣由**：使用者「上傳及儲存時，有多個開始事件不跳提醒（現在會提示）」+「有多個結束事件不跳提醒（現在會提示）」。原 rule 7 / 8（2026-04-29 加）跳的「BPMN 一般建議單一起點，建議確認是否刻意設計多個入口」/「多個終點可接受（不同情境收尾），建議確認」每次儲存都打斷流程。',
