@@ -21,6 +21,10 @@ const inflight = new WeakMap(); // flow → Promise
  * Async：跑 ELK 並把結果存進 cache。重覆 call 同一個 flow 不會重跑。
  * 失敗時回退到 sync layout，仍會 cache 結果（避免無限 retry）。
  */
+// Alias for unified interface across all routers
+export function warmAsync(flow) { return warmElk(flow); }
+export function isReady(flow) { return isElkReady(flow); }
+
 export function warmElk(flow) {
   if (!flow) return Promise.resolve(null);
   if (cache.has(flow)) return Promise.resolve(cache.get(flow));

@@ -1,10 +1,11 @@
-name: Deploy ELK Test to GitHub Pages
+name: Deploy Router POCs to GitHub Pages
 
-# 試驗版部署：把 main 跟 ELK 試驗版一起放在 gh-pages
-#   main → /FlowSprite/
-#   this branch → /FlowSprite/test-elk/  (VITE_ROUTER=elk)
-# main 的 deploy.yml 不動（push to main 仍走原 workflow）。
-# 試驗結束移除這個 file 即可。
+# 5 個版本一起 deploy：
+#   /FlowSprite/               ← main (sync layout)
+#   /FlowSprite/test-elk/      ← 甲 V1: ELK 全包
+#   /FlowSprite/test-deep-a/   ← 乙 ELK 深度 A (決策諮詢)
+#   /FlowSprite/test-deep-b/   ← 丙 ELK 深度 B (座標 + snap)
+#   /FlowSprite/test-astar/    ← 戊 自家 A* router
 
 on:
   push:
@@ -42,25 +43,52 @@ jobs:
         working-directory: main-source
         run: npm install && npm run build
 
-      - name: Checkout ELK test branch
+      - name: Checkout POC branch
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-          path: elk-source
+          path: poc-source
 
-      - name: Install + build ELK test at sub-path
-        working-directory: elk-source
+      - name: Install POC dependencies
+        working-directory: poc-source
+        run: npm install
+
+      - name: Build 甲 ELK V1 (test-elk)
+        working-directory: poc-source
         env:
           VITE_BASE_PATH: /FlowSprite/test-elk/
-          VITE_ROUTER: elk
-        run: npm install && npm run build
+          VITE_ROUTER: elk-v1
+        run: rm -rf dist && npm run build && mv dist dist-elk-v1
+
+      - name: Build 乙 ELK Deep-A (test-deep-a)
+        working-directory: poc-source
+        env:
+          VITE_BASE_PATH: /FlowSprite/test-deep-a/
+          VITE_ROUTER: elk-deep-a
+        run: rm -rf dist && npm run build && mv dist dist-deep-a
+
+      - name: Build 丙 ELK Deep-B (test-deep-b)
+        working-directory: poc-source
+        env:
+          VITE_BASE_PATH: /FlowSprite/test-deep-b/
+          VITE_ROUTER: elk-deep-b
+        run: rm -rf dist && npm run build && mv dist dist-deep-b
+
+      - name: Build 戊 A* router (test-astar)
+        working-directory: poc-source
+        env:
+          VITE_BASE_PATH: /FlowSprite/test-astar/
+          VITE_ROUTER: astar
+        run: rm -rf dist && npm run build && mv dist dist-astar
 
       - name: Combine into single dist
         run: |
           mkdir -p combined-dist
           cp -r main-source/dist/. combined-dist/
-          mkdir -p combined-dist/test-elk
-          cp -r elk-source/dist/. combined-dist/test-elk/
+          mkdir -p combined-dist/test-elk     && cp -r poc-source/dist-elk-v1/. combined-dist/test-elk/
+          mkdir -p combined-dist/test-deep-a  && cp -r poc-source/dist-deep-a/. combined-dist/test-deep-a/
+          mkdir -p combined-dist/test-deep-b  && cp -r poc-source/dist-deep-b/. combined-dist/test-deep-b/
+          mkdir -p combined-dist/test-astar   && cp -r poc-source/dist-astar/. combined-dist/test-astar/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
