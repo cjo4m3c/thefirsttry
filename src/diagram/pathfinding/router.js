@@ -173,12 +173,30 @@ function generateCandidates(src, tgt, override) {
     else        candidates.push({ exit: 'top',    entry: 'bottom' });
   }
 
-  // 處理 partial override（只給 exit 或只給 entry）
+  // Partial override：使用者只拖了 exit 或只拖了 entry。
+  // 不再生多個候選讓 A* 試（會選到怪的同 side 或反 side combo），
+  // 而是用「幾何自然 pair」單一候選：
+  //   - 垂直 exit (top/bottom)：水平 entry，依 target 方位決定 left/right
+  //   - 水平 exit (left/right)：對向水平 entry
+  //   - 對 entrySide-only override 同理（互換）
+  // 純幾何，不寫業務 if-then 規則。
   if (override?.exitSide && !override?.entrySide) {
-    return candidates.map(c => ({ exit: override.exitSide, entry: c.entry }));
+    const isVertical = override.exitSide === 'top' || override.exitSide === 'bottom';
+    if (isVertical) {
+      const entry = (tgt.cx - src.cx) >= 0 ? 'left' : 'right';
+      return [{ exit: override.exitSide, entry }];
+    }
+    const entry = override.exitSide === 'right' ? 'left' : 'right';
+    return [{ exit: override.exitSide, entry }];
   }
   if (override?.entrySide && !override?.exitSide) {
-    return candidates.map(c => ({ exit: c.exit, entry: override.entrySide }));
+    const isVertical = override.entrySide === 'top' || override.entrySide === 'bottom';
+    if (isVertical) {
+      const exit = (tgt.cx - src.cx) >= 0 ? 'right' : 'left';
+      return [{ exit, entry: override.entrySide }];
+    }
+    const exit = override.entrySide === 'right' ? 'left' : 'right';
+    return [{ exit, entry: override.entrySide }];
   }
 
   // 去重

@@ -148,9 +148,10 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
       const dist = grid.proximityDist ? grid.proximityDist(nx, ny) : PROXIMITY_BONUS;
       const proximityCost = Math.max(0, PROXIMITY_BONUS - dist);
 
-      // ─ 維度 2：smart occupy（source/target/dir aware）─
+      // ─ 維度 2：smart occupy（source/target/dir aware + distance-aware v1.3）─
+      // 傳 start/goal cell 讓 grid 算「離 port 距離」，靠近 share、遠離 spread
       const occupyCost = grid.getOccupyPenalty
-        ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d)
+        ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d, start, goal)
         : 0;
 
       // ─ 維度 3：center bias（turn cell 偏離 path 中點時加 cost）─

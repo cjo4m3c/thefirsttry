@@ -16,6 +16,12 @@ import { GRID_CELL, LAYOUT } from '../constants.js';
 
 export const CELL_SIZE = GRID_CELL;
 
+// Distance-aware OCCUPY 參數（v1.3）：
+//   - 同 source/target 的線在距離 port ≤ SHARE_RADIUS 內：share trunk/tail 免費
+//   - 距離 > SHARE_RADIUS：spread (SHARE_PENALTY 推開)
+const SHARE_RADIUS = 2;
+const SHARE_PENALTY = 3;
+
 export class RoutingGrid {
   constructor(positions, svgWidth, svgHeight) {
     this.cellSize = CELL_SIZE;
@@ -137,19 +143,38 @@ export class RoutingGrid {
     if (this.inBounds(x, y)) this.occupied.set(y * this.cols + x, meta);
   }
 
-  /** 取得 occupy 在指定方向下的 penalty。
-   * 同 source：不收費（允許 fork 共享 trunk → 同源多條 fork 出去前段同路）
-   * 同 target：小 penalty 3（merge 自動 spread → 同 target 多條 incoming 在中段分開，
-   *           接近 target 才匯合到 port 中央。v1.2 從 0 改 3 解問題 3：多條並行同向擠在一起）
+  /** 取得 occupy 在指定方向下的 penalty（distance-aware v1.3）：
+   *
+   * 同 source / 同 target 的 share 行為依「離 port 多遠」而定：
+   *   - 距離 port ≤ SHARE_RADIUS：共享免費 (trunk/tail，視覺上看起來「從同一個 port 出入」)
+   *   - 距離 port > SHARE_RADIUS：spread (SHARE_PENALTY，遠端強迫分流)
+   *
+   * 解決 v1.2 殘留問題：
+   *   - 多 fork 共享過度 → labels 重疊：現在 trunk 共享，遠端 spread ✓
+   *   - 多 merge 全程 spread → 接近 target 反而 spread：現在 tail 合流，遠端 spread ✓
+   *
    * 同方向重疊：高 penalty 80（避免平行重疊）
    * 垂直交叉：低 penalty 8（允許交叉）
    */
-  getOccupyPenalty(x, y, mySource, myTarget, myDir) {
+  getOccupyPenalty(x, y, mySource, myTarget, myDir, startCell, goalCell) {
     if (!this.inBounds(x, y)) return 0;
     const stored = this.occupied.get(y * this.cols + x);
     if (!stored) return 0;
-    if (stored.sourceId === mySource) return 0;          // 同 source，共享前段
-    if (stored.targetId === myTarget) return 3;          // 同 target，後段自動 spread
+
+    if (stored.sourceId === mySource) {
+      if (startCell) {
+        const d = Math.abs(x - startCell.x) + Math.abs(y - startCell.y);
+        if (d <= SHARE_RADIUS) return 0;  // 靠近 source port，trunk 共享
+      }
+      return SHARE_PENALTY;  // 遠離 source，spread
+    }
+    if (stored.targetId === myTarget) {
+      if (goalCell) {
+        const d = Math.abs(x - goalCell.x) + Math.abs(y - goalCell.y);
+        if (d <= SHARE_RADIUS) return 0;  // 靠近 target port，tail 合流
+      }
+      return SHARE_PENALTY;
+    }
     if (stored.dir === myDir || stored.dir === oppositeDir(myDir)) return 80;  // 同向重疊
     return 8;  // 垂直交叉
   }
