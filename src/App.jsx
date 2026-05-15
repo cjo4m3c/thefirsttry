@@ -89,10 +89,24 @@ export default function App() {
     // imported one (only those L3 numbers, not the whole list), so the user
     // can re-import a single activity cleanly. mode='keep' leaves existing
     // flows untouched (duplicates will coexist).
+    //
+    // Preserve original createdAt on overwrite (2026-05-13) — Dashboard 卡片
+    // 「建立日期」要反映「這條 L3 從何時開始存在」、不能被每次 re-import 沖
+    // 掉。捕獲舊 createdAt → 寫進匯入的 flow → saveFlow 不再 force 新值。
     if (mode === 'overwrite') {
       const importedNums = new Set(importedFlows.map(f => f.l3Number).filter(Boolean));
+      const oldCreatedAtByL3 = new Map();
+      flows.forEach(f => {
+        if (importedNums.has(f.l3Number) && f.createdAt) {
+          oldCreatedAtByL3.set(f.l3Number, f.createdAt);
+        }
+      });
       flows.forEach(f => {
         if (importedNums.has(f.l3Number)) deleteFlow(f.id);
+      });
+      importedFlows = importedFlows.map(f => {
+        const oldCreated = oldCreatedAtByL3.get(f.l3Number);
+        return oldCreated ? { ...f, createdAt: oldCreated } : f;
       });
     }
     importedFlows.forEach(f => saveFlow(f));

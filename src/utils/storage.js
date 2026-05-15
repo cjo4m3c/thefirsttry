@@ -82,7 +82,9 @@ export function saveFlow(flow) {
   if (idx >= 0) {
     flows[idx] = updated;
   } else {
-    flows.push({ ...updated, createdAt: now });
+    // 尊重 caller 帶的 createdAt（例：overwrite 匯入會保留舊 createdAt）；
+    // 真正新建（沒帶 createdAt）才用 now。
+    flows.push({ ...updated, createdAt: flow.createdAt || now });
   }
   localStorage.setItem(FLOWS_KEY, JSON.stringify(flows));
 }
