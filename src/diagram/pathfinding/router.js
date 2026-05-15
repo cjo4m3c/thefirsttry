@@ -46,18 +46,18 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
       results.push({ ...conn, exitSide: 'right', entrySide: 'left', _bendPoints: [] });
       continue;
     }
-    // 優先讀 user override（拖曳端點過的客製端口方向）
-    const sides = pickSides(src, tgt, conn._override);
+    // 用 multi-port trial 找最佳 port 組合：
+    //   - 有 user override 時尊重 override
+    //   - 沒有 override 時，跑多個候選 port 組合，挑 A* 總 cost 最低的
+    // 純 cost-based，不寫「同 lane 有障礙才用 bottom→bottom」這類規則。
+    const trial = pickBestPath(grid, src, tgt, conn._override, conn.fromId, conn.toId);
 
-    let pathPx = null;
-    try {
-      pathPx = computePath(grid, src, tgt, sides, conn.fromId, conn.toId);
-    } catch (e) {
-      console.warn('[A* route] computePath failed:', e, conn);
-    }
+    let pathPx = trial?.path;
+    let sides = trial?.sides;
 
     if (!pathPx || pathPx.length < 2) {
       // No path or A* errored — fall back to straight L
+      sides = sides || pickSides(src, tgt, conn._override);
       const srcPort = src[sides.exit] || { x: src.cx, y: src.cy };
       const tgtPort = tgt[sides.entry] || { x: tgt.cx, y: tgt.cy };
       results.push({
@@ -107,6 +107,84 @@ function inferDir(x1, y1, x2, y2) {
   return y2 >= y1 ? 'south' : 'north';
 }
 
+/**
+ * Multi-port trial：對每條 edge 嘗試多個 port 組合，A* 跑出各自 cost，挑最低。
+ *
+ * 純 cost-based 決定 port：不寫 if-then 規則（例如「同 lane 有障礙才用 bottom→bottom」）。
+ * 用 A* 實際算出來的成本判斷哪個 port 組合最好。
+ *
+ * 例：start1 → 1-0-1-2 中間有 1-0-1-1 擋路時
+ *   - right→left 要繞 1-0-1-1 → 高 cost
+ *   - bottom→bottom 直接走 lane 下方 corridor → 低 cost
+ *   A* 自動選 bottom→bottom（不需要規則判斷）。
+ *
+ * 例：同 lane 直線無障礙
+ *   - right→left 直線 → 最低 cost
+ *   - bottom→bottom 多 2 段 vertical stub → 高 cost
+ *   A* 選 right→left（不需要規則）。
+ *
+ * @returns {{ path, sides, cost } | null}
+ */
+function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
+  // 有 user override 時尊重，不試其他組合
+  if (override?.exitSide && override?.entrySide) {
+    const sides = { exit: override.exitSide, entry: override.entrySide };
+    const result = computePath(grid, src, tgt, sides, sourceId, targetId);
+    return result ? { path: result.path, sides, cost: result.cost } : null;
+  }
+
+  // 候選 port 組合（依 dx/dy 選合理子集，避免跑 16 種）
+  const candidates = generateCandidates(src, tgt, override);
+
+  let best = null;
+  for (const sides of candidates) {
+    const result = computePath(grid, src, tgt, sides, sourceId, targetId);
+    if (!result) continue;
+    if (!best || result.cost < best.cost) {
+      best = { path: result.path, sides, cost: result.cost };
+    }
+  }
+  return best;
+}
+
+function generateCandidates(src, tgt, override) {
+  const dx = tgt.cx - src.cx;
+  const dy = tgt.cy - src.cy;
+  const candidates = [];
+
+  // 主候選：依 dx/dy 推「最自然」的 port
+  candidates.push(autoPickSides(src, tgt));
+
+  // 同 lane（|dy| < 30）：考慮 top→top / bottom→bottom（解問題 1：中間有障礙時走 corridor）
+  if (Math.abs(dy) < 30) {
+    candidates.push({ exit: 'top',    entry: 'top'    });
+    candidates.push({ exit: 'bottom', entry: 'bottom' });
+  }
+
+  // 跨 lane（|dy| ≥ 30）且 |dx| > 30：考慮 vertical port（同 col 風格）
+  if (Math.abs(dx) > 30 && Math.abs(dy) >= 30) {
+    if (dy > 0) candidates.push({ exit: 'bottom', entry: 'top' });
+    else        candidates.push({ exit: 'top',    entry: 'bottom' });
+  }
+
+  // 處理 partial override（只給 exit 或只給 entry）
+  if (override?.exitSide && !override?.entrySide) {
+    return candidates.map(c => ({ exit: override.exitSide, entry: c.entry }));
+  }
+  if (override?.entrySide && !override?.exitSide) {
+    return candidates.map(c => ({ exit: c.exit, entry: override.entrySide }));
+  }
+
+  // 去重
+  const seen = new Set();
+  return candidates.filter(c => {
+    const key = `${c.exit}|${c.entry}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function pickSides(src, tgt, override) {
   // user override 優先（drag endpoint 拖過）
   if (override?.exitSide && override?.entrySide) {
@@ -137,10 +215,15 @@ function autoPickSides(src, tgt) {
   return { exit: 'top', entry: 'bottom' };
 }
 
+/**
+ * @returns {{ path: number[][], cost: number } | null}
+ * cost = A* 找到路徑時最後一個 cell 的 g 值（總成本，用來比較多個 port 候選）
+ */
 function computePath(grid, src, tgt, sides, sourceId, targetId) {
   // 起點：source port 的 cell（在 task 邊緣外一格，避免被 blocked 擋住）
   const srcPortPx = src[sides.exit];
   const tgtPortPx = tgt[sides.entry];
+  if (!srcPortPx || !tgtPortPx) return null;
 
   // Start cell：source port 外一步（沿 exit 方向走出 task）
   // Goal cell：target port 外一步（沿 entry 反方向走出 task）
@@ -153,8 +236,13 @@ function computePath(grid, src, tgt, sides, sourceId, targetId) {
   grid.unblock(goalCell.x, goalCell.y);
 
   const startDir = sideToDir(sides.exit);
-  const cells = findPath(grid, startCell, goalCell, startDir, sourceId, targetId);
+  const cells = findPath(grid, startCell, goalCell, startDir, sourceId, targetId, {
+    srcCx: src.cx, srcCy: src.cy, tgtCx: tgt.cx, tgtCy: tgt.cy,
+  });
   if (!cells) return null;
+
+  // A* 回傳 cells 含 g 值，取最後一個 cell 的 g 當總 cost
+  const cost = cells.length > 0 ? (cells[cells.length - 1].g ?? cells.length) : Infinity;
 
   // Convert cells back to pixel coords, prepend source port, append target port
   const pxPath = [[srcPortPx.x, srcPortPx.y]];
@@ -169,7 +257,8 @@ function computePath(grid, src, tgt, sides, sourceId, targetId) {
   alignPortSegments(pxPath, sides);
 
   // Snap path to clean ortho: remove collinear / redundant points
-  return cleanOrtho(pxPath);
+  const path = cleanOrtho(pxPath);
+  return { path, cost };
 }
 
 /**

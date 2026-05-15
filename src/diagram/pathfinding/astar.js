@@ -15,6 +15,8 @@
 const TURN_PENALTY = 10;       // 每 90° 轉彎扣分
 const PROXIMITY_BONUS = 4;     // cell 離障礙物距離 ≥ 此值時無 penalty
                                 // (push path 走 corridor 中央，解決「貼邊」+「bend 靠 target」)
+const CENTER_WEIGHT = 1.5;     // turn cell 離 path 中點越遠，加 cost 越多
+                                // (解決 bend 偏 source / target 邊 → 拉到中點)
 
 const DIRS = {
   east:  { dx:  1, dy:  0 },
@@ -76,11 +78,23 @@ class MinHeap {
  * @param {string} sourceExitDir  'east'|'west'|'south'|'north'
  * @param {string} sourceId   for occupy 計算（同 source 互相不收費）
  * @param {string} targetId   同上
+ * @param {object} [opts]
+ * @param {number} [opts.srcCx]  source task 中心 pixel x（給 center bias 用）
+ * @param {number} [opts.srcCy]  source task 中心 pixel y
+ * @param {number} [opts.tgtCx]  target task 中心 pixel x
+ * @param {number} [opts.tgtCy]  target task 中心 pixel y
  * @returns {Array<{x,y,dir}>|null}
  */
-export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId) {
+export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, opts = {}) {
   const open = new MinHeap();
   const closed = new Map();
+
+  // 中點 pixel (給 center bias 計算用)。若沒給 src/tgt 中心，預設不啟用 center bias。
+  const hasCenter = opts.srcCx != null && opts.srcCy != null
+                 && opts.tgtCx != null && opts.tgtCy != null;
+  const midX = hasCenter ? (opts.srcCx + opts.tgtCx) / 2 : 0;
+  const midY = hasCenter ? (opts.srcCy + opts.tgtCy) / 2 : 0;
+  const cellSize = grid.cellSize;
 
   const startNode = {
     cell: start,
@@ -136,12 +150,25 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId) {
         ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d)
         : 0;
 
+      // ─ 維度 3：center bias（turn cell 偏離 path 中點時加 cost）─
+      // 只對轉彎點加 cost：路徑長度跟轉彎數對所有 2-bend 變體都相同，
+      // 但 bend 位置不同會讓 turn cell 在不同位置 → 用此維度區分。
+      // 結果：A* 自動選 bend 在中點的 path。
+      let centerCost = 0;
+      if (isTurn && hasCenter) {
+        const cellPxX = nx * cellSize;
+        const cellPxY = ny * cellSize;
+        const centerDistCells = (Math.abs(cellPxX - midX) + Math.abs(cellPxY - midY)) / cellSize;
+        centerCost = centerDistCells * CENTER_WEIGHT;
+      }
+
       // Tie-break: 同方向 0.01 < perp 0.02 < perp 0.03 < opposite 0.04
       const tieBias = i * 0.01;
       const newG = cur.g + 1
         + (isTurn ? TURN_PENALTY : 0)
         + proximityCost
         + occupyCost
+        + centerCost
         + tieBias;
       const newH = manhattan(ncell, goal);
 
@@ -159,7 +186,8 @@ function reconstruct(endNode) {
   const path = [];
   let n = endNode;
   while (n !== null) {
-    path.unshift({ x: n.cell.x, y: n.cell.y, dir: n.dir });
+    // 帶 g 值方便 router 取最後一格的總 cost 比較多個 port 候選
+    path.unshift({ x: n.cell.x, y: n.cell.y, dir: n.dir, g: n.g });
     n = n.parent;
   }
   return path;

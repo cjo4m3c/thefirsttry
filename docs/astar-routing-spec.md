@@ -163,6 +163,36 @@ getOccupyPenalty(cell, dir, myId, myTargetId):
 - 平行路徑重疊：A* 自動分開到不同 row/col
 - 垂直交叉：允許（penalty 低，視覺可接受）
 
+### 3.4 維度 3：Center Bias
+
+**目的**：讓 2-bend path 的 bend 點落在 path 中點（避免「一邊短一邊長」）。
+
+```js
+if (isTurn && hasCenter):
+  midX = (src.cx + tgt.cx) / 2
+  midY = (src.cy + tgt.cy) / 2
+  centerDistCells = (|cellPxX - midX| + |cellPxY - midY|) / CELL_SIZE
+  centerCost = centerDistCells * CENTER_WEIGHT
+```
+
+| 參數 | 預設值 | 意義 |
+|---|---|---|
+| `CENTER_WEIGHT` | 1.5 | turn cell 離 path 中點越遠，加 cost 越多 |
+
+只對 **turn cell** 加 cost：
+- 對所有 2-bend 候選 path 來說，base cost + proximity + turn cost 大致相同（鏡像對稱）
+- bend 位置不同 → turn cell 在不同位置 → 用 centerCost 區分
+- A* 自動選 bend 在中點的 path
+
+**解決哪些情境**：
+- 2-bend cross-lane 路徑 bend 偏 source / target → bend 拉到中點
+- S-shape 路徑兩段水平等長
+
+**對既有 case 的影響**：
+- 直線（0 turn）：無 turn cell → 0 centerCost → 不影響 ✓
+- 1-turn L-shape：turn cell 位置固定，centerCost 對所有變體相同（鏡像）→ 不影響選擇 ✓
+- 多 turn 避障路徑：每 turn cell 加 centerCost → 偏好 turn 在中心區 ✓
+
 ### 3.5 Tie-break
 
 ```js
@@ -271,18 +301,55 @@ A* 找不到 path 時（罕見，可能因為 grid 太擁擠），fallback 到 `
 
 ---
 
-## 6. Port 選擇規則（pickSides）
+## 6. Port 選擇規則（Multi-port Trial）
 
-### 6.1 邏輯
+### 6.1 主邏輯：純 cost-based 多候選比較
+
+**不寫「同 lane 有障礙就用 bottom→bottom」這類規則**。改成：對每條 edge 嘗試多個 port 組合，A* 跑出實際 cost，挑最低的。
 
 ```
-if (override.exitSide && override.entrySide)  → 用 override 全套
-if (override.exitSide only)                   → exit 用 override，entry 自動推
-if (override.entrySide only)                  → entry 用 override，exit 自動推
-else                                          → autoPickSides
+pickBestPath(src, tgt, override, srcId, tgtId):
+  if (override 完整) return computePath with override
+  
+  candidates = generateCandidates(src, tgt, override)
+  best = null
+  for sides in candidates:
+    result = computePath(grid, src, tgt, sides, srcId, tgtId)
+    if (result.cost < best.cost) best = result
+  return best
 ```
 
-### 6.2 autoPickSides 規則
+例：start1 → 1-0-1-2 中間有 1-0-1-1 擋路
+- right→left 要繞 1-0-1-1 → A* 算出來高 cost
+- bottom→bottom 直接走 lane 下方 corridor → A* 算出來低 cost
+- A* 比 cost 自動選 bottom→bottom ✓
+
+例：同 lane 直線無障礙
+- right→left 直線 → 低 cost
+- bottom→bottom 多 2 段 vertical stub → 高 cost
+- A* 選 right→left ✓
+
+### 6.2 候選 port 組合（generateCandidates）
+
+依 dx/dy 給合理子集（不全試 16 種），減少 A* runs：
+
+```
+candidates = [autoPickSides(src, tgt)]  // 主候選
+
+if (|dy| < 30):  // 同 lane
+  candidates += [top→top, bottom→bottom]
+
+if (|dx| > 30 && |dy| >= 30):  // 跨 lane forward
+  if (dy > 0) candidates += [bottom→top]
+  else        candidates += [top→bottom]
+
+if (partial override): 把 override side 套用到所有 candidates
+candidates = dedupe(candidates)
+```
+
+通常 2-3 個候選 → 2-3 次 A* runs → 每 edge ~30ms。
+
+### 6.3 autoPickSides 規則（候選 #1）
 
 ```
 dx = tgt.cx - src.cx
@@ -296,14 +363,20 @@ else:  // 幾乎同 col
   else       return { exit: 'top',    entry: 'bottom' }
 ```
 
-### 6.3 已知 gap
+### 6.4 Override 處理
 
-目前 autoPickSides 不考慮：
-- Gateway 類型（parallel 應偏好 bottom 出）
-- Backward edge（target.col < source.col 應走 top 繞）
-- 同 lane 中間有 task 阻擋（用 distance map 處理，但端口選擇未必最佳）
+| Override 形式 | 行為 |
+|---|---|
+| 完整（exit + entry 都給）| 跳過多候選，直接用 override |
+| 部分（只給 exit 或 entry）| Candidates 套上 override 的部分 |
+| 無 | 全套 candidates 跑 trial |
 
-這些都可以擴 `pickSides` 加新「方向偏好維度」（仍是 cost-based，不是 if-then）。
+### 6.5 已知 gap（多候選方案後仍未覆蓋）
+
+- Gateway 類型偏好（parallel 應偏好 bottom 出）：可加新 candidate generator
+- Backward edge：可加 `if (dx < -30): candidates += [top→top]`
+
+這些都是擴 generateCandidates，不是寫 if-then 條件分支去「強制套用特定 port」。
 
 ---
 
@@ -332,6 +405,7 @@ else:  // 幾乎同 col
 | `GRID_CELL` | `constants.js` | 8 | 網格細度（改了所有 LAYOUT 倍數也要改）|
 | `TURN_PENALTY` | `astar.js` | 10 | 轉彎扣分 |
 | `PROXIMITY_BONUS` | `astar.js` | 4 | 障礙物距離 ≥ 此值時無 penalty |
+| `CENTER_WEIGHT` | `astar.js` | 1.5 | Turn cell 離 path 中點越遠加 cost |
 | `OCCUPY_SAME_DIR` | `grid.js` | 80 | 同向重疊扣分 |
 | `OCCUPY_PERP` | `grid.js` | 8 | 垂直交叉扣分 |
 | `MAX_ITER` | `astar.js` | 50000 | A* 搜尋上限 |
@@ -416,6 +490,7 @@ else:  // 幾乎同 col
 
 | 日期 | 版本 | 內容 | Commit |
 |---|---|---|---|
-| 2026-05-13 | v1.0 | 初版規格，含 3 個 cost 維度（turn, proximity, smart occupancy）| TBD |
+| 2026-05-13 | v1.0 | 初版規格，含 3 個 cost 維度（turn, proximity, smart occupancy）| ad2b338 |
+| 2026-05-13 | v1.1 | 加 cost 維度 4: **Center Bias**（解 bend 不對稱）+ Port 選擇改 **Multi-port Trial**（解該用 top/top 或 bottom/bottom 而非 right/left）| TBD |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。
