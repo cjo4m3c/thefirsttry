@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-13',
+    title: 'fix: 「← 返回」refresh App.flows — 修 dismiss 過的 import warning 重複出現',
+    items: [
+      '**緣由**：使用者「我發現這個提示資訊每次點開編輯畫面都會出現」— `🔧 結束事件編號已自動更新（多結束事件對齊 BPMN 規則）：5-1-5-99 → 1-1-2-99` 即使按 ✕ dismiss 後、重新進編輯器又出現。',
+      '**Root cause**：`src/App.jsx handleCancel` 沒呼叫 `refreshFlows()`。`useState(() => loadFlows())` 只在 App mount 時跑一次、之後 App.flows state 變 stale snapshot。FlowEditor 內部 `handleDismissImportWarnings` 直接呼叫 `saveFlow` 寫進 localStorage、但**沒通知 App refresh**。結果：localStorage 已乾淨（importWarnings: []）但 App.flows[i].importWarnings 仍是 mount 時的舊值。點「返回」→ 重新進編輯器 → `activeFlow = flows.find(...)` 拿 stale snapshot → liveFlow init 仍含舊 warning → banner 又顯示。',
+      '**為什麼診斷時看不到**：reload 整個分頁 / F5 → App 重新 mount → `loadFlows` 重跑 → 拿乾淨資料 → banner 不顯示。只有「在 SPA 內進出 FlowEditor 不 reload」這個 case 中招。',
+      '**修法**：`handleCancel` 加一行 `refreshFlows()`。這同時治理 stale snapshot 的通用問題 — FlowEditor 內任何不走 onSave 的 saveFlow 都會在返回時自動同步（dismiss / connection override 持久化 / 未來新增的內部 saveFlow 等）。',
+      '**動到的檔案（2 個）**：`src/App.jsx`（handleCancel 加 refreshFlows + 4 行註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) 開有 import warning 的流程 → banner 顯示 (b) 按 ✕ dismiss → banner 消失 (c) 點「← 返回」回 Dashboard (d) 重新點進同個流程 → banner **不再出現** ✓。F5 reload 行為不變。',
+      '**未做的優化（D 預防性）**：使用者改 L3 編號時自動 regenerate end 任務的 l4Number、避免事後 warning 一開始就產生。延後到使用者實測 A 後再決定是否需要。',
+    ],
+  },
+  {
+    date: '2026-05-13',
     title: 'fix: overwrite 匯入保留原始 createdAt — 只更新 updatedAt',
     items: [
       '**緣由**：使用者「上傳一個已經有該 L3 的新流程、覆蓋的話產出日期和編輯日期會是新的還是舊的？」追蹤後發現：overwrite 模式下、舊 flow 整筆 `deleteFlow`、匯入的 flow 帶新 id 進 `saveFlow` → 走 `else` branch → `createdAt: now`。**原本的建立日期完全遺失**、Dashboard 卡片「建立：YYYY/MM/DD」會被洗成上傳日期。',

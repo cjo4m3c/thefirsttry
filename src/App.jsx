@@ -49,7 +49,14 @@ export default function App() {
     refreshFlows();
   }
 
-  function handleCancel() { setView('dashboard'); }
+  function handleCancel() {
+    // refreshFlows: 「← 返回」前同步 App.flows state 與 localStorage（FlowEditor
+    // 內部的 saveFlow 例如 dismiss import warning、調 connection override 等不
+    // 走 onSave callback、不會自動 refresh）。否則重新進 editor 拿到 mount 時
+    // 的 stale snapshot — 例如已 dismiss 的 importWarnings 又出現（2026-05-13）。
+    setView('dashboard');
+    refreshFlows();
+  }
 
   /** Save edits made in FlowEditor without leaving the page. */
   function handleViewSave(flow) {
