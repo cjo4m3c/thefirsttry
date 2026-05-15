@@ -51,7 +51,7 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
 
     let pathPx = null;
     try {
-      pathPx = computePath(grid, src, tgt, sides);
+      pathPx = computePath(grid, src, tgt, sides, conn.fromId, conn.toId);
     } catch (e) {
       console.warn('[A* route] computePath failed:', e, conn);
     }
@@ -68,11 +68,9 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
       });
       continue;
     }
-    // Mark path cells as occupied for next pass
-    for (const p of pathPx) {
-      const c = grid.toCell(p[0], p[1]);
-      grid.markOccupied(c.x, c.y);
-    }
+    // Mark path cells as occupied for next pass，含 source/target/dir metadata
+    // 讓後續同 source / 同 target 的 edge 可以共享 cell（不收 penalty）
+    markPathOccupied(grid, pathPx, conn.fromId, conn.toId);
     results.push({
       ...conn,
       exitSide: sides.exit,
@@ -82,6 +80,31 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
   }
 
   return results;
+}
+
+/** 把 path 上每段標 occupied，含方向 metadata */
+function markPathOccupied(grid, pathPx, sourceId, targetId) {
+  for (let i = 0; i < pathPx.length; i++) {
+    const [x, y] = pathPx[i];
+    const c = grid.toCell(x, y);
+    // 判斷該 cell 的「行進方向」：用前後點之間的方向
+    let dir = 'east';
+    if (i + 1 < pathPx.length) {
+      const [nx, ny] = pathPx[i + 1];
+      dir = inferDir(x, y, nx, ny);
+    } else if (i > 0) {
+      const [px, py] = pathPx[i - 1];
+      dir = inferDir(px, py, x, y);
+    }
+    grid.markOccupied(c.x, c.y, { sourceId, targetId, dir });
+  }
+}
+
+function inferDir(x1, y1, x2, y2) {
+  if (Math.abs(x2 - x1) >= Math.abs(y2 - y1)) {
+    return x2 >= x1 ? 'east' : 'west';
+  }
+  return y2 >= y1 ? 'south' : 'north';
 }
 
 function pickSides(src, tgt, override) {
@@ -114,25 +137,23 @@ function autoPickSides(src, tgt) {
   return { exit: 'top', entry: 'bottom' };
 }
 
-function computePath(grid, src, tgt, sides) {
+function computePath(grid, src, tgt, sides, sourceId, targetId) {
   // 起點：source port 的 cell（在 task 邊緣外一格，避免被 blocked 擋住）
   const srcPortPx = src[sides.exit];
   const tgtPortPx = tgt[sides.entry];
 
   // Start cell：source port 外一步（沿 exit 方向走出 task）
   // Goal cell：target port 外一步（沿 entry 反方向走出 task）
-  //   entry=left → 線從西邊進入 → goal cell 在 task 的 WEST = dirDelta('left')
-  //   entry=top → 線從北邊進入 → goal cell 在 task 的 NORTH = dirDelta('top')
   const sd = dirDelta(sides.exit);
   const startCell = grid.toCell(srcPortPx.x + sd.dx * grid.cellSize, srcPortPx.y + sd.dy * grid.cellSize);
   grid.unblock(startCell.x, startCell.y);
 
-  const td = dirDelta(sides.entry);  // entry side 對應到 task 外側的方向
+  const td = dirDelta(sides.entry);
   const goalCell = grid.toCell(tgtPortPx.x + td.dx * grid.cellSize, tgtPortPx.y + td.dy * grid.cellSize);
   grid.unblock(goalCell.x, goalCell.y);
 
   const startDir = sideToDir(sides.exit);
-  const cells = findPath(grid, startCell, goalCell, startDir);
+  const cells = findPath(grid, startCell, goalCell, startDir, sourceId, targetId);
   if (!cells) return null;
 
   // Convert cells back to pixel coords, prepend source port, append target port

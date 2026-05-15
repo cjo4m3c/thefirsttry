@@ -1,14 +1,20 @@
 /**
- * astar.js — Lee/A* style orthogonal path finder.
+ * astar.js — A* orthogonal path finder with cost-based visual preferences.
  *
- * 用途：給定 grid（含障礙）、起點、終點、起點方向，找最短 ortho path。
- * 評分：每走一格 +1，每轉彎 +TURN_PENALTY，被占用 cell +OCCUPY_PENALTY。
- * Tie-break：優先沿 sourceExitDir 方向，避免左右搖擺。
+ * Cost function 由四個維度組成，每個維度透過獨立常數 tune（不寫 if-then 規則）：
+ *
+ *   cost = 1                                                    // 基本移動
+ *        + (turn ? TURN_PENALTY : 0)                            // 轉彎
+ *        + max(0, PROXIMITY_BONUS - distFromObstacle)           // 障礙物距離 (push 中央)
+ *        + getOccupyPenalty(cell, dir, src, tgt)                // 占用 (smart 判斷)
+ *
+ * 4 個維度全是 cost function 的權重，**沒有任何 if-then 規則**。
+ * 新增情境只需「加新維度 / 調權重」，不寫新分支。
  */
 
-// TURN_PENALTY=10 比 5 給出更乾淨的路徑（少轉彎，多走長直線）
-const TURN_PENALTY = 10;
-const OCCUPY_PENALTY = 100;  // 走前一條已畫過的 path 上的 cell
+const TURN_PENALTY = 10;       // 每 90° 轉彎扣分
+const PROXIMITY_BONUS = 4;     // cell 離障礙物距離 ≥ 此值時無 penalty
+                                // (push path 走 corridor 中央，解決「貼邊」+「bend 靠 target」)
 
 const DIRS = {
   east:  { dx:  1, dy:  0 },
@@ -64,15 +70,17 @@ class MinHeap {
 }
 
 /**
- * @param {object} grid 必須有 .isBlocked(x, y) 跟 .isOccupied(x, y) 方法（佔用是 prior edge）
- * @param {{x:number,y:number}} start 起點 grid cell
- * @param {{x:number,y:number}} goal  終點 grid cell
- * @param {'east'|'west'|'south'|'north'} sourceExitDir
- * @returns {Array<{x,y,dir}>|null} cell sequence (含起終點) 或 null（找不到）
+ * @param {object} grid    含 isBlocked(x,y) / proximityDist(x,y) / getOccupyPenalty(x,y,src,tgt,dir)
+ * @param {{x,y}} start    起點 grid cell
+ * @param {{x,y}} goal     終點 grid cell
+ * @param {string} sourceExitDir  'east'|'west'|'south'|'north'
+ * @param {string} sourceId   for occupy 計算（同 source 互相不收費）
+ * @param {string} targetId   同上
+ * @returns {Array<{x,y,dir}>|null}
  */
-export function findPath(grid, start, goal, sourceExitDir) {
+export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId) {
   const open = new MinHeap();
-  const closed = new Map();  // key → bestG
+  const closed = new Map();
 
   const startNode = {
     cell: start,
@@ -99,8 +107,6 @@ export function findPath(grid, start, goal, sourceExitDir) {
     if (closed.has(key) && closed.get(key) <= cur.g) continue;
     closed.set(key, cur.g);
 
-    // Expand neighbors with tie-break: preferred dir (= cur.dir if same as source)
-    // Actually preferred order: continue same dir first, then perpendicular, last reverse
     const dirOrder = [
       cur.dir,
       perpendicular(cur.dir)[0],
@@ -110,7 +116,7 @@ export function findPath(grid, start, goal, sourceExitDir) {
 
     for (let i = 0; i < dirOrder.length; i++) {
       const d = dirOrder[i];
-      if (cur.parent === null && d === OPPOSITE[sourceExitDir]) continue;  // 第一步不准回頭
+      if (cur.parent === null && d === OPPOSITE[sourceExitDir]) continue;
       const dx = DIRS[d].dx, dy = DIRS[d].dy;
       const nx = cur.cell.x + dx, ny = cur.cell.y + dy;
       const ncell = { x: nx, y: ny };
@@ -119,10 +125,24 @@ export function findPath(grid, start, goal, sourceExitDir) {
       if (grid.isBlocked(nx, ny)) continue;
 
       const isTurn = (cur.parent !== null && d !== cur.dir);
-      const occupyCost = grid.isOccupied(nx, ny) ? OCCUPY_PENALTY : 0;
-      // Tiny preference for earlier dir-order entries (tie-break)
+
+      // ─ 維度 1：障礙物距離（PROXIMITY_BONUS - distance）─
+      // 離障礙物越近 cost 越高，push path 走 corridor 中央
+      const dist = grid.proximityDist ? grid.proximityDist(nx, ny) : PROXIMITY_BONUS;
+      const proximityCost = Math.max(0, PROXIMITY_BONUS - dist);
+
+      // ─ 維度 2：smart occupy（source/target/dir aware）─
+      const occupyCost = grid.getOccupyPenalty
+        ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d)
+        : 0;
+
+      // Tie-break: 同方向 0.01 < perp 0.02 < perp 0.03 < opposite 0.04
       const tieBias = i * 0.01;
-      const newG = cur.g + 1 + (isTurn ? TURN_PENALTY : 0) + occupyCost + tieBias;
+      const newG = cur.g + 1
+        + (isTurn ? TURN_PENALTY : 0)
+        + proximityCost
+        + occupyCost
+        + tieBias;
       const newH = manhattan(ncell, goal);
 
       const nkey = cellKey(ncell, d);
