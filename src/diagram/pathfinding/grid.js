@@ -138,16 +138,18 @@ export class RoutingGrid {
   }
 
   /** 取得 occupy 在指定方向下的 penalty。
-   * 同 source / target：不收費（允許共享 trunk / 合流）
-   * 同方向重疊：高 penalty（避免平行重疊）
-   * 垂直交叉：低 penalty（允許交叉）
+   * 同 source：不收費（允許 fork 共享 trunk → 同源多條 fork 出去前段同路）
+   * 同 target：小 penalty 3（merge 自動 spread → 同 target 多條 incoming 在中段分開，
+   *           接近 target 才匯合到 port 中央。v1.2 從 0 改 3 解問題 3：多條並行同向擠在一起）
+   * 同方向重疊：高 penalty 80（避免平行重疊）
+   * 垂直交叉：低 penalty 8（允許交叉）
    */
   getOccupyPenalty(x, y, mySource, myTarget, myDir) {
     if (!this.inBounds(x, y)) return 0;
     const stored = this.occupied.get(y * this.cols + x);
     if (!stored) return 0;
     if (stored.sourceId === mySource) return 0;          // 同 source，共享前段
-    if (stored.targetId === myTarget) return 0;          // 同 target，共享後段
+    if (stored.targetId === myTarget) return 3;          // 同 target，後段自動 spread
     if (stored.dir === myDir || stored.dir === oppositeDir(myDir)) return 80;  // 同向重疊
     return 8;  // 垂直交叉
   }

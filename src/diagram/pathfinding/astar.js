@@ -12,11 +12,14 @@
  * 新增情境只需「加新維度 / 調權重」，不寫新分支。
  */
 
-const TURN_PENALTY = 10;       // 每 90° 轉彎扣分
+const TURN_PENALTY = 15;       // 每 90° 轉彎扣分（v1.2: 10→15 阻止 proximity-driven zigzag）
 const PROXIMITY_BONUS = 4;     // cell 離障礙物距離 ≥ 此值時無 penalty
                                 // (push path 走 corridor 中央，解決「貼邊」+「bend 靠 target」)
 const CENTER_WEIGHT = 1.5;     // turn cell 離 path 中點越遠，加 cost 越多
                                 // (解決 bend 偏 source / target 邊 → 拉到中點)
+const CENTER_SKIP_RADIUS = 4;  // v1.2: 距離 start/goal 此值內的 turn 不算 center bias
+                                //  (這些是 port stub 必要轉彎，penalize 它們會讓 A*
+                                //   寧願 zigzag 把 turn 放中間 → 解問題 1+2)
 
 const DIRS = {
   east:  { dx:  1, dy:  0 },
@@ -151,15 +154,21 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
         : 0;
 
       // ─ 維度 3：center bias（turn cell 偏離 path 中點時加 cost）─
-      // 只對轉彎點加 cost：路徑長度跟轉彎數對所有 2-bend 變體都相同，
-      // 但 bend 位置不同會讓 turn cell 在不同位置 → 用此維度區分。
-      // 結果：A* 自動選 bend 在中點的 path。
+      // 只對「中段」轉彎點加 cost：
+      //   - 中段轉彎：用 centerCost 區分多個 2-bend 變體，A* 自動選 bend 在中點
+      //   - 距離 start/goal 在 CENTER_SKIP_RADIUS cells 以內的轉彎：不算
+      //     （這些是 port stub 必要轉彎，penalize 它們會讓 A* 把 turn 移到中間
+      //      變成 zigzag，反向破壞視覺）
       let centerCost = 0;
       if (isTurn && hasCenter) {
-        const cellPxX = nx * cellSize;
-        const cellPxY = ny * cellSize;
-        const centerDistCells = (Math.abs(cellPxX - midX) + Math.abs(cellPxY - midY)) / cellSize;
-        centerCost = centerDistCells * CENTER_WEIGHT;
+        const distFromStart = Math.abs(nx - start.x) + Math.abs(ny - start.y);
+        const distFromGoal  = Math.abs(nx - goal.x)  + Math.abs(ny - goal.y);
+        if (distFromStart > CENTER_SKIP_RADIUS && distFromGoal > CENTER_SKIP_RADIUS) {
+          const cellPxX = nx * cellSize;
+          const cellPxY = ny * cellSize;
+          const centerDistCells = (Math.abs(cellPxX - midX) + Math.abs(cellPxY - midY)) / cellSize;
+          centerCost = centerDistCells * CENTER_WEIGHT;
+        }
       }
 
       // Tie-break: 同方向 0.01 < perp 0.02 < perp 0.03 < opposite 0.04

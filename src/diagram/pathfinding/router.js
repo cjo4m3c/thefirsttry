@@ -82,21 +82,27 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
   return results;
 }
 
-/** 把 path 上每段標 occupied，含方向 metadata */
+/** 把 path 上每段的「每個 cell」都標 occupied，含方向 metadata。
+ * 注意：cleanOrtho 已合併共線中間點，所以 pathPx 通常只是 bend points。
+ * 這裡要 interpolate 把每段之間的每個 cell 都展開標記，否則 multi-pass
+ * 看不到「水平/垂直段內部的 occupied cells」→ 後續同 target 路徑無法 spread。
+ */
 function markPathOccupied(grid, pathPx, sourceId, targetId) {
-  for (let i = 0; i < pathPx.length; i++) {
-    const [x, y] = pathPx[i];
-    const c = grid.toCell(x, y);
-    // 判斷該 cell 的「行進方向」：用前後點之間的方向
-    let dir = 'east';
-    if (i + 1 < pathPx.length) {
-      const [nx, ny] = pathPx[i + 1];
-      dir = inferDir(x, y, nx, ny);
-    } else if (i > 0) {
-      const [px, py] = pathPx[i - 1];
-      dir = inferDir(px, py, x, y);
+  const cs = grid.cellSize;
+  for (let i = 0; i < pathPx.length - 1; i++) {
+    const [x1, y1] = pathPx[i];
+    const [x2, y2] = pathPx[i + 1];
+    const dir = inferDir(x1, y1, x2, y2);
+    // Walk every cell from (x1,y1) to (x2,y2). Assumes axis-aligned (cleanOrtho 已 enforce)
+    const dx = Math.sign(x2 - x1);
+    const dy = Math.sign(y2 - y1);
+    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / cs;
+    for (let s = 0; s <= steps; s++) {
+      const px = x1 + dx * s * cs;
+      const py = y1 + dy * s * cs;
+      const c = grid.toCell(px, py);
+      grid.markOccupied(c.x, c.y, { sourceId, targetId, dir });
     }
-    grid.markOccupied(c.x, c.y, { sourceId, targetId, dir });
   }
 }
 

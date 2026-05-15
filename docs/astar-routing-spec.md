@@ -163,6 +163,14 @@ getOccupyPenalty(cell, dir, myId, myTargetId):
 - 平行路徑重疊：A* 自動分開到不同 row/col
 - 垂直交叉：允許（penalty 低，視覺可接受）
 
+### 3.3.1 markPathOccupied 完整展開
+
+**注意**：`router.js::markPathOccupied()` 必須對每段 path 的「每個 cell」展開標記，不能只標 bend point。
+
+`cleanOrtho` 會合併共線中間點，所以 `pathPx` 通常只是 bend points。若只標 bend points，後續同 target 路徑看不到「水平/垂直段內部的 occupied cells」→ 同 target 無法 spread（同 cells 仍 0 penalty）。
+
+實作：iterate 每對相鄰 bend points 之間的 cell，逐一 markOccupied。
+
 ### 3.4 維度 3：Center Bias
 
 **目的**：讓 2-bend path 的 bend 點落在 path 中點（避免「一邊短一邊長」）。
@@ -406,6 +414,7 @@ else:  // 幾乎同 col
 | `TURN_PENALTY` | `astar.js` | 10 | 轉彎扣分 |
 | `PROXIMITY_BONUS` | `astar.js` | 4 | 障礙物距離 ≥ 此值時無 penalty |
 | `CENTER_WEIGHT` | `astar.js` | 1.5 | Turn cell 離 path 中點越遠加 cost |
+| `CENTER_SKIP_RADIUS` | `astar.js` | 4 | 距離 start/goal 此值內的 turn 不算 center bias（避免 stub turn 被誤罰）|
 | `OCCUPY_SAME_DIR` | `grid.js` | 80 | 同向重疊扣分 |
 | `OCCUPY_PERP` | `grid.js` | 8 | 垂直交叉扣分 |
 | `MAX_ITER` | `astar.js` | 50000 | A* 搜尋上限 |
@@ -491,6 +500,7 @@ else:  // 幾乎同 col
 | 日期 | 版本 | 內容 | Commit |
 |---|---|---|---|
 | 2026-05-13 | v1.0 | 初版規格，含 3 個 cost 維度（turn, proximity, smart occupancy）| ad2b338 |
-| 2026-05-13 | v1.1 | 加 cost 維度 4: **Center Bias**（解 bend 不對稱）+ Port 選擇改 **Multi-port Trial**（解該用 top/top 或 bottom/bottom 而非 right/left）| TBD |
+| 2026-05-13 | v1.1 | 加 cost 維度 4: **Center Bias**（解 bend 不對稱）+ Port 選擇改 **Multi-port Trial**（解該用 top/top 或 bottom/bottom 而非 right/left）| 21237a2 |
+| 2026-05-13 | v1.2 | (a) `TURN_PENALTY` 10→15（防 proximity-driven zigzag）(b) Same-target OCCUPY 0→3（merge spread）(c) Center bias 加 `CENTER_SKIP_RADIUS=4`（stub turn 不誤罰）(d) `markPathOccupied` 修 bug：展開每個 cell（之前 cleanOrtho 後只標 bend point 導致 multi-pass 看不到水平/垂直段）| TBD |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。
