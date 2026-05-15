@@ -6,6 +6,17 @@
 export default [
   {
     date: '2026-05-13',
+    title: 'fix: overwrite 匯入保留原始 createdAt — 只更新 updatedAt',
+    items: [
+      '**緣由**：使用者「上傳一個已經有該 L3 的新流程、覆蓋的話產出日期和編輯日期會是新的還是舊的？」追蹤後發現：overwrite 模式下、舊 flow 整筆 `deleteFlow`、匯入的 flow 帶新 id 進 `saveFlow` → 走 `else` branch → `createdAt: now`。**原本的建立日期完全遺失**、Dashboard 卡片「建立：YYYY/MM/DD」會被洗成上傳日期。',
+      '**修法（2 個檔案）**：(a) `src/App.jsx handleImportExcel` overwrite 模式 — 在 `deleteFlow` 前先用 `Map(l3Number → createdAt)` 捕獲舊 createdAt、匯入時 inject 回 flow 物件。(b) `src/utils/storage.js saveFlow` else branch — 從 `createdAt: now` 改成 `createdAt: flow.createdAt || now`、尊重 caller 帶的值，真正新建才用 now。',
+      '**結果**：overwrite 匯入後 `createdAt = 舊值`、`updatedAt = now`（這次上傳時間）。Dashboard 卡片「建立日期」反映 L3 真實建立時間、不再被沖掉。keep 模式不受影響（不刪舊 flow，邏輯零變動）。',
+      '**動到的檔案（3 個）**：`src/App.jsx`（handleImportExcel +10 行 createdAt 保留）/ `src/utils/storage.js`（saveFlow 一行 + 註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) 已存在 5-1-1 createdAt=2026-04-01 → 重新匯入 overwrite → createdAt 仍 2026-04-01、updatedAt 變 now (b) 全新 L3 匯入 → createdAt + updatedAt 都是 now（行為不變）(c) keep 模式匯入 → 舊 flow 不動、新 flow createdAt + updatedAt 都是 now（行為不變）。',
+    ],
+  },
+  {
+    date: '2026-05-13',
     title: 'hover 箭頭恢復原尺寸（8×6）— 預設 / 違規 / dashed 仍維持 PR #213 的 12×9',
     items: [
       '**緣由**：使用者「hover 過的箭頭不要跟著變大、維持原本就好」。PR #213 把 6 個 marker 全部 +50% 後、hover 連線（藍色）的箭頭跟著放大，但 hover state 的線 stroke 本來就從 1.4 加粗到 2.5 — 線粗 + marker 大兩個一起、整體變得過於厚重。',
