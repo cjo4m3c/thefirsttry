@@ -339,23 +339,44 @@ pickBestPath(src, tgt, override, srcId, tgtId):
 
 ### 6.2 候選 port 組合（generateCandidates）
 
-依 dx/dy 給合理子集（不全試 16 種），減少 A* runs：
+依 (dx, dy) 分 9 象限給候選，主候選永遠 = `autoPickSides`，每象限再加同軸 pair 候選讓 A* 比 cost。**不加斜軸 pair**（exit / entry 不同軸的 8 種），原因見 §6.2.1。
 
-```
+| dx \ dy | dy < -T (target 上方) | \|dy\| < T (同 row) | dy > T (target 下方) |
+|---|---|---|---|
+| dx < -T | L→R + T→B + T→T + B→B | L→R + T→T + B→B | L→R + B→T + T→T + B→B |
+| \|dx\| < T | T→B + L→L + R→R | AUTO 1 (退化) | B→T + L→L + R→R |
+| dx > T | R→L + T→B + T→T + B→B | R→L + T→T + B→B | R→L + B→T + T→T + B→B |
+
+(T = 30，同 col/row 閾值)
+
+實作（router.js::generateCandidates）：
+
+```js
 candidates = [autoPickSides(src, tgt)]  // 主候選
 
-if (|dy| < 30):  // 同 lane
-  candidates += [top→top, bottom→bottom]
+if (sameRow && !sameCol):          // 同 row 跨 col
+  candidates += [T→T, B→B]         // 上下 corridor 繞行
+else if (sameCol && !sameRow):     // 同 col 跨 row
+  candidates += [L→L, R→R]         // 左右 corridor 繞行
+else if (!sameRow && !sameCol):    // 對角象限
+  candidates += [dy>0 ? B→T : T→B] // S-shape vertical 同軸
+  candidates += [T→T, B→B]         // U-shape vertical 同軸
 
-if (|dx| > 30 && |dy| >= 30):  // 跨 lane forward
-  if (dy > 0) candidates += [bottom→top]
-  else        candidates += [top→bottom]
-
-if (partial override): 把 override side 套用到所有 candidates
+if (partial override): 收斂為單一「幾何自然 pair」候選（見 §6.4）
 candidates = dedupe(candidates)
 ```
 
-通常 2-3 個候選 → 2-3 次 A* runs → 每 edge ~30ms。
+每象限 3-4 個候選 → 3-4 次 A* runs / edge → 約 60-120ms。30 tasks 估算 180-450ms。
+
+#### 6.2.1 為什麼不開斜軸 pair
+
+斜軸 pair = exit / entry 不同軸的 8 種（top→left, right→top, ...）。在對角象限數學上 cost 較低（1-bend 屠殺同軸 2-bend），但會造成：
+
+1. **違反「對稱進入」期待**：使用者預期 top→top 這類兩端對稱 pair；斜軸選 R→T 後變「右出、上方進」不對稱
+2. **破壞同 target slot 排序**（business-spec §5 規則 3）：多 incoming 進同 target 時，有的 entry=left、有的 entry=top，slot 排序破碎
+3. **破壞同 source fork 一致性**：多 outgoing 標籤散在不同 side
+
+等 R3 (Same-target/Same-source Entry/Exit Coherence) cost 維度落地後，再開斜軸候選。屆時 coherence 維度會讓多 incoming/outgoing 自然收斂同 entry/exit side，避開上述副作用。
 
 ### 6.3 autoPickSides 規則（候選 #1）
 
@@ -381,10 +402,12 @@ else:  // 幾乎同 col
 
 ### 6.5 已知 gap（多候選方案後仍未覆蓋）
 
-- Gateway 類型偏好（parallel 應偏好 bottom 出）：可加新 candidate generator
-- Backward edge：可加 `if (dx < -30): candidates += [top→top]`
+- **Gateway 類型偏好**（parallel 應偏好 bottom 出）：可加新 candidate generator
+- **Port reservation**（同 port 不可混 IN+OUT, business-spec §5 規則 1）：v1.4 候選表加完，但若 source.bottom 已有 outgoing 用，新 incoming 仍可能被 A* 選到 bottom。需 R2 加新 cost 維度「port reservation」記錄反向使用
+- **Coherence**（多 incoming 進同 target / 多 outgoing 出同 source 偏好一致 side）：需 R3 加新 cost 維度
+- **斜軸 pair 開放**：等 R3 落地後評估解禁
 
-這些都是擴 generateCandidates，不是寫 if-then 條件分支去「強制套用特定 port」。
+這些都是擴 cost 維度 / 候選 generator，不是寫 if-then 條件分支。
 
 ---
 
@@ -504,6 +527,7 @@ else:  // 幾乎同 col
 | 2026-05-13 | v1.0 | 初版規格，含 3 個 cost 維度（turn, proximity, smart occupancy）| ad2b338 |
 | 2026-05-13 | v1.1 | 加 cost 維度 4: **Center Bias**（解 bend 不對稱）+ Port 選擇改 **Multi-port Trial**（解該用 top/top 或 bottom/bottom 而非 right/left）| 21237a2 |
 | 2026-05-13 | v1.2 | (a) `TURN_PENALTY` 10→15（防 proximity-driven zigzag）(b) Same-target OCCUPY 0→3（merge spread）(c) Center bias 加 `CENTER_SKIP_RADIUS=4`（stub turn 不誤罰）(d) `markPathOccupied` 修 bug：展開每個 cell（之前 cleanOrtho 後只標 bend point 導致 multi-pass 看不到水平/垂直段）| 9257bb1 |
-| 2026-05-13 | v1.3 | (a) **Distance-aware OCCUPY**：同 source/target 從「全程同 penalty」改為「距離 port ≤ SHARE_RADIUS(2) 免費，遠離則 SHARE_PENALTY(3)」→ trunk/tail 共享同 port、中段 spread 開（解 fork labels 重疊 + merge 提早合流）(b) **Partial override 候選收斂**：使用者只拖 exit (或 entry) 時，只生 1 個幾何自然候選（垂直 exit → 水平 entry 依 target.cx 決定），不再 multi-trial 試錯 | TBD |
+| 2026-05-13 | v1.3 | (a) **Distance-aware OCCUPY**：同 source/target 從「全程同 penalty」改為「距離 port ≤ SHARE_RADIUS(2) 免費，遠離則 SHARE_PENALTY(3)」→ trunk/tail 共享同 port、中段 spread 開（解 fork labels 重疊 + merge 提早合流）(b) **Partial override 候選收斂**：使用者只拖 exit (或 entry) 時，只生 1 個幾何自然候選（垂直 exit → 水平 entry 依 target.cx 決定），不再 multi-trial 試錯 | 02f7cb9 |
+| 2026-05-16 | v1.4 | **9 象限候選表**：`generateCandidates` 從「同 lane 加 T→T/B→B、跨 lane 加 S-shape」擴成 9 象限完整表。對角象限新增 T→T + B→B 候選（解圖一 task→end event 不必要彎折）。同 col 跨 row 新增 L→L + R→R 候選。**斜軸 pair 暫不開**（待 R3 coherence 維度落地）。Per-edge A* runs 從 1-3 升到 3-4，效能 +50%（30 tasks 約 180-450ms）。 | TBD |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。

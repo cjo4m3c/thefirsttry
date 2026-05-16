@@ -112,9 +112,9 @@ parallel gateway 視覺習慣從 bottom 出（往下分叉），exclusive 從 ri
 **修法方向**：cost function 加新維度「source 是 parallel gateway 時，candidate `bottom→top` 給 bonus（負 cost）」。或在 `generateCandidates` 依 source.gatewayType 調權重。
 
 #### 6.3 Backward edge（迴圈返回）視覺
-`dx < -30` 的邊（target 在 source 西邊），main 風格走 top 上方繞。當前 A* 直接走 lane 內部。
+`dx < -30` 的邊（target 在 source 西邊），main 風格走 top 上方繞。
 
-**修法方向**：autoPickSides 加分支「dx < -threshold → 給 top→top 加 candidate」或新 cost 維度「dx<0 時北向 cells 有 bonus」。
+**v1.4 後狀態**：9 象限候選表已加 T→T / B→B 候選，A* 可比 cost 自動選 corridor 繞行。**待實測確認**是否完整解，若仍走 lane 內部則考慮新 cost 維度。
 
 #### 6.4 規則 3「target 欄左→右排 slot」
 業務規則：多條 corridor 線按 target col 排序。當前 multi-pass 排序是按 source col 進 → target col 進，路徑形狀由 A* 決定，**順序不保證跟 target col 對齊**。
@@ -211,7 +211,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-13 | ad2b338 | A* round 4: 4-dim cost (turn / proximity / occupy / center) | v1.0 |
 | 2026-05-13 | 21237a2 | A* round 5: multi-port trial + center bias | v1.1 |
 | 2026-05-13 | 9257bb1 | A* round 6: 修 zigzag bug + markOccupied 展開 | v1.2 |
-| 2026-05-13 | TBD | A* round 7: distance-aware occupy + partial override 收斂 | v1.3 |
+| 2026-05-13 | 02f7cb9 | A* round 7: distance-aware occupy + partial override 收斂 | v1.3 |
+| 2026-05-16 | TBD | A* round 8: 9 象限候選表（解圖一 task→end event 不必要彎折，圖二 4 條進 end event 部分覆蓋）| v1.4 |
 
 ---
 

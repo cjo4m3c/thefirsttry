@@ -156,21 +156,31 @@ function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
 function generateCandidates(src, tgt, override) {
   const dx = tgt.cx - src.cx;
   const dy = tgt.cy - src.cy;
+  const T = 30;
   const candidates = [];
 
   // 主候選：依 dx/dy 推「最自然」的 port
   candidates.push(autoPickSides(src, tgt));
 
-  // 同 lane（|dy| < 30）：考慮 top→top / bottom→bottom（解問題 1：中間有障礙時走 corridor）
-  if (Math.abs(dy) < 30) {
+  const sameRow = Math.abs(dy) < T;
+  const sameCol = Math.abs(dx) < T;
+
+  if (sameRow && !sameCol) {
+    // 同 row 跨 col：加 corridor 繞行候選（解中間有 task 阻擋時走 corridor）
     candidates.push({ exit: 'top',    entry: 'top'    });
     candidates.push({ exit: 'bottom', entry: 'bottom' });
-  }
-
-  // 跨 lane（|dy| ≥ 30）且 |dx| > 30：考慮 vertical port（同 col 風格）
-  if (Math.abs(dx) > 30 && Math.abs(dy) >= 30) {
+  } else if (sameCol && !sameRow) {
+    // 同 col 跨 row：加左右 corridor 繞行候選
+    candidates.push({ exit: 'left',  entry: 'left'  });
+    candidates.push({ exit: 'right', entry: 'right' });
+  } else if (!sameRow && !sameCol) {
+    // 對角象限：dy 順向 vertical pair (S-shape) + U-shape vertical 同軸
+    // 不加斜軸 pair (R→T, T→L 等 8 種) — 1-bend 會屠殺同軸 2-bend 但
+    // 破壞「對稱進入」期待 + 同 target slot 排序。等 coherence cost 維度落地再開。
     if (dy > 0) candidates.push({ exit: 'bottom', entry: 'top' });
     else        candidates.push({ exit: 'top',    entry: 'bottom' });
+    candidates.push({ exit: 'top',    entry: 'top'    });
+    candidates.push({ exit: 'bottom', entry: 'bottom' });
   }
 
   // Partial override：使用者只拖了 exit 或只拖了 entry。
