@@ -26,15 +26,24 @@ import { findPath } from './astar.js';
 export function routeAll(rawConns, positions, svgWidth, svgHeight) {
   const grid = new RoutingGrid(positions, svgWidth, svgHeight);
 
+  // S1 (v1.8) Anchor by geometry pre-compute：
+  // 對每 task 預測 in/out anchor side（多數方位投票），讓 coherence 跟 multi-pass
+  // 順序解耦。後續 reservePort 用 first-wins 不會覆寫已預設 anchor。
+  predictAnchors(grid, rawConns, positions);
+
   // Sort connections to make multi-pass deterministic
-  // Order: by source col asc, then target col asc
+  // Order: by source col asc → target col asc → S2 (v1.8) sourceId/targetId 字典序
+  // (sort 結構性穩定化，同 layout 永遠跑出同 result)
   const sorted = rawConns.slice().sort((a, b) => {
     const sa = positions[a.fromId]?.col ?? 0;
     const sb = positions[b.fromId]?.col ?? 0;
     if (sa !== sb) return sa - sb;
     const ta = positions[a.toId]?.col ?? 0;
     const tb = positions[b.toId]?.col ?? 0;
-    return ta - tb;
+    if (ta !== tb) return ta - tb;
+    if (a.fromId !== b.fromId) return a.fromId < b.fromId ? -1 : 1;
+    if (a.toId !== b.toId)     return a.toId < b.toId ? -1 : 1;
+    return 0;
   });
 
   const results = [];
@@ -117,6 +126,55 @@ function inferDir(x1, y1, x2, y2) {
     return x2 >= x1 ? 'east' : 'west';
   }
   return y2 >= y1 ? 'south' : 'north';
+}
+
+/** S1 (v1.8) Anchor by geometry：對每 task 預測 in / out anchor side。
+ * 對每條 edge 投票：
+ *   - source 的 out anchor 投 (target 相對 source 的方位)
+ *   - target 的 in  anchor 投 (source 相對 target 的方位)
+ * 每 task 該方向票數最多的 side 設為 anchor。
+ *
+ * 解 multi-pass 順序敏感：anchor 不再依「哪條 edge 先 route」決定，
+ * 而由 layout 結構 (所有 connected task 的相對位置) 決定。
+ *
+ * Tie-break：right > bottom > left > top (forward-east 偏好)。
+ * 0 票的 task：不設 anchor (回退 first-wins 行為)。
+ */
+function predictAnchors(grid, rawConns, positions) {
+  const emptyCounts = () => ({ left: 0, right: 0, top: 0, bottom: 0 });
+  const votes = {};
+  const ensure = (id) => {
+    if (!votes[id]) votes[id] = { in: emptyCounts(), out: emptyCounts() };
+    return votes[id];
+  };
+  // 由 dx/dy 推 side：取 |dx| 跟 |dy| 大的軸為主，再依號取 side
+  const vote = (dx, dy) => {
+    if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
+    return dy >= 0 ? 'bottom' : 'top';
+  };
+  for (const conn of rawConns) {
+    const src = positions[conn.fromId];
+    const tgt = positions[conn.toId];
+    if (!src || !tgt) continue;
+    // src 的 out anchor 投：target 相對 src 在哪個方位 → src 從那個 side 出
+    ensure(conn.fromId).out[vote(tgt.cx - src.cx, tgt.cy - src.cy)]++;
+    // tgt 的 in anchor 投：source 相對 tgt 在哪個方位 → tgt 從那個 side 進入
+    ensure(conn.toId).in[vote(src.cx - tgt.cx, src.cy - tgt.cy)]++;
+  }
+  const pickMaxSide = (counts) => {
+    let best = null, bestCount = 0;
+    for (const side of ['right', 'bottom', 'left', 'top']) {
+      if (counts[side] > bestCount) { bestCount = counts[side]; best = side; }
+    }
+    return bestCount > 0 ? best : null;
+  };
+  for (const taskId in votes) {
+    const inAnchor  = pickMaxSide(votes[taskId].in);
+    const outAnchor = pickMaxSide(votes[taskId].out);
+    if (inAnchor || outAnchor) {
+      grid.coherence[taskId] = { in: inAnchor, out: outAnchor };
+    }
+  }
 }
 
 /**

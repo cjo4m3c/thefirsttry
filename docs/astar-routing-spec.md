@@ -171,35 +171,48 @@ getOccupyPenalty(cell, dir, myId, myTargetId):
 
 實作：iterate 每對相鄰 bend points 之間的 cell，逐一 markOccupied。
 
-### 3.4 維度 3：Center Bias
+### 3.4 維度 4：Center Bias (v1.1 + v1.2 + v1.8 動態 SKIP_RADIUS)
 
-**目的**：讓 2-bend path 的 bend 點落在 path 中點（避免「一邊短一邊長」）。
+**目的**：讓 2-bend U/S path 的 bend 點落在 path 中點（避免「一邊短一邊長」）。
 
 ```js
+// v1.8 (S3)：SKIP_RADIUS 從固定 4 改成依 path 長度動態算
+pathLen = manhattan(start, goal)
+skipRadius = clamp(pathLen / 4, [4, 10])
+
 if (isTurn && hasCenter):
-  midX = (src.cx + tgt.cx) / 2
-  midY = (src.cy + tgt.cy) / 2
-  centerDistCells = (|cellPxX - midX| + |cellPxY - midY|) / CELL_SIZE
-  centerCost = centerDistCells * CENTER_WEIGHT
+  if (distFromStart > skipRadius && distFromGoal > skipRadius):
+    midX = (src.cx + tgt.cx) / 2
+    midY = (src.cy + tgt.cy) / 2
+    centerDistCells = (|cellPxX - midX| + |cellPxY - midY|) / CELL_SIZE
+    centerCost = centerDistCells * CENTER_WEIGHT
 ```
 
 | 參數 | 預設值 | 意義 |
 |---|---|---|
 | `CENTER_WEIGHT` | 1.5 | turn cell 離 path 中點越遠，加 cost 越多 |
+| `CENTER_SKIP_RADIUS_MIN` | 4 | 短 path 的 SKIP_RADIUS 下限 (保留 v1.2 行為) |
+| `CENTER_SKIP_RADIUS_MAX` | 10 | 長 path 的 SKIP_RADIUS 上限 |
 
-只對 **turn cell** 加 cost：
-- 對所有 2-bend 候選 path 來說，base cost + proximity + turn cost 大致相同（鏡像對稱）
-- bend 位置不同 → turn cell 在不同位置 → 用 centerCost 區分
-- A* 自動選 bend 在中點的 path
+只對「離 endpoint > SKIP_RADIUS」的 turn cell 加 cost。**v1.8 動態 SKIP_RADIUS 的意義**：
+
+- 對短 path (pathLen=10)：skipRadius=4，跟 v1.2 一樣
+- 對中 path (pathLen=20)：skipRadius=5，略寬
+- 對長 path (pathLen=40+)：skipRadius=10 (上限)
+- **解決圖一 5-1-4-3 → 5-1-4-10 case**：1-bend bend cell 在「東南角」離 goal 約 4，pathLen=28 → skipRadius=7 > 4 → bend 被跳過不算 centerCost → A* 自然選 1-bend 不繞行
+- **保留 v1.1 修的「2-bend bend 拉中點」**：2-bend bend cells 位於 path 中段，distFromStart/Goal ≈ pathLen/2，仍 > skipRadius → centerCost 起作用
 
 **解決哪些情境**：
-- 2-bend cross-lane 路徑 bend 偏 source / target → bend 拉到中點
-- S-shape 路徑兩段水平等長
+- 2-bend cross-lane 路徑 bend 偏 source / target → bend 拉到中點 (v1.1)
+- S-shape 路徑兩段水平等長 (v1.1)
+- Port stub 必要轉彎不被誤罰 (v1.2)
+- **長 path 1-bend (R→B 對角斜軸) 的 corner bend 不被誤罰** (v1.8)
 
 **對既有 case 的影響**：
 - 直線（0 turn）：無 turn cell → 0 centerCost → 不影響 ✓
-- 1-turn L-shape：turn cell 位置固定，centerCost 對所有變體相同（鏡像）→ 不影響選擇 ✓
-- 多 turn 避障路徑：每 turn cell 加 centerCost → 偏好 turn 在中心區 ✓
+- 1-turn L-shape 短 path：skipRadius=4 跟 v1.2 一樣 → 不影響 ✓
+- 2-bend U/S：bend 在中段、離 endpoint > skipRadius → 仍受 Center Bias → bend 拉中點 ✓
+- **1-bend 對角斜軸長 path：corner bend 落在 skipRadius 內 → 不被罰 → 1-bend 仍最低 cost ✓**
 
 ### 3.5 維度 5：Port Reservation (v1.5)
 
@@ -232,21 +245,31 @@ getPortConflictPenalty(taskId, side, direction):
 
 **Multi-pass 順序影響**：reservation state 依排序累加。目前 sort 是 `source.col asc → target.col asc`，先 route 的 edge 先 reserve port。若順序不合理可後續調 sort。
 
-### 3.6 維度 6：Same-target / Same-source Coherence (v1.6)
+### 3.6 維度 6：Same-target / Same-source Coherence (v1.6 + v1.8 anchor by geometry)
 
 **目的**：多 incoming 進同 target / 多 outgoing 出同 source 偏好收斂一致 entry/exit side。
 
 ```js
-reservePort(taskId, side, direction):  // 在 routeAll 內每條 edge 路由完呼叫
+// v1.8 (S1)：routeAll 開頭先做 anchor by geometry pre-compute
+predictAnchors(grid, rawConns, positions):
+  for each edge (src → tgt):
+    vote src.out anchor by (tgt 相對 src 的方位)
+    vote tgt.in  anchor by (src 相對 tgt 的方位)
+  for each task:
+    in/out anchor = 票數最多的 side (tie-break: right > bottom > left > top)
+    寫入 grid.coherence[taskId]
+
+// route 過程中 reservePort first-wins 不覆寫已預設 anchor
+reservePort(taskId, side, direction):
   ...port reservation 計數...
-  if (!coherence[taskId][direction]) coherence[taskId][direction] = side  // first-wins
+  if (!coherence[taskId][direction]) coherence[taskId][direction] = side  // 沒 anchor 才設
 
 getCoherenceMismatchPenalty(taskId, side, direction):
   anchor = coherence[taskId]?.[direction]
   return (anchor && anchor !== side) ? COHERENCE_PENALTY : 0
 ```
 
-每 task 的每方向（in / out）有一個 anchor side。第一條 edge route 完後 anchor 鎖死該 direction 用的 side，後續同 task 同方向選不一致 side 加 `COHERENCE_PENALTY(20)`。
+每 task 的每方向（in / out）有一個 anchor side。**v1.8 後** anchor 由 layout 預處理依 geometry 多數投票決定，跟 multi-pass 順序解耦；route 完每條 edge 仍呼叫 reservePort 但不覆寫已預設的 anchor。
 
 | 參數 | 預設值 | 意義 |
 |---|---|---|
@@ -255,14 +278,14 @@ getCoherenceMismatchPenalty(taskId, side, direction):
 **權重設計**：20 > TURN_PENALTY(15)，能贏 1 個 turn 的差距讓 coherence 屠殺；但 << OCCUPY_SAME_DIR(80) / PORT_VIOLATION(500)，明顯阻擋或規則違規仍會走非一致 side。
 
 **解決哪些情境**：
-- 多 incoming 進同 end event → 全部收斂同 entry side（看第一條 anchor）
+- 多 incoming 進同 end event → 全部收斂同 entry side（anchor 預設）
 - Gateway 多 fork → 全部從 anchor exit side 出（標籤不會散在不同 side）
 - 跨多 lane 大流程 → 進入 side 視覺一致
+- **v1.8 後**：編輯一條 edge 不會打亂其他 edge 的 anchor → 跳變消失
 
 **邊界**：
-- First-wins：anchor 一旦設不更新。若第一條因阻擋走非主流 side，後續會被罰跟隨（除非 cost 差超過 20）
+- Anchor 由 geometry 預測；只有 0 票的 task 不設 anchor（罕見）
 - 跟 port reservation 不衝突：reservation 是 hard 避反向，coherence 是 soft 偏向同 side
-- 沒 anchor 時不收費（第一條 edge 自由選最低 cost side）
 
 ### 3.7 Tie-break
 
@@ -512,7 +535,8 @@ else:  // 幾乎同 col
 | `TURN_PENALTY` | `astar.js` | 10 | 轉彎扣分 |
 | `PROXIMITY_BONUS` | `astar.js` | 4 | 障礙物距離 ≥ 此值時無 penalty |
 | `CENTER_WEIGHT` | `astar.js` | 1.5 | Turn cell 離 path 中點越遠加 cost |
-| `CENTER_SKIP_RADIUS` | `astar.js` | 4 | 距離 start/goal 此值內的 turn 不算 center bias（避免 stub turn 被誤罰）|
+| `CENTER_SKIP_RADIUS_MIN` | `astar.js` | 4 | 短 path 的 SKIP_RADIUS 下限 (v1.8 動態) |
+| `CENTER_SKIP_RADIUS_MAX` | `astar.js` | 10 | 長 path 的 SKIP_RADIUS 上限 (v1.8 動態, skipRadius = clamp(pathLen/4)) |
 | `OCCUPY_SAME_DIR` | `grid.js` | 80 | 同向重疊扣分 |
 | `OCCUPY_PERP` | `grid.js` | 8 | 垂直交叉扣分 |
 | `SHARE_RADIUS` | `grid.js` | 2 | 同 source/target 在離 port 此值內 share，超出 spread (v1.3) |
@@ -608,6 +632,7 @@ else:  // 幾乎同 col
 | 2026-05-16 | v1.4 | **9 象限候選表**：`generateCandidates` 從「同 lane 加 T→T/B→B、跨 lane 加 S-shape」擴成 9 象限完整表。對角象限新增 T→T + B→B 候選（解圖一 task→end event 不必要彎折）。同 col 跨 row 新增 L→L + R→R 候選。**斜軸 pair 暫不開**（待 R3 coherence 維度落地）。Per-edge A* runs 從 1-3 升到 3-4，效能 +50%（30 tasks 約 180-450ms）。 | f7b5f40 |
 | 2026-05-16 | v1.5 | **維度 5 Port Reservation**：grid 加 `portReservations` map 記錄每 task 每 port 的 IN/OUT 使用計數，`pickBestPath` 評估每個 candidate 時加 `PORT_VIOLATION_PENALTY(500)` if 反向已被用。解 business-spec §5 規則 1「同 port 不可混 IN+OUT」。同 port 多 IN（merge）/ 多 OUT（fork）仍允許。 | 6ec6346 |
 | 2026-05-16 | v1.6 | **維度 6 Coherence**：grid 加 `coherence` map (first-wins anchor)，`reservePort` 順便鎖 anchor side。`pickBestPath` 加 `COHERENCE_PENALTY(20)` if 後續 edge 選不一致 side。解多 incoming 進同 target / 多 outgoing 出同 source 視覺一致性。 | 6feacf9 |
-| 2026-05-16 | v1.7 | **斜軸 pair 開放**：對角象限每個加 2 個自然順向斜軸 pair (R→T, B→L 等)，A* 比 cost。1-bend 屠殺同軸 2-bend → 暢通對角邊更短。副作用由維度 5 (PORT_VIOLATION) + 6 (COHERENCE) 受控。每 edge A* runs 3-4 → 3-6，效能 +50% (30 tasks 約 270-540ms)。 | TBD |
+| 2026-05-16 | v1.7 | **斜軸 pair 開放**：對角象限每個加 2 個自然順向斜軸 pair (R→T, B→L 等)，A* 比 cost。1-bend 屠殺同軸 2-bend → 暢通對角邊更短。副作用由維度 5 (PORT_VIOLATION) + 6 (COHERENCE) 受控。每 edge A* runs 3-4 → 3-6，效能 +50% (30 tasks 約 270-540ms)。 | caa9b37 |
+| 2026-05-17 | v1.8 | **Phase A 三合一**：(a) S1 Anchor by Geometry pre-compute — routeAll 開頭預測每 task 的 in/out anchor side (多數投票)，coherence 跟 multi-pass 順序解耦，編輯一條 edge 不再打亂其他 edge 視覺 (解圖二跳變)。(b) S2 Sort 結構性穩定化 — sort key 加 sourceId/targetId 字典序 tie-break，同 layout 永遠跑出同 result。(c) S3 Center Bias 動態 SKIP_RADIUS — CENTER_SKIP_RADIUS 從固定 4 改成 clamp(pathLen/4, [4, 10])，長 path 的 1-bend corner bend 不被誤罰 (解圖一 5-1-4-3/5-1-4-6 → 5-1-4-10 多餘彎折)，2-bend U/S 仍保留 bend 拉中點。 | TBD |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。

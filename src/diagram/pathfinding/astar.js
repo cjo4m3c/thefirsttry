@@ -17,9 +17,12 @@ const PROXIMITY_BONUS = 4;     // cell 離障礙物距離 ≥ 此值時無 penal
                                 // (push path 走 corridor 中央，解決「貼邊」+「bend 靠 target」)
 const CENTER_WEIGHT = 1.5;     // turn cell 離 path 中點越遠，加 cost 越多
                                 // (解決 bend 偏 source / target 邊 → 拉到中點)
-const CENTER_SKIP_RADIUS = 4;  // v1.2: 距離 start/goal 此值內的 turn 不算 center bias
-                                //  (這些是 port stub 必要轉彎，penalize 它們會讓 A*
-                                //   寧願 zigzag 把 turn 放中間 → 解問題 1+2)
+// v1.8 S3 動態 SKIP_RADIUS：原固定 4 對長 path 仍把 1-bend 的 corner-bend 罰到
+// A* 改選繞行 3-bend (圖一 5-1-4-3→5-1-4-10 case)。改成「path 長度 / 4」自動 scale，
+// 上下界 [4, 10] 保護：對短 path 仍保留 v1.2 行為，對長 path 放寬讓 corner-bend 不被誤罰，
+// 但 2-bend U/S 的中段 bend 仍進 Center Bias 計算 (保留 v1.1 修的 bend 拉中點)。
+const CENTER_SKIP_RADIUS_MIN = 4;
+const CENTER_SKIP_RADIUS_MAX = 10;
 
 const DIRS = {
   east:  { dx:  1, dy:  0 },
@@ -99,6 +102,13 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
   const midY = hasCenter ? (opts.srcCy + opts.tgtCy) / 2 : 0;
   const cellSize = grid.cellSize;
 
+  // v1.8 S3：依 path 長度動態算 SKIP_RADIUS
+  const pathLen = manhattan(start, goal);
+  const centerSkipRadius = Math.min(
+    CENTER_SKIP_RADIUS_MAX,
+    Math.max(CENTER_SKIP_RADIUS_MIN, Math.floor(pathLen / 4))
+  );
+
   const startNode = {
     cell: start,
     dir: sourceExitDir,
@@ -164,7 +174,7 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
       if (isTurn && hasCenter) {
         const distFromStart = Math.abs(nx - start.x) + Math.abs(ny - start.y);
         const distFromGoal  = Math.abs(nx - goal.x)  + Math.abs(ny - goal.y);
-        if (distFromStart > CENTER_SKIP_RADIUS && distFromGoal > CENTER_SKIP_RADIUS) {
+        if (distFromStart > centerSkipRadius && distFromGoal > centerSkipRadius) {
           const cellPxX = nx * cellSize;
           const cellPxY = ny * cellSize;
           const centerDistCells = (Math.abs(cellPxX - midX) + Math.abs(cellPxY - midY)) / cellSize;
