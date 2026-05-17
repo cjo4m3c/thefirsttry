@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-13',
+    title: 'fix: 多 end 事件 (`-99_x{K}`) 在 Excel 匯入 + 載入 migration 被誤判為 task',
+    items: [
+      '**緣由**：使用者「上傳兩個結束事件的資料時，結束事件被自動改成了任務」+ 要求全面 audit 上傳 / 圖面 / 表單 / 編輯器 / 儲存五個路徑與 PR #210 多 end `-99_x{K}` 規則一致性。',
+      '**Root cause**：PR #210（2026-05-13）加多 end `_x{K}` 後綴規則時、漏修 3 個用 bare `/-99$/` 偵測結束事件的地方 — 該 regex 不接 `_x` 變體 → 多 end 元件分類錯誤。',
+      '**Audit 完整結果**：審計 12 處 -99 / 結束事件偵測，**只 3 處有 bug**、其他 9 處都已用 `L4_END_PATTERN`（taskDefs.js SOT、含 `_x`）或 `type === "end"`（pure type-based、不關 pattern）。一旦 type 在 import 端設對、所有下游（validation / ContextMenu / TaskCard / DrawerContent / FlowTable / drawio / PNG export）自動正確。',
+      '**修法（3 行 + 註解）**：(a) `src/utils/excelImport/detectors.js detectKindFromL4` line 42 `/-99$/` → `/-99(_x\\d+)?$/` — **主因**、Excel 匯入多 end 從 task 修回 end (b) `src/utils/storage/migrations.js migrateTypeFromL4Suffix` line 316 同樣修改 — 載入時 backfill 舊資料中被誤類為 task 的多 end (c) `src/utils/excelImport/warnings.js` line 42 isEndL4 同樣修改 — 多 end 名稱沒寫「結束事件」時也跳「建議補前綴」warning。三處統一加 inline 註解標示 PR #210 規則來源。',
+      '**動到的檔案（4 個）**：`src/utils/excelImport/detectors.js` / `src/utils/storage/migrations.js` / `src/utils/excelImport/warnings.js` / `src/data/changelog/current.js`。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) Excel 2 個 end (`-99_x1` + `-99_x2`) 匯入 → type=end ✓（修前 type=task）(b) 1 個 end (`-99`) 匯入 → 行為不變 (c) localStorage 有舊資料 type=task + l4=`-99_x1` → 載入後 type=end ✓ (d) 多 end Excel 名稱沒寫「結束事件」→ 跳 warning ✓。',
+    ],
+  },
+  {
+    date: '2026-05-13',
     title: 'fix: 「← 返回」refresh App.flows — 修 dismiss 過的 import warning 重複出現',
     items: [
       '**緣由**：使用者「我發現這個提示資訊每次點開編輯畫面都會出現」— `🔧 結束事件編號已自動更新（多結束事件對齊 BPMN 規則）：5-1-5-99 → 1-1-2-99` 即使按 ✕ dismiss 後、重新進編輯器又出現。',
