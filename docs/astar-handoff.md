@@ -224,7 +224,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-13 | 02f7cb9 | A* round 7: distance-aware occupy + partial override 收斂 | v1.3 |
 | 2026-05-16 | f7b5f40 | A* round 8: 9 象限候選表（解圖一 task→end event 不必要彎折，圖二 4 條進 end event 部分覆蓋）| v1.4 |
 | 2026-05-16 | 6ec6346 | A* round 9: 維度 5 Port Reservation（解 B-7 條件 1 / business-spec §5 規則 1） | v1.5 |
-| 2026-05-16 | TBD | A* round 10: 維度 6 Coherence（多 incoming/outgoing 收斂一致 side） | v1.6 |
+| 2026-05-16 | 6feacf9 | A* round 10: 維度 6 Coherence（多 incoming/outgoing 收斂一致 side） | v1.6 |
+| 2026-05-16 | TBD | A* round 11: 斜軸 pair 開放（對角象限每個加 2 個自然順向 1-bend 候選） | v1.7 |
 
 ---
 

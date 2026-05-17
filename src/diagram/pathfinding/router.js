@@ -192,12 +192,27 @@ function generateCandidates(src, tgt, override) {
     candidates.push({ exit: 'right', entry: 'right' });
   } else if (!sameRow && !sameCol) {
     // 對角象限：dy 順向 vertical pair (S-shape) + U-shape vertical 同軸
-    // 不加斜軸 pair (R→T, T→L 等 8 種) — 1-bend 會屠殺同軸 2-bend 但
-    // 破壞「對稱進入」期待 + 同 target slot 排序。等 coherence cost 維度落地再開。
     if (dy > 0) candidates.push({ exit: 'bottom', entry: 'top' });
     else        candidates.push({ exit: 'top',    entry: 'bottom' });
     candidates.push({ exit: 'top',    entry: 'top'    });
     candidates.push({ exit: 'bottom', entry: 'bottom' });
+    // R4 (v1.7) 自然順向斜軸 pair (依 dx/dy 號決定方位的 2 種 1-bend pair)
+    // 不開繞遠的逆向斜軸。R2 port reservation + R3 coherence 已落地保證副作用受控：
+    //   - 反向 port 使用會被 PORT_VIOLATION(500) 屠殺
+    //   - 同 target 多 incoming 由 coherence anchor 自然收斂同 side
+    if (dx > 0 && dy > 0) {       // 右下
+      candidates.push({ exit: 'right',  entry: 'top'  });
+      candidates.push({ exit: 'bottom', entry: 'left' });
+    } else if (dx > 0 && dy < 0) { // 右上
+      candidates.push({ exit: 'right',  entry: 'bottom' });
+      candidates.push({ exit: 'top',    entry: 'left'   });
+    } else if (dx < 0 && dy > 0) { // 左下
+      candidates.push({ exit: 'left',   entry: 'top'   });
+      candidates.push({ exit: 'bottom', entry: 'right' });
+    } else {                        // 左上
+      candidates.push({ exit: 'left',   entry: 'bottom' });
+      candidates.push({ exit: 'top',    entry: 'right'  });
+    }
   }
 
   // Partial override：使用者只拖了 exit 或只拖了 entry。
