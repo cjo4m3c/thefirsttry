@@ -66,11 +66,17 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
         entrySide: sides.entry,
         _bendPoints: fallbackOrthoPath(srcPort, tgtPort, sides),
       });
+      // 即使 fallback 也要 reserve port，避免後續 edge 誤用同 port 反向
+      grid.reservePort(conn.fromId, sides.exit,  'out');
+      grid.reservePort(conn.toId,   sides.entry, 'in');
       continue;
     }
     // Mark path cells as occupied for next pass，含 source/target/dir metadata
     // 讓後續同 source / 同 target 的 edge 可以共享 cell（不收 penalty）
     markPathOccupied(grid, pathPx, conn.fromId, conn.toId);
+    // R2 (v1.5)：reserve port — 後續 edge 算 port conflict penalty 時看得到
+    grid.reservePort(conn.fromId, sides.exit,  'out');
+    grid.reservePort(conn.toId,   sides.entry, 'in');
     results.push({
       ...conn,
       exitSide: sides.exit,
@@ -146,8 +152,14 @@ function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
   for (const sides of candidates) {
     const result = computePath(grid, src, tgt, sides, sourceId, targetId);
     if (!result) continue;
-    if (!best || result.cost < best.cost) {
-      best = { path: result.path, sides, cost: result.cost };
+    // R2 (v1.5) 維度 5：port reservation conflict cost
+    // 若 src.exit 或 tgt.entry 已被反向用 (規則 1 違規)，加 PORT_VIOLATION_PENALTY
+    const portPenalty =
+        grid.getPortConflictPenalty(sourceId, sides.exit,  'out')
+      + grid.getPortConflictPenalty(targetId, sides.entry, 'in');
+    const adjustedCost = result.cost + portPenalty;
+    if (!best || adjustedCost < best.cost) {
+      best = { path: result.path, sides, cost: adjustedCost };
     }
   }
   return best;

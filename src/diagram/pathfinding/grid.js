@@ -22,6 +22,11 @@ export const CELL_SIZE = GRID_CELL;
 const SHARE_RADIUS = 2;
 const SHARE_PENALTY = 3;
 
+// Port reservation 參數（v1.5 維度 5）：
+//   同 port 反向使用（IN+OUT 混用）違反 business-spec §5 規則 1。
+//   不是 hard block 而是大 cost 讓 A* 自然避開（仍可選做 fallback）。
+const PORT_VIOLATION_PENALTY = 500;
+
 export class RoutingGrid {
   constructor(positions, svgWidth, svgHeight) {
     this.cellSize = CELL_SIZE;
@@ -32,6 +37,9 @@ export class RoutingGrid {
     // 比 Uint8Array 略慢但能做 source/target-aware penalty。
     this.occupied = new Map();
     this.distMap = null;  // lazy compute on first read
+    // Port reservation state (v1.5)：每 task 每 port 的 IN/OUT 使用計數
+    // { taskId: { left: { in, out }, right, top, bottom } }
+    this.portReservations = {};
     this.markTasks(positions);
     this.markBoundaries(svgWidth, svgHeight);
   }
@@ -177,6 +185,37 @@ export class RoutingGrid {
     }
     if (stored.dir === myDir || stored.dir === oppositeDir(myDir)) return 80;  // 同向重疊
     return 8;  // 垂直交叉
+  }
+
+  /** Reserve a port for a direction (v1.5).
+   *   direction = 'in'  → 該 port 當 incoming entry
+   *   direction = 'out' → 該 port 當 outgoing exit
+   * 同 port 多 IN / 多 OUT 都允許（merge / fork 共享）；
+   * 同 port 反向（IN + OUT 混用）由 getPortConflictPenalty 在 pickBestPath 時收 cost。
+   */
+  reservePort(taskId, side, direction) {
+    if (!taskId || !side || (direction !== 'in' && direction !== 'out')) return;
+    if (!this.portReservations[taskId]) {
+      this.portReservations[taskId] = {
+        left:   { in: 0, out: 0 },
+        right:  { in: 0, out: 0 },
+        top:    { in: 0, out: 0 },
+        bottom: { in: 0, out: 0 },
+      };
+    }
+    const r = this.portReservations[taskId][side];
+    if (r) r[direction]++;
+  }
+
+  /** Cost penalty if 該 port 反向已被用（規則 1 違規）。
+   * 大 cost (500) 但不是 Infinity → 仍可選做 fallback 不至於 routing 失敗。
+   */
+  getPortConflictPenalty(taskId, side, direction) {
+    if (!taskId || !side || (direction !== 'in' && direction !== 'out')) return 0;
+    const r = this.portReservations[taskId]?.[side];
+    if (!r) return 0;
+    const opposite = direction === 'in' ? 'out' : 'in';
+    return r[opposite] > 0 ? PORT_VIOLATION_PENALTY : 0;
   }
 
   /** Pixel coord → grid cell */

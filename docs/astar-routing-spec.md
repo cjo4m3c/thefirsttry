@@ -201,7 +201,38 @@ if (isTurn && hasCenter):
 - 1-turn L-shape：turn cell 位置固定，centerCost 對所有變體相同（鏡像）→ 不影響選擇 ✓
 - 多 turn 避障路徑：每 turn cell 加 centerCost → 偏好 turn 在中心區 ✓
 
-### 3.5 Tie-break
+### 3.5 維度 5：Port Reservation (v1.5)
+
+**目的**：解 business-spec §5 規則 1「同 port 不可混 IN+OUT」。
+
+```js
+getPortConflictPenalty(taskId, side, direction):
+  state = portReservations[taskId]?.[side]
+  if (!state) return 0
+  opposite = (direction === 'in') ? 'out' : 'in'
+  return state[opposite] > 0 ? PORT_VIOLATION_PENALTY(500) : 0
+```
+
+每 task 的每 port 維護 `{ in: count, out: count }`。Route 完一條 edge 後 `reservePort(srcId, exitSide, 'out')` 跟 `reservePort(tgtId, entrySide, 'in')`。下條 edge 在 `pickBestPath` 比 cost 時加上 conflict penalty。
+
+| 參數 | 預設值 | 意義 |
+|---|---|---|
+| `PORT_VIOLATION_PENALTY` | 500 | 反向使用同 port 的 cost（大到 A* 一定避，但仍可 fallback）|
+
+**解決哪些情境**：
+- End event 已有 outgoing 從 bottom 出 → 新 incoming 不會誤選 bottom 進入
+- Source 已有 incoming 從 top 進 → 新 outgoing 不會誤選 top 出
+- 同 port 多 IN（merge）或多 OUT（fork）仍允許（count 累加不算 conflict）
+- 違規不被 hard block（仍可選做 fallback），但 cost 屠殺其他候選
+
+**實作位置**：
+- `grid.js`：`portReservations` map + `reservePort()` + `getPortConflictPenalty()`
+- `router.js::pickBestPath`：每個 candidate cost 加上 portPenalty 後比較
+- `router.js::routeAll`：每條 edge route 完後 reservePort（含 fallback 路徑）
+
+**Multi-pass 順序影響**：reservation state 依排序累加。目前 sort 是 `source.col asc → target.col asc`，先 route 的 edge 先 reserve port。若順序不合理可後續調 sort。
+
+### 3.6 Tie-break
 
 ```js
 const dirOrder = [
@@ -217,7 +248,7 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 
 第一步不准回頭（`OPPOSITE[sourceExitDir]`）。
 
-### 3.6 為什麼這四個維度足夠
+### 3.7 為什麼這五個維度足夠
 
 任何「視覺好不好」的判斷都可拆解成：
 
@@ -228,9 +259,12 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 | 線重疊（同向）| OCCUPY same dir |
 | 線無故繞路（同 source 之間互排）| OCCUPY same source/target |
 | 線交叉太多（無 OCCUPY 限制）| OCCUPY perpendicular |
+| 同 port IN+OUT 混用（規則 1 違規）| PORT_RESERVATION |
+| Bend 不在 path 中點 | CENTER_BIAS |
 | 線左右搖擺 | Tie-break |
 
-未來新增情境若用以上維度無法解決，再考慮**加新 cost 維度**（不寫 if-then）。
+未來新增情境若用以上維度無法解決，再考慮**加新 cost 維度**（不寫 if-then）。**已規劃未實作**：
+- 維度 6 (R3)：Same-target / Same-source Coherence — 多 incoming/outgoing 偏好收斂一致 entry/exit side
 
 ---
 
@@ -442,6 +476,7 @@ else:  // 幾乎同 col
 | `OCCUPY_PERP` | `grid.js` | 8 | 垂直交叉扣分 |
 | `SHARE_RADIUS` | `grid.js` | 2 | 同 source/target 在離 port 此值內 share，超出 spread (v1.3) |
 | `SHARE_PENALTY` | `grid.js` | 3 | 超出 SHARE_RADIUS 後同 source/target 的單 cell 扣分 |
+| `PORT_VIOLATION_PENALTY` | `grid.js` | 500 | 同 port 反向使用（規則 1 違規）的 cost penalty (v1.5) |
 | `MAX_ITER` | `astar.js` | 50000 | A* 搜尋上限 |
 | `pickSides dx threshold` | `router.js` | 30 | 同 col 判定閾值（< 30 算同 col）|
 
@@ -528,6 +563,7 @@ else:  // 幾乎同 col
 | 2026-05-13 | v1.1 | 加 cost 維度 4: **Center Bias**（解 bend 不對稱）+ Port 選擇改 **Multi-port Trial**（解該用 top/top 或 bottom/bottom 而非 right/left）| 21237a2 |
 | 2026-05-13 | v1.2 | (a) `TURN_PENALTY` 10→15（防 proximity-driven zigzag）(b) Same-target OCCUPY 0→3（merge spread）(c) Center bias 加 `CENTER_SKIP_RADIUS=4`（stub turn 不誤罰）(d) `markPathOccupied` 修 bug：展開每個 cell（之前 cleanOrtho 後只標 bend point 導致 multi-pass 看不到水平/垂直段）| 9257bb1 |
 | 2026-05-13 | v1.3 | (a) **Distance-aware OCCUPY**：同 source/target 從「全程同 penalty」改為「距離 port ≤ SHARE_RADIUS(2) 免費，遠離則 SHARE_PENALTY(3)」→ trunk/tail 共享同 port、中段 spread 開（解 fork labels 重疊 + merge 提早合流）(b) **Partial override 候選收斂**：使用者只拖 exit (或 entry) 時，只生 1 個幾何自然候選（垂直 exit → 水平 entry 依 target.cx 決定），不再 multi-trial 試錯 | 02f7cb9 |
-| 2026-05-16 | v1.4 | **9 象限候選表**：`generateCandidates` 從「同 lane 加 T→T/B→B、跨 lane 加 S-shape」擴成 9 象限完整表。對角象限新增 T→T + B→B 候選（解圖一 task→end event 不必要彎折）。同 col 跨 row 新增 L→L + R→R 候選。**斜軸 pair 暫不開**（待 R3 coherence 維度落地）。Per-edge A* runs 從 1-3 升到 3-4，效能 +50%（30 tasks 約 180-450ms）。 | TBD |
+| 2026-05-16 | v1.4 | **9 象限候選表**：`generateCandidates` 從「同 lane 加 T→T/B→B、跨 lane 加 S-shape」擴成 9 象限完整表。對角象限新增 T→T + B→B 候選（解圖一 task→end event 不必要彎折）。同 col 跨 row 新增 L→L + R→R 候選。**斜軸 pair 暫不開**（待 R3 coherence 維度落地）。Per-edge A* runs 從 1-3 升到 3-4，效能 +50%（30 tasks 約 180-450ms）。 | f7b5f40 |
+| 2026-05-16 | v1.5 | **維度 5 Port Reservation**：grid 加 `portReservations` map 記錄每 task 每 port 的 IN/OUT 使用計數，`pickBestPath` 評估每個 candidate 時加 `PORT_VIOLATION_PENALTY(500)` if 反向已被用。解 business-spec §5 規則 1「同 port 不可混 IN+OUT」。同 port 多 IN（merge）/ 多 OUT（fork）仍允許。 | TBD |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。
