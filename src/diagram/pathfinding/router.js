@@ -157,7 +157,12 @@ function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
     const portPenalty =
         grid.getPortConflictPenalty(sourceId, sides.exit,  'out')
       + grid.getPortConflictPenalty(targetId, sides.entry, 'in');
-    const adjustedCost = result.cost + portPenalty;
+    // R3 (v1.6) 維度 6：coherence mismatch penalty
+    // 同 task 同方向已有 anchor side 時，選不一致 side 加 COHERENCE_PENALTY
+    const cohPenalty =
+        grid.getCoherenceMismatchPenalty(sourceId, sides.exit,  'out')
+      + grid.getCoherenceMismatchPenalty(targetId, sides.entry, 'in');
+    const adjustedCost = result.cost + portPenalty + cohPenalty;
     if (!best || adjustedCost < best.cost) {
       best = { path: result.path, sides, cost: adjustedCost };
     }

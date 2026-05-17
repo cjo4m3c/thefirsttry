@@ -27,6 +27,13 @@ const SHARE_PENALTY = 3;
 //   不是 hard block 而是大 cost 讓 A* 自然避開（仍可選做 fallback）。
 const PORT_VIOLATION_PENALTY = 500;
 
+// Coherence 參數（v1.6 維度 6）：
+//   多 incoming 進同 target / 多 outgoing 出同 source 偏好收斂一致 side。
+//   First-wins：第一條 edge 用的 side 記錄為 anchor，後續同 task 同方向
+//   若選不一致 side 加 COHERENCE_PENALTY。20 跟 TURN_PENALTY(15) 同量級，
+//   能贏 1-bend 差距但不會壓過明顯阻擋。
+const COHERENCE_PENALTY = 20;
+
 export class RoutingGrid {
   constructor(positions, svgWidth, svgHeight) {
     this.cellSize = CELL_SIZE;
@@ -40,6 +47,9 @@ export class RoutingGrid {
     // Port reservation state (v1.5)：每 task 每 port 的 IN/OUT 使用計數
     // { taskId: { left: { in, out }, right, top, bottom } }
     this.portReservations = {};
+    // Coherence state (v1.6)：每 task 的 in/out 第一條 edge 用的 side (first-wins)
+    // { taskId: { in: 'left'|null, out: 'bottom'|null } }
+    this.coherence = {};
     this.markTasks(positions);
     this.markBoundaries(svgWidth, svgHeight);
   }
@@ -205,6 +215,11 @@ export class RoutingGrid {
     }
     const r = this.portReservations[taskId][side];
     if (r) r[direction]++;
+    // R3 (v1.6) coherence first-wins：記錄該 task 該方向的 anchor side
+    if (!this.coherence[taskId]) this.coherence[taskId] = { in: null, out: null };
+    if (!this.coherence[taskId][direction]) {
+      this.coherence[taskId][direction] = side;
+    }
   }
 
   /** Cost penalty if 該 port 反向已被用（規則 1 違規）。
@@ -216,6 +231,19 @@ export class RoutingGrid {
     if (!r) return 0;
     const opposite = direction === 'in' ? 'out' : 'in';
     return r[opposite] > 0 ? PORT_VIOLATION_PENALTY : 0;
+  }
+
+  /** Coherence mismatch penalty (v1.6 維度 6)。
+   * 該 task 該方向的 anchor side (first edge 用的 side) 已記錄時，
+   * 後續選不一致 side 加 COHERENCE_PENALTY。
+   * Anchor 未設或一致 → 0 cost。
+   * 設計：first-wins，第一條 edge 決定 anchor，後續同 task 同方向跟隨。
+   */
+  getCoherenceMismatchPenalty(taskId, side, direction) {
+    if (!taskId || !side || (direction !== 'in' && direction !== 'out')) return 0;
+    const anchor = this.coherence[taskId]?.[direction];
+    if (anchor && anchor !== side) return COHERENCE_PENALTY;
+    return 0;
   }
 
   /** Pixel coord → grid cell */

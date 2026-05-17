@@ -47,7 +47,7 @@ docs/
 
 ---
 
-## 4. Cost Function 當前狀態（v1.5）
+## 4. Cost Function 當前狀態（v1.6）
 
 ```js
 // astar.js per-cell cost
@@ -60,8 +60,10 @@ cost(cell, dir) =
 
 // router.js::pickBestPath 算完 A* path 後加上：
 adjustedCost = A* result.cost
-  + getPortConflictPenalty(srcId, exitSide,  'out')    // dim 5: port reservation
+  + getPortConflictPenalty(srcId, exitSide,  'out')           // dim 5: port reservation
   + getPortConflictPenalty(tgtId, entrySide, 'in')
+  + getCoherenceMismatchPenalty(srcId, exitSide,  'out')      // dim 6: coherence
+  + getCoherenceMismatchPenalty(tgtId, entrySide, 'in')
 ```
 
 ### 各維度解的問題
@@ -73,6 +75,7 @@ adjustedCost = A* result.cost
 | 2 Smart Occupy | 多 fork/merge 共享 port、中段 spread | SHARE_RADIUS=2, SHARE_PENALTY=3, OCCUPY_SAME_DIR=80, OCCUPY_PERP=8 |
 | 4 Center Bias | 2-bend 路徑 bend 在中點 | CENTER_WEIGHT=1.5, CENTER_SKIP_RADIUS=4（stub turn 不誤罰）|
 | 5 Port Reservation (v1.5) | 同 port 不可混 IN+OUT (business-spec §5 規則 1) | PORT_VIOLATION_PENALTY=500 |
+| 6 Coherence (v1.6) | 多 incoming/outgoing 收斂一致 entry/exit side | COHERENCE_PENALTY=20 (first-wins anchor) |
 
 詳細邏輯見 `docs/astar-routing-spec.md` §3。
 
@@ -220,7 +223,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-13 | 9257bb1 | A* round 6: 修 zigzag bug + markOccupied 展開 | v1.2 |
 | 2026-05-13 | 02f7cb9 | A* round 7: distance-aware occupy + partial override 收斂 | v1.3 |
 | 2026-05-16 | f7b5f40 | A* round 8: 9 象限候選表（解圖一 task→end event 不必要彎折，圖二 4 條進 end event 部分覆蓋）| v1.4 |
-| 2026-05-16 | TBD | A* round 9: 維度 5 Port Reservation（解 B-7 條件 1 / business-spec §5 規則 1） | v1.5 |
+| 2026-05-16 | 6ec6346 | A* round 9: 維度 5 Port Reservation（解 B-7 條件 1 / business-spec §5 規則 1） | v1.5 |
+| 2026-05-16 | TBD | A* round 10: 維度 6 Coherence（多 incoming/outgoing 收斂一致 side） | v1.6 |
 
 ---
 

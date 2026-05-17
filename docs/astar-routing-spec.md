@@ -232,7 +232,39 @@ getPortConflictPenalty(taskId, side, direction):
 
 **Multi-pass 順序影響**：reservation state 依排序累加。目前 sort 是 `source.col asc → target.col asc`，先 route 的 edge 先 reserve port。若順序不合理可後續調 sort。
 
-### 3.6 Tie-break
+### 3.6 維度 6：Same-target / Same-source Coherence (v1.6)
+
+**目的**：多 incoming 進同 target / 多 outgoing 出同 source 偏好收斂一致 entry/exit side。
+
+```js
+reservePort(taskId, side, direction):  // 在 routeAll 內每條 edge 路由完呼叫
+  ...port reservation 計數...
+  if (!coherence[taskId][direction]) coherence[taskId][direction] = side  // first-wins
+
+getCoherenceMismatchPenalty(taskId, side, direction):
+  anchor = coherence[taskId]?.[direction]
+  return (anchor && anchor !== side) ? COHERENCE_PENALTY : 0
+```
+
+每 task 的每方向（in / out）有一個 anchor side。第一條 edge route 完後 anchor 鎖死該 direction 用的 side，後續同 task 同方向選不一致 side 加 `COHERENCE_PENALTY(20)`。
+
+| 參數 | 預設值 | 意義 |
+|---|---|---|
+| `COHERENCE_PENALTY` | 20 | 同 task 同方向 anchor side 已設時，選不一致 side 的 cost |
+
+**權重設計**：20 > TURN_PENALTY(15)，能贏 1 個 turn 的差距讓 coherence 屠殺；但 << OCCUPY_SAME_DIR(80) / PORT_VIOLATION(500)，明顯阻擋或規則違規仍會走非一致 side。
+
+**解決哪些情境**：
+- 多 incoming 進同 end event → 全部收斂同 entry side（看第一條 anchor）
+- Gateway 多 fork → 全部從 anchor exit side 出（標籤不會散在不同 side）
+- 跨多 lane 大流程 → 進入 side 視覺一致
+
+**邊界**：
+- First-wins：anchor 一旦設不更新。若第一條因阻擋走非主流 side，後續會被罰跟隨（除非 cost 差超過 20）
+- 跟 port reservation 不衝突：reservation 是 hard 避反向，coherence 是 soft 偏向同 side
+- 沒 anchor 時不收費（第一條 edge 自由選最低 cost side）
+
+### 3.7 Tie-break
 
 ```js
 const dirOrder = [
@@ -248,7 +280,7 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 
 第一步不准回頭（`OPPOSITE[sourceExitDir]`）。
 
-### 3.7 為什麼這五個維度足夠
+### 3.8 為什麼這六個維度足夠
 
 任何「視覺好不好」的判斷都可拆解成：
 
@@ -260,11 +292,11 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 | 線無故繞路（同 source 之間互排）| OCCUPY same source/target |
 | 線交叉太多（無 OCCUPY 限制）| OCCUPY perpendicular |
 | 同 port IN+OUT 混用（規則 1 違規）| PORT_RESERVATION |
+| 多 incoming/outgoing 進入方向不一致 | COHERENCE |
 | Bend 不在 path 中點 | CENTER_BIAS |
 | 線左右搖擺 | Tie-break |
 
-未來新增情境若用以上維度無法解決，再考慮**加新 cost 維度**（不寫 if-then）。**已規劃未實作**：
-- 維度 6 (R3)：Same-target / Same-source Coherence — 多 incoming/outgoing 偏好收斂一致 entry/exit side
+未來新增情境若用以上維度無法解決，再考慮**加新 cost 維度**（不寫 if-then）。
 
 ---
 
@@ -477,6 +509,7 @@ else:  // 幾乎同 col
 | `SHARE_RADIUS` | `grid.js` | 2 | 同 source/target 在離 port 此值內 share，超出 spread (v1.3) |
 | `SHARE_PENALTY` | `grid.js` | 3 | 超出 SHARE_RADIUS 後同 source/target 的單 cell 扣分 |
 | `PORT_VIOLATION_PENALTY` | `grid.js` | 500 | 同 port 反向使用（規則 1 違規）的 cost penalty (v1.5) |
+| `COHERENCE_PENALTY` | `grid.js` | 20 | 同 task 同方向 anchor side 已設時選不一致 side 的 cost (v1.6) |
 | `MAX_ITER` | `astar.js` | 50000 | A* 搜尋上限 |
 | `pickSides dx threshold` | `router.js` | 30 | 同 col 判定閾值（< 30 算同 col）|
 
@@ -564,6 +597,7 @@ else:  // 幾乎同 col
 | 2026-05-13 | v1.2 | (a) `TURN_PENALTY` 10→15（防 proximity-driven zigzag）(b) Same-target OCCUPY 0→3（merge spread）(c) Center bias 加 `CENTER_SKIP_RADIUS=4`（stub turn 不誤罰）(d) `markPathOccupied` 修 bug：展開每個 cell（之前 cleanOrtho 後只標 bend point 導致 multi-pass 看不到水平/垂直段）| 9257bb1 |
 | 2026-05-13 | v1.3 | (a) **Distance-aware OCCUPY**：同 source/target 從「全程同 penalty」改為「距離 port ≤ SHARE_RADIUS(2) 免費，遠離則 SHARE_PENALTY(3)」→ trunk/tail 共享同 port、中段 spread 開（解 fork labels 重疊 + merge 提早合流）(b) **Partial override 候選收斂**：使用者只拖 exit (或 entry) 時，只生 1 個幾何自然候選（垂直 exit → 水平 entry 依 target.cx 決定），不再 multi-trial 試錯 | 02f7cb9 |
 | 2026-05-16 | v1.4 | **9 象限候選表**：`generateCandidates` 從「同 lane 加 T→T/B→B、跨 lane 加 S-shape」擴成 9 象限完整表。對角象限新增 T→T + B→B 候選（解圖一 task→end event 不必要彎折）。同 col 跨 row 新增 L→L + R→R 候選。**斜軸 pair 暫不開**（待 R3 coherence 維度落地）。Per-edge A* runs 從 1-3 升到 3-4，效能 +50%（30 tasks 約 180-450ms）。 | f7b5f40 |
-| 2026-05-16 | v1.5 | **維度 5 Port Reservation**：grid 加 `portReservations` map 記錄每 task 每 port 的 IN/OUT 使用計數，`pickBestPath` 評估每個 candidate 時加 `PORT_VIOLATION_PENALTY(500)` if 反向已被用。解 business-spec §5 規則 1「同 port 不可混 IN+OUT」。同 port 多 IN（merge）/ 多 OUT（fork）仍允許。 | TBD |
+| 2026-05-16 | v1.5 | **維度 5 Port Reservation**：grid 加 `portReservations` map 記錄每 task 每 port 的 IN/OUT 使用計數，`pickBestPath` 評估每個 candidate 時加 `PORT_VIOLATION_PENALTY(500)` if 反向已被用。解 business-spec §5 規則 1「同 port 不可混 IN+OUT」。同 port 多 IN（merge）/ 多 OUT（fork）仍允許。 | 6ec6346 |
+| 2026-05-16 | v1.6 | **維度 6 Coherence**：grid 加 `coherence` map (first-wins anchor)，`reservePort` 順便鎖 anchor side。`pickBestPath` 加 `COHERENCE_PENALTY(20)` if 後續 edge 選不一致 side。解多 incoming 進同 target / 多 outgoing 出同 source 視覺一致性。 | TBD |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。
