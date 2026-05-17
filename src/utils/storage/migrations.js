@@ -313,7 +313,7 @@ export function migrateTypeFromL4Suffix(tasks) {
       changed = true;
       return { ...t, type: 'start', connectionType: 'start' };
     }
-    if (/-99$/.test(l4)) {
+    if (/-99(_x\d+)?$/.test(l4)) {  // -99 或 -99_x{K}（PR #210 多 end）
       changed = true;
       return { ...t, type: 'end', connectionType: 'end' };
     }
