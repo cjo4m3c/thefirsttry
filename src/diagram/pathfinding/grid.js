@@ -110,9 +110,15 @@ export class RoutingGrid {
    * 這樣 A* 不會把線畫到圖外或穿過 title bar，proximity 計算也更準確。
    */
   markBoundaries(svgWidth, svgHeight) {
-    // Title bar：rows 0 到 TITLE_H/CELL
+    // v1.16 §10.5.1 第 4 種距離：lane 邊界 buffer (情境 4-b)。
+    // Title bar 上方 buffer 2 cells、padding 下方 buffer 2 cells，
+    // 推開 path → label 不溢出 sticky header 或 padding 區。
+    const HEADER_BUFFER_CELLS = 2;
+    const FOOTER_BUFFER_CELLS = 2;
+
+    // Title bar + 下方 buffer：rows 0 到 TITLE_H/CELL + HEADER_BUFFER
     const titleRows = LAYOUT.TITLE_H / this.cellSize;
-    for (let y = 0; y < titleRows; y++) {
+    for (let y = 0; y < titleRows + HEADER_BUFFER_CELLS; y++) {
       for (let x = 0; x < this.cols; x++) {
         this.blocked[y * this.cols + x] = 1;
       }
@@ -131,8 +137,8 @@ export class RoutingGrid {
         this.blocked[y * this.cols + x] = 1;
       }
     }
-    // 下側 padding
-    const bottomStart = Math.floor((svgHeight - LAYOUT.PADDING_BOTTOM) / this.cellSize);
+    // 下側 padding + 上方 buffer
+    const bottomStart = Math.floor((svgHeight - LAYOUT.PADDING_BOTTOM) / this.cellSize) - FOOTER_BUFFER_CELLS;
     for (let y = bottomStart; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         this.blocked[y * this.cols + x] = 1;

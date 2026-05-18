@@ -142,12 +142,20 @@ function doLayout(flow) {
 
   // ── 2. Lane 動態高度 + 位置 ─────────────────────────────────────
   // v1.13：依預估 corridor 流量擴展擁擠 lane，避免多平行線段擠壓。
+  // v1.16 §10.5.1 第 4 種距離：lane 0 / 末端 lane 用 BOUNDARY_LANE_MULTIPLIER=2
+  // 額外擴張，補回 grid.markBoundaries 加的 HEADER_BUFFER / FOOTER_BUFFER 占用，
+  // 同時提供更多 top/bottom corridor 空間（情境 4-b）。
+  const BOUNDARY_LANE_MULTIPLIER = 2;
   const taskIds = new Set(tasks.map(t => t.id));
   const laneLoads = estimateLaneCorridorLoads(tasks, taskIds, colOf, taskRowOf);
+  const lastLaneIdx = roles.length - 1;
   const laneHeights = roles.map((_, row) => {
     const load = laneLoads.get(row) || 0;
     const overflow = Math.max(0, Math.ceil(load) - BASE_CORRIDOR_CAPACITY);
-    const extra = Math.min(overflow * LANE_GROWTH_STEP, MAX_LANE_H - BASE_LANE_H);
+    // boundary lane (頂端 / 末端) extra growth
+    const isBoundaryLane = (row === 0 || row === lastLaneIdx) && roles.length > 1;
+    const multiplier = isBoundaryLane ? BOUNDARY_LANE_MULTIPLIER : 1;
+    const extra = Math.min(overflow * LANE_GROWTH_STEP * multiplier, MAX_LANE_H - BASE_LANE_H);
     return BASE_LANE_H + extra;
   });
   const laneTopY = [];
