@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-18',
+    title: '首頁右上加「說明 ▾」dropdown 收攏 3 個資訊面板 + 新增「設計規範」彈窗 + 「規則說明」改名「業務規則」',
+    items: [
+      '**緣由**：使用者「想把 design guideline 放到首頁右上、新增一個設計規範的彈窗」+「原規則說明改名業務規則」+「這三個按鈕不是第一眼需要知道的資訊、有什麼好方法可以收攏」。',
+      '**方案 A（dropdown 收攏）**：5 個方案討論後選 A — 1 顆「說明 ▾」按鈕 + dropdown 3 個純文字項目（更新紀錄 / 業務規則 / 設計規範）。Top space 從 2 顆 → 1 顆、可擴展、跟 spec App bar `.nav` pattern 對齊。',
+      '**HelpPanel / ChangelogPanel 改 controlled**：移除內建 trigger button、改為 `<HelpPanel isOpen onClose>` / `<ChangelogPanel isOpen onClose>` 受控元件。HelpPanel modal 標題「規則說明 / Rules Reference」改為「業務規則 / Business Rules」。',
+      '**新檔 `DesignGuidelinePanel.jsx`**：摘要 + 範例（per 使用者選 option b）。內容 5 個 section：(a) 色彩 token swatch 12 個（含 hex、用途）(b) 8 種節點 pill + 卡背配色實際 render preview (c) 字級 7 階實際渲染對照 (d) Base ui/ 元件範例：Button 4 變體 / Chip 5 變體 / Callout 4 色 (e) 文件位置（tokens.css / ui/ / elementTypes.js / business-spec.md §13.9 / tailwind.config.js）。讓設計師 / 非工程協作者站內看實際樣式對照。',
+      '**新檔 `InfoDropdown.jsx`**：統管 3 個 panel 的 open state、單顆「說明 ▾」按鈕。Click outside / Esc 關 dropdown 但不關 modal（modal 自己有 close）。3 個 modal 同時只能開一個（active 是 enum）。Menu items 純文字、無 icon / emoji（per 使用者）。',
+      '**動到的檔案（4 個 + 2 新檔）**：`src/components/InfoDropdown.jsx`（新、~70 行）/ `src/components/DesignGuidelinePanel.jsx`（新、~170 行）/ `src/components/HelpPanel.jsx`（去 trigger button + 改 controlled props + 標題改名）/ `src/components/ChangelogPanel.jsx`（同上）/ `src/components/Dashboard/index.jsx`（替換 2 個 import 成 1 個 InfoDropdown）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) Dashboard 右上只有「FlowSprite + 說明 ▾」 — 2 個元素 (b) 點「說明 ▾」 → dropdown 顯示「更新紀錄 / 業務規則 / 設計規範」3 個純文字項目 (c) 點任一項 → 對應 modal 開啟、dropdown 自動收 (d) modal 標題：版本更新紀錄 / 業務規則 / Design Guideline (e) 設計規範 modal 內看到色彩 swatch + 8 種節點 + 字級 + Button/Chip/Callout 範例 + 文件路徑 (f) Esc 關 dropdown、modal 各自有 ✕。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: 'Design tokens 微調 — brand-dark 改 #2A5598、L3 chip 用深輔色、task 邊框 30% mix + business-spec.md 加 §13.9 design system',
     items: [
       '**緣由**：使用者四件事：(1) TaskCard task 邊框 `#C8E2EE`（brand-light 30% mix）(2) design guideline 寫進業務規則文件 (3) 編輯頁 header 跟首頁同色 (4) 首頁 L3 編號用品牌深色輔色。',

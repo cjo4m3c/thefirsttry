@@ -12,8 +12,10 @@
  * soft cap with breathing room.
  */
 import { useState, useMemo, useRef, useEffect } from 'react';
-import HelpPanel from '../HelpPanel.jsx';
-import ChangelogPanel from '../ChangelogPanel.jsx';
+// 2026-05-18：HelpPanel / ChangelogPanel / DesignGuidelinePanel 收攏到
+// `InfoDropdown`「說明 ▾」單顆按鈕（使用者：「這三個按鈕不是第一眼需要
+// 知道的資訊、有什麼好方法可以收攏」）。
+import InfoDropdown from '../InfoDropdown.jsx';
 import DiagramRenderer from '../DiagramRenderer.jsx';
 import BackToTop from '../BackToTop.jsx';
 import { parseExcelToFlow } from '../../utils/excelImport.js';
@@ -188,8 +190,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
         <span className="text-lg font-bold tracking-wide">FlowSprite</span>
 
         <div className="ml-auto flex gap-2">
-          <ChangelogPanel />
-          <HelpPanel />
+          <InfoDropdown />
         </div>
       </header>
 
