@@ -16,10 +16,13 @@ import { GRID_CELL, LAYOUT } from '../constants.js';
 
 export const CELL_SIZE = GRID_CELL;
 
-// Distance-aware OCCUPY 參數（v1.3）：
-//   - 同 source/target 的線在距離 port ≤ SHARE_RADIUS 內：share trunk/tail 免費
-//   - 距離 > SHARE_RADIUS：spread (SHARE_PENALTY 推開)
-const SHARE_RADIUS = 2;
+// Distance-aware OCCUPY 參數（v1.3 + v1.11 S20 不對稱）：
+//   Fork 跟 merge 在語意上不對稱：
+//     - Fork (同 source 多 outgoing): 出來要散開，避免 labels 重疊
+//     - Merge (同 target 多 incoming): 進去要合流，避免接近 target 時各自轉折
+//   對稱套同一 SHARE_RADIUS 是設計缺陷，v1.11 S20 拆成兩個常數。
+const SHARE_RADIUS_SOURCE = 2;  // fork: trunk 共享範圍小 → 早分叉
+const SHARE_RADIUS_TARGET = 5;  // merge: tail 共享範圍大 → 提早合流
 const SHARE_PENALTY = 3;
 
 // Port reservation 參數（v1.5 維度 5）：
@@ -192,14 +195,14 @@ export class RoutingGrid {
     if (stored.sourceId === mySource) {
       if (startCell) {
         const d = Math.abs(x - startCell.x) + Math.abs(y - startCell.y);
-        if (d <= SHARE_RADIUS) return 0;  // 靠近 source port，trunk 共享
+        if (d <= SHARE_RADIUS_SOURCE) return 0;  // 靠近 source port，trunk 共享 (fork 早分叉)
       }
       return SHARE_PENALTY;  // 遠離 source，spread
     }
     if (stored.targetId === myTarget) {
       if (goalCell) {
         const d = Math.abs(x - goalCell.x) + Math.abs(y - goalCell.y);
-        if (d <= SHARE_RADIUS) return 0;  // 靠近 target port，tail 合流
+        if (d <= SHARE_RADIUS_TARGET) return 0;  // 靠近 target port，tail 合流 (merge 提早共享)
       }
       return SHARE_PENALTY;
     }

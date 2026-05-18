@@ -53,7 +53,7 @@ docs/
 
 ---
 
-## 4. Cost Function 當前狀態（v1.10）
+## 4. Cost Function 當前狀態（v1.11）
 
 ```js
 // routeAll 開頭 (v1.8 S1 + v1.10 S16 strength)
@@ -82,8 +82,8 @@ adjustedCost = A* result.cost
 | 維度 | 解什麼 | 主要參數 |
 |---|---|---|
 | 0 Turn (v1.10 累進) | 少 bend，3+ bend 急升 cost | base=15 (1st-2nd), 25 (3rd), 30 (4th+) |
-| 1 Proximity (v1.9 stub skip) | 中段 corridor 中央，stub 不推開 | PROXIMITY_BONUS=4, STUB_RADIUS=2 |
-| 2 Smart Occupy | 多 fork/merge 共享 port、中段 spread | SHARE_RADIUS=2, SHARE_PENALTY=3, OCCUPY_SAME_DIR=80, OCCUPY_PERP=8 |
+| 1 Proximity (v1.9 stub + v1.11 S4 end-zone) | STUB(≤2)=0, END-ZONE(3-5)=6, 中段(6+)=4 | PROXIMITY_BONUS=4, ENDPOINT_BONUS=6 |
+| 2 Smart Occupy (v1.11 S20 不對稱) | Fork 早分叉、Merge 提早合流 | SHARE_RADIUS_SOURCE=2, SHARE_RADIUS_TARGET=5, SHARE_PENALTY=3 |
 | 4 Center Bias (v1.8 動態 SKIP + v1.10 斜軸關閉) | 2-bend U/S bend 在中點；斜軸 1-bend 不誤罰 | CENTER_WEIGHT=1.5, SKIP=clamp(pathLen/4, [4,10]) |
 | 5 Port Reservation (v1.5) | 規則 1 (IN+OUT 不混用) | PORT_VIOLATION_PENALTY=500 |
 | 6 Coherence (v1.6 + v1.8 + v1.9 + v1.10 動態權重) | 多 incoming/outgoing 收斂；強 majority 不罰、弱 majority 全罰 | COHERENCE_PENALTY=12, factor=2*(1-strength) |
@@ -240,7 +240,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-17 | ddc475e | A* round 12 (Phase A): S1 anchor by geometry + S2 sort 穩定化 + S3 動態 SKIP_RADIUS | v1.8 |
 | 2026-05-17 | 2a44010 | A* round 13 (Phase A.1): S6 anchor majority/COHERENCE 弱化 + S7 拖曳 pin 對側 + S8 proximity stub skip | v1.9 |
 | 2026-05-17 | 474c338 | F1 router.js split — shim + router/ 5 subfiles (size cap) | v1.9 |
-| 2026-05-17 | TBD | A* round 14 (Phase A.2): S15 TURN 累進 + S16 動態 COHERENCE + S19 斜軸關 Center Bias | v1.10 |
+| 2026-05-17 | 2a25ad0 | A* round 14 (Phase A.2): S15 TURN 累進 + S16 動態 COHERENCE + S19 斜軸關 Center Bias | v1.10 |
+| 2026-05-17 | TBD | A* round 15 (Phase A.3): S20 不對稱 SHARE_RADIUS + S4 Endpoint Clearance | v1.11 |
 
 ---
 

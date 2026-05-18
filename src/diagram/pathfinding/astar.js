@@ -18,6 +18,10 @@ const TURN_PENALTY_BASE = 15;  // 第 1-2 turn 的 cost
                                 // v1.10 S15：改成累進函式，base 仍 15 給短 path 用
 const PROXIMITY_BONUS = 4;     // cell 離障礙物距離 ≥ 此值時無 penalty
                                 // (push path 走 corridor 中央，解決「貼邊」+「bend 靠 target」)
+// v1.11 S4 Endpoint Clearance：endpoint 附近 (stub 之外、3-5 cells) 加強推開
+const ENDPOINT_BONUS = 6;      // end-zone 內 cell 離障礙物距離 ≥ 6 cells 才不罰
+                                // (解 backward edge 進入 target 時箭頭被擠在邊角)
+const ENDPOINT_RADIUS = 5;     // 距 start/goal ≤ 此值定義 end-zone
 const CENTER_WEIGHT = 1.5;     // turn cell 離 path 中點越遠，加 cost 越多
                                 // (解決 bend 偏 source / target 邊 → 拉到中點)
 // v1.8 S3 動態 SKIP_RADIUS：原固定 4 對長 path 仍把 1-bend 的 corner-bend 罰到
@@ -177,15 +181,22 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
       const distFromStart = Math.abs(nx - start.x) + Math.abs(ny - start.y);
       const distFromGoal  = Math.abs(nx - goal.x)  + Math.abs(ny - goal.y);
 
-      // ─ 維度 1：障礙物距離（PROXIMITY_BONUS - distance）─
-      // 離障礙物越近 cost 越高，push path 走 corridor 中央
-      // S8 (v1.9): stub 區域 (≤ 2 cells from start/goal) skip proximity。
-      //   alignPortSegments 已強制 stub 沿 exit/entry 軸方向，proximity 推開 stub cells
-      //   沒視覺好處 — stub 本來就會貼 source/target 邊框；反而會讓 A* 第一/最後段
-      //   繞行製造小 bend (5-1-4-3→5-1-4-10 出發處彎折案例)。
+      // ─ 維度 1：障礙物距離（三段邊界，v1.11 完整）─
+      //   STUB (≤2):    cost=0          ← v1.9 S8，stub 沿軸不繞行
+      //   END-ZONE (3-5): bonus=6        ← v1.11 S4，endpoint 附近加強推開避箭頭擠
+      //   中段 (6+):    bonus=4 (標準)   ← corridor 中央
+      // 每段獨立可調，不耦合。
       const dist = grid.proximityDist ? grid.proximityDist(nx, ny) : PROXIMITY_BONUS;
-      const inStub = distFromStart <= 2 || distFromGoal <= 2;
-      const proximityCost = inStub ? 0 : Math.max(0, PROXIMITY_BONUS - dist);
+      const inStub    = distFromStart <= 2 || distFromGoal <= 2;
+      const inEndZone = !inStub && (distFromStart <= ENDPOINT_RADIUS || distFromGoal <= ENDPOINT_RADIUS);
+      let proximityCost;
+      if (inStub) {
+        proximityCost = 0;
+      } else if (inEndZone) {
+        proximityCost = Math.max(0, ENDPOINT_BONUS - dist);
+      } else {
+        proximityCost = Math.max(0, PROXIMITY_BONUS - dist);
+      }
 
       // ─ 維度 2：smart occupy（source/target/dir aware + distance-aware v1.3）─
       // 傳 start/goal cell 讓 grid 算「離 port 距離」，靠近 share、遠離 spread
