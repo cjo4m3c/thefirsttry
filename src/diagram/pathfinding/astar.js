@@ -5,7 +5,7 @@
  *   cost = 1                                                    // 基本移動
  *        + turnPenalty(turnCount)  if isTurn                    // dim 0: 累進 turn
  *        + max(0, PROXIMITY_BONUS - distFromObstacle) if !stub  // dim 1: corridor 中央
- *        + getOccupyPenalty(cell, dir, src, tgt, entrySide)     // dim 2: smart 占用 (S22 軸延伸)
+ *        + getOccupyPenalty(cell, dir, src, tgt, entry, exit)   // dim 2: smart 占用 (S22/S23 雙軸延伸)
  *        + centerDist*CENTER_WEIGHT  if !skipRadius && enabled  // dim 4: bend 拉中點
  *
  * dim 5 (Port Reservation) + dim 6 (Coherence) 在 router.js::pickBestPath 加。
@@ -108,6 +108,7 @@ class MinHeap {
  * @param {number} [opts.tgtCx]  target task 中心 pixel x
  * @param {number} [opts.tgtCy]  target task 中心 pixel y
  * @param {string} [opts.entrySide]  S22 (v1.12)：target 進入側 'left'|'right'|'top'|'bottom'，給 occupy axis funnel 用
+ * @param {string} [opts.exitSide]   S23 (v1.12)：source 出發側 'left'|'right'|'top'|'bottom'，給 occupy axis funnel 用
  * @returns {Array<{x,y,dir}>|null}
  */
 export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, opts = {}) {
@@ -199,11 +200,12 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
         proximityCost = Math.max(0, PROXIMITY_BONUS - dist);
       }
 
-      // ─ 維度 2：smart occupy（source/target/dir aware + distance-aware v1.3 + v1.12 S22 軸延伸）─
+      // ─ 維度 2：smart occupy（source/target/dir aware + distance-aware v1.3 + v1.12 S22/S23 軸延伸）─
       // 傳 start/goal cell 讓 grid 算「離 port 距離」，靠近 share、遠離 spread
       // S22：傳 entrySide 讓 same-target 邊在 port 軸上 share-free，避免進 port 前 1-grid 階梯
+      // S23：傳 exitSide 讓 same-source 邊在 source 軸上 share-free，避免出發後 1-grid 階梯
       const occupyCost = grid.getOccupyPenalty
-        ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d, start, goal, opts.entrySide)
+        ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d, start, goal, opts.entrySide, opts.exitSide)
         : 0;
 
       // ─ 維度 4：center bias（turn cell 偏離 path 中點時加 cost）─

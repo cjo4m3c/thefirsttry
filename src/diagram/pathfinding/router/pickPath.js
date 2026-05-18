@@ -201,10 +201,13 @@ function computePath(grid, src, tgt, sides, sourceId, targetId) {
   // S19 (v1.10)：斜軸 candidate 關 Center Bias，讓 1-bend corner bend 不被誤罰
   // S22 (v1.12)：傳 entrySide 給 A*，讓 occupy 在 target port 軸延伸 share-free，
   //   避免多 incoming 邊各自轉折產生「進 port 前 1-grid 階梯」
+  // S23 (v1.12)：傳 exitSide 給 A*，讓 occupy 在 source port 軸延伸 share-free，
+  //   避免多 fork 邊各自轉折產生「出發後 1-grid 階梯」
   const cells = findPath(grid, startCell, goalCell, startDir, sourceId, targetId, {
     srcCx: src.cx, srcCy: src.cy, tgtCx: tgt.cx, tgtCy: tgt.cy,
     centerBiasEnabled: !sides.isAxisDiagonal,
     entrySide: sides.entry,
+    exitSide: sides.exit,
   });
   if (!cells) return null;
 

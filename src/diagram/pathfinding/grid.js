@@ -16,19 +16,26 @@ import { GRID_CELL, LAYOUT } from '../constants.js';
 
 export const CELL_SIZE = GRID_CELL;
 
-// Distance-aware OCCUPY 參數（v1.3 + v1.11 S20 不對稱 + v1.12 S22 軸延伸）：
+// Distance-aware OCCUPY 參數（v1.3 + v1.11 S20 不對稱 + v1.12 S22/S23 軸延伸）：
 //   Fork 跟 merge 在語意上不對稱：
 //     - Fork (同 source 多 outgoing): 出來要散開，避免 labels 重疊
 //     - Merge (同 target 多 incoming): 進去要合流，避免接近 target 時各自轉折
 //   對稱套同一 SHARE_RADIUS 是設計缺陷，v1.11 S20 拆成兩個常數。
 //
-// v1.12 S22 進入軸 share-free 延伸：
+// v1.12 S22 進入軸 share-free 延伸（target 側）：
 //   只靠 SHARE_RADIUS_TARGET=5 (Manhattan 圓) 不夠 — 同 target 邊在 radius 外
 //   被 SHARE_PENALTY=3 推開 1 grid，到 radius 內才合流，產生「進 port 前的小階梯」。
 //   修：對 same-target cell，若位於 port 進入軸（perpDist=0）→ 不限距離 share-free。
 //   讓所有 incoming 邊早早收斂到 port 軸，最後一段乾乾淨淨進 port。
-const SHARE_RADIUS_SOURCE = 2;  // fork: trunk 共享範圍小 → 早分叉
-const SHARE_RADIUS_TARGET = 5;  // merge: tail 共享範圍大 → 提早合流
+//
+// v1.12 S23 出發軸 share-free 延伸（source 側，對稱 S22）：
+//   SHARE_RADIUS_SOURCE=2 圓外被 SHARE_PENALTY=3 推開，多 fork 邊離開 source
+//   立刻 1-grid 分流階梯（user 圖一/圖三 case）。
+//   修：對 same-source cell，若位於 port 出發軸（perpDist=0）→ 不限距離 share-free。
+//   Fork 邊整齊堆疊在 source 軸 trunk，到該轉的位置才分叉（中心由 center bias 拉）。
+//   Trade-off：trunk 上 label 會疊，但「整齊出發」視覺優先。
+const SHARE_RADIUS_SOURCE = 2;  // fork: trunk 共享範圍小（搭配 S23 軸延伸）
+const SHARE_RADIUS_TARGET = 5;  // merge: tail 共享範圍大（搭配 S22 軸延伸）
 const SHARE_PENALTY = 3;
 
 // Port reservation 參數（v1.5 維度 5）：
@@ -180,22 +187,27 @@ export class RoutingGrid {
     if (this.inBounds(x, y)) this.occupied.set(y * this.cols + x, meta);
   }
 
-  /** 取得 occupy 在指定方向下的 penalty（distance-aware v1.3 + v1.12 S22 軸延伸）：
+  /** 取得 occupy 在指定方向下的 penalty（distance-aware v1.3 + v1.12 S22/S23 軸延伸）：
    *
    * 同 source / 同 target 的 share 行為依「離 port 多遠」而定：
    *   - 距離 port ≤ SHARE_RADIUS：共享免費 (trunk/tail，視覺上看起來「從同一個 port 出入」)
    *   - 距離 port > SHARE_RADIUS：spread (SHARE_PENALTY，遠端強迫分流)
    *
-   * v1.12 S22：merge 端額外加「軸延伸 share-free」—
-   *   位於 target port 進入軸（perpDist=0）的 cell 不限距離 share-free。
+   * v1.12 S22 (target 軸延伸)：
+   *   位於 target port 進入軸（perpDist=0）的 same-target cell 不限距離 share-free。
    *   解「進 port 前 1-grid 階梯」：incoming 邊提早收斂到 port 軸，最後一段直達。
+   *
+   * v1.12 S23 (source 軸延伸，對稱)：
+   *   位於 source port 出發軸（perpDist=0）的 same-source cell 不限距離 share-free。
+   *   解「出發後 1-grid 階梯」：fork 邊整齊堆疊在 source 軸 trunk，到該轉才分叉。
    *
    * 同方向重疊：高 penalty 80（避免平行重疊）
    * 垂直交叉：低 penalty 8（允許交叉）
    *
-   * @param {string} [entrySide] — 'left'|'right'|'top'|'bottom'，S22 用來判斷 port 軸方向
+   * @param {string} [entrySide] — 'left'|'right'|'top'|'bottom'，S22 用來判斷 target 軸方向
+   * @param {string} [exitSide]  — 'left'|'right'|'top'|'bottom'，S23 用來判斷 source 軸方向
    */
-  getOccupyPenalty(x, y, mySource, myTarget, myDir, startCell, goalCell, entrySide) {
+  getOccupyPenalty(x, y, mySource, myTarget, myDir, startCell, goalCell, entrySide, exitSide) {
     if (!this.inBounds(x, y)) return 0;
     const stored = this.occupied.get(y * this.cols + x);
     if (!stored) return 0;
@@ -203,9 +215,16 @@ export class RoutingGrid {
     if (stored.sourceId === mySource) {
       if (startCell) {
         const d = Math.abs(x - startCell.x) + Math.abs(y - startCell.y);
-        if (d <= SHARE_RADIUS_SOURCE) return 0;  // 靠近 source port，trunk 共享 (fork 早分叉)
+        if (d <= SHARE_RADIUS_SOURCE) return 0;  // 靠近 source port，trunk 共享
+        // S23 (v1.12)：source 軸延伸 share-free，對稱 S22。fork 邊堆疊在 source 軸 trunk。
+        // 垂直 port (top/bottom)：軸是 x=startCell.x；水平 port (left/right)：軸是 y=startCell.y。
+        if (exitSide === 'top' || exitSide === 'bottom') {
+          if (x === startCell.x) return 0;
+        } else if (exitSide === 'left' || exitSide === 'right') {
+          if (y === startCell.y) return 0;
+        }
       }
-      return SHARE_PENALTY;  // 遠離 source，spread
+      return SHARE_PENALTY;  // 遠離 source 且偏離軸，spread
     }
     if (stored.targetId === myTarget) {
       if (goalCell) {
