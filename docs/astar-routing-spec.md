@@ -90,7 +90,7 @@ routeAll
 
 ## 3. Cost Function（核心）
 
-### 3.1 完整公式（v1.13）
+### 3.1 完整公式（v1.14）
 
 ```js
 // astar.js per-cell cost
@@ -102,8 +102,6 @@ cost(cell, dir, parent) =
                      startCell, goalCell, entrySide, exitSide)           //   (v1.11 S20 不對稱 + v1.12 S22/S23 軸延伸)
   + (isTurn && farFromSkipRadius && centerBiasEnabled                    // 維度 4: 中心偏好 (v1.8 動態 + v1.10 S19 斜軸關)
        ? centerDist * CENTER_WEIGHT : 0)
-  + (isTurn && distFromEndpoint < BEND_ENDPOINT_RADIUS                   // 維度 7: bend endpoint clearance (v1.13 S24)
-       ? BEND_ENDPOINT_PENALTY : 0)
   + i * 0.01                                                              // tie-break (i = dirOrder index)
 
 // pickPath.js::pickBestPath 算完 A* 後加：
@@ -113,6 +111,8 @@ adjustedCost = a*.cost
   + getCoherenceMismatchPenalty(src, exit, 'out')                        // 維度 6: coherence (v1.6 + v1.10 動態)
   + getCoherenceMismatchPenalty(tgt, entry, 'in')                        //   factor = 2*(1-anchorStrength)
 ```
+
+v1.14 回退 v1.13 S24 (dim 7 bend endpoint clearance)：在 endpoint <3 cells 罰 turn cell 的設計反向誘導 A* 找 3-turn 替代路徑（cost 反低於被罰的 2-turn）。Issue 1 根因（短 backward stub 擠）改在 §6 candidate generation 解（強制 T→T / B→B），屬「per-edge port 組合策略」職責不該污染 per-cell cost — 詳 §10.5 職責分層。
 
 ### 3.2 維度 0：Turn Penalty (v1.10 S15 累進)
 
@@ -415,44 +415,11 @@ getCoherenceMismatchPenalty(taskId, side, direction):
 - Anchor 由 geometry 預測；只有 0 票的 task 不設 anchor（罕見）
 - 跟 port reservation 不衝突：reservation 是 hard 避反向，coherence 是 soft 偏向同 side
 
-### 3.7.1 維度 7：Bend Endpoint Clearance (v1.13 S24)
+### 3.7.1 維度 7 (已回退 v1.14)
 
-**目的**：把 turn cell 從 endpoint 附近推開，避免短 path（特別是 backward + B→B 候選）的 bend 落在距 endpoint 1 cell 處 → 進 port 的 stub 被擠壓 → 箭頭跟元件邊框視覺重疊。
+v1.13 S24 曾加 dim 7 (Bend Endpoint Clearance)，penalty=20 在 turn cell 距 endpoint <3 cells 處。但實測發現 A\* 為避這 penalty 找出 **3-turn 替代路徑**（cost N+49 < 被罰的 2-turn N+52） → 引入新 bug（短 path 進 endpoint 多 1 個小南彎）。v1.14 **回退** dim 7。
 
-```js
-// astar.js per-cell cost
-bendEndpointCost = (isTurn && (distFromStart < BEND_ENDPOINT_RADIUS
-                            || distFromGoal  < BEND_ENDPOINT_RADIUS))
-  ? BEND_ENDPOINT_PENALTY
-  : 0
-```
-
-| 參數 | 預設值 | 意義 |
-|---|---|---|
-| `BEND_ENDPOINT_RADIUS` | 3 | turn cell 距 endpoint < 此值要付 penalty (d ∈ {0,1,2}) |
-| `BEND_ENDPOINT_PENALTY` | 20 | 在 endpoint 附近 turn 的 cost penalty |
-
-**為什麼要新維度而不是擴 ENDPOINT_BONUS**：
-
-| 維度在 endpoint 1 cell 處 | 行為 | 是否擋早 bend |
-|---|---|---|
-| 1 proximity | STUB skip → cost=0 (v1.9 S8) | ❌ 無感 |
-| 4 center bias | SKIP_RADIUS_MIN=4 跳過 (v1.8) | ❌ 無感 |
-| 7 bend endpoint clearance | 20 (本維度) | ✅ 唯一擋住 |
-
-擴大 ENDPOINT_BONUS / ENDPOINT_RADIUS 會把 **所有** stub 段都推得更遠（直走 cell 也被推），整體 path 變長。本維度**只罰 turn cell**，stub 沿軸直走不付 → 對症且零副作用。
-
-**權重設計**：20 > TURN_PENALTY_BASE(15)，足以讓 A* 為避免「endpoint 1 cell 處 bend」多走 2 cells 再 bend（cost 差距 20 vs 額外 2 cells × 1 base = 2，penalty 屠殺）。 但 << COHERENCE(12) 不衝突、<< OCCUPY_SAME_DIR(80) 不阻擋必要避障。
-
-**解決哪些情境**：
-- 短 backward edge B→B candidate（同 lane 同 row、L→R / R→L 被 PORT_VIOLATION 屠殺後）的 bend 自然落 d ≥ 3，stub 至少 3 cells 不擠
-- 任何 1-bend / 2-bend 短 path 的 turn 不再貼 endpoint
-
-**對既有 case 的影響**：
-- 直走 cell（非 turn）：無付 → 不影響 ✓
-- 中段 turn（d ≥ 3）：無付 → 既有 fork/merge/center bias 不變 ✓
-- 斜軸 1-bend 長 path（pathLen ≥ 30）：corner d ≥ 4 → 無付 ✓
-- 短斜軸 1-bend（pathLen < 6，極罕見）：corner 可能 d=2，A* 可能改選 2-bend U/S（bend 在中段 d≈3 無付）→ 視覺差異微小（path 本來就短）
+**教訓進 §10.5 職責分層**：cost dim 罰得太局部會讓 A\* 找替代路徑繞過 penalty。原本想解的「短 backward stub 擠」根因是「同 row 跨元件 R→L 候選的 cost 太低」，屬 candidate set 職責，不是 per-cell cost 職責 — 修正後在 §6.2 candidate generation 強制此類 edge 走 T→T / B→B。
 
 ### 3.8 Tie-break
 
@@ -470,7 +437,7 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 
 第一步不准回頭（`OPPOSITE[sourceExitDir]`）。
 
-### 3.9 為什麼這七個維度足夠
+### 3.9 為什麼這六個維度足夠（v1.14 回到 6 維）
 
 任何「視覺好不好」的判斷都可拆解成：
 
@@ -484,8 +451,9 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 | 同 port IN+OUT 混用（規則 1 違規）| PORT_RESERVATION |
 | 多 incoming/outgoing 進入方向不一致 | COHERENCE |
 | Bend 不在 path 中點 | CENTER_BIAS |
-| Bend 太靠近 endpoint（stub 被擠）| BEND_ENDPOINT_CLEARANCE |
 | 線左右搖擺 | Tie-break |
+| **某類 edge 應該走某類 port 組合**（如同 row 跨多 col → corridor）| **candidate set design（§6.2，非 cost dim）** |
+| **空間配置（lane 大小不足）** | **layout pre-pass（§4.5，非 cost dim）** |
 
 未來新增情境若用以上維度無法解決，再考慮**加新 cost 維度**（不寫 if-then）。
 
@@ -652,19 +620,29 @@ pickBestPath(src, tgt, override, srcId, tgtId):
 
 | dx \ dy | dy < -T (target 上方) | \|dy\| < T (同 row) | dy > T (target 下方) |
 |---|---|---|---|
-| dx < -T | L→R + T→B + T→T + B→B + **L→B + T→R** | L→R + T→T + B→B | L→R + B→T + T→T + B→B + **L→T + B→R** |
+| dx < -T | L→R + T→B + T→T + B→B + **L→B + T→R** | **T→T + B→B only** (v1.14 backward 強制 corridor) | L→R + B→T + T→T + B→B + **L→T + B→R** |
 | \|dx\| < T | T→B + L→L + R→R | AUTO 1 (退化) | B→T + L→L + R→R |
-| dx > T | R→L + T→B + T→T + B→B + **R→B + T→L** | R→L + T→T + B→B | R→L + B→T + T→T + B→B + **R→T + B→L** |
+| dx > T | R→L + T→B + T→T + B→B + **R→B + T→L** | R→L + T→T + B→B (adj) **或** T→T + B→B only (gap, v1.14) | R→L + B→T + T→T + B→B + **R→T + B→L** |
 
-(T = 30。粗體 = v1.7 新增斜軸 pair)
+(T = 30。粗體 = v1.7 新增斜軸 pair。v1.14 同 row 跨 col 分 adjacent/non-adjacent)
 
-實作（router.js::generateCandidates）：
+實作（router/pickPath.js::generateCandidates）：
 
 ```js
-candidates = [autoPickSides(src, tgt)]  // 主候選
+candidates = []
+sameRow = |dy| < T(30)
+sameCol = |dx| < T(30)
+sameRowAdjacent = sameRow && |dx| ≤ ADJACENT_DX_LIMIT(288)  // v1.14：≈1.5×COL_W
+
+// v1.14：同 row 跨多 col 或同 row backward — 不要 autoPick R→L/L→R 主候選
+if !(sameRow && !sameCol && !sameRowAdjacent):
+  candidates += [autoPickSides(src, tgt)]
 
 if (sameRow && !sameCol):          // 同 row 跨 col
-  candidates += [T→T, B→B]         // 上下 corridor 繞行
+  // v1.14：兩種情況都加 T→T + B→B：
+  //   - adjacent (|dx| ≤ 288): 主候選 R→L + corridor 備援
+  //   - non-adjacent / backward: 沒主候選，只 T→T + B→B 強制走 corridor
+  candidates += [T→T, B→B]
 else if (sameCol && !sameRow):     // 同 col 跨 row
   candidates += [L→L, R→R]         // 左右 corridor 繞行
 else if (!sameRow && !sameCol):    // 對角象限
@@ -724,8 +702,9 @@ else:  // 幾乎同 col
 - **Gateway 類型偏好**（parallel 應偏好 bottom 出）：可加新 candidate generator
 - **斜軸逆向 6 種**：v1.7 只開順向 2 個 / 對角象限。逆向繞遠的 6 種等實際需求再開
 - **Drag preview 跟 A* final 不一致**（spec §9 / handoff §6.5）：useDragEndpoint 加 throttle 跑 A*
+- **同 row adjacent 跨元件視覺辨識度**：v1.14 已解「跨多 col」+「backward」走 T→T/B→B，但**相鄰 col（|dx| ≤ 288px）forward 仍走 R→L**。若使用者抱怨「兩格相鄰也想走 corridor」可調 `ADJACENT_DX_LIMIT` 至 0（極端：所有同 row 跨元件都走 corridor，連 1 col 相鄰也是）
 
-這些都是擴 cost 維度 / 候選 generator，不是寫 if-then 條件分支。
+這些都是擴 cost 維度 / 候選 generator 適用範圍，不是寫 if-then 業務規則分支（依 task.type / gatewayType 等 attribute）。
 
 ---
 
@@ -770,8 +749,8 @@ else:  // 幾乎同 col
 | `COHERENCE_PENALTY` | `grid.js` | 12 | base penalty (v1.6) ; v1.10 S16 動態 factor = 2*(1-strength)，壓倒性 anchor 不罰、邊際 anchor 全罰 |
 | `PROXIMITY_STUB_RADIUS` | `astar.js` | 2 | 距 start/goal ≤ 此值的 cells skip proximity (v1.9 S8, alignPortSegments 已強制 stub 沿軸方向，無需 push) |
 | `ANCHOR_MAJORITY` | `router.js` | > 0.5 | predictAnchors 嚴格 majority 才設 anchor (v1.9 S6, 票數分散時不預測回退 first-wins) |
-| **`BEND_ENDPOINT_RADIUS`** | `astar.js` | 3 | turn cell 距 endpoint < 此值要付 penalty（維度 7, v1.13 S24）|
-| **`BEND_ENDPOINT_PENALTY`** | `astar.js` | 20 | bend 落在 endpoint 附近的 cost penalty（解短 backward stub 擠壓）|
+| ~~`BEND_ENDPOINT_RADIUS` / `BEND_ENDPOINT_PENALTY`~~ | (已移除 v1.14) | — | v1.13 dim 7 已回退，詳 §3.7.1 |
+| **`ADJACENT_DX_LIMIT`** | `pickPath.js` | 288px (≈1.5×COL_W) | 同 row 跨 col 是否算「相鄰」的閾值（v1.14）。≤ 此值仍走 R→L 主候選；> 此值或 backward 強制 T→T / B→B（candidate set 層解視覺辨識度，避免 cost dim 污染）|
 | **`BASE_CORRIDOR_CAPACITY`** | `layout-astar.js` | 4 | 預設 lane 上下 corridor 各 ~4 row 容量（v1.13 動態 lane 高度）|
 | **`LANE_GROWTH_STEP`** | `layout-astar.js` | `2 * GRID_CELL = 16` | 每多 1 row 流量擴 16px (保 grid 對齊) |
 | **`MAX_LANE_H`** | `layout-astar.js` | `30 * GRID_CELL = 240` | lane 高度上限（極端應拆 lane 解）|
@@ -821,6 +800,31 @@ else:  // 幾乎同 col
 - 引入第三方 routing library
 - 跳過 grid 對齊（必須維持 cell 邊界對齊）
 
+### 10.5 職責分層（v1.14 立，永續性核心）
+
+**設計反思**：v1.13 S24 (dim 7 bend endpoint clearance) 解一個 corner case 反而誘導 A* 找 3-turn 替代路徑（cost N+49 < 被罰的 2-turn N+52），引入新 bug。教訓：**不是所有視覺偏好都該編進 cost function**。每加一維 cost → A* 為避它找替代 → 引入新 corner case → 再加新維度 → 無限循環。
+
+新需求進來，**先**判斷屬下表哪一層，**不混用**：
+
+| 視覺偏好類型 | 適合工具 | 例子 |
+|---|---|---|
+| 線形狀（彎多寡、貼邊、繞行） | cost dim per-cell | turn (dim 0) / proximity (dim 1) / center bias (dim 4) |
+| Edge 間互動（重疊、收斂） | cost dim per-cell + multi-pass | occupy (dim 2) / coherence (dim 6) |
+| 業務規則違規 | cost dim 大 penalty | port reservation (dim 5) |
+| **某類 edge 應該走某類 port 組合** | **candidate set design** | **同 row 跨多 col → 強制 T→T/B→B (v1.14)** |
+| 空間配置（lane 大小、task 位置）| layout pre-pass | 動態 lane 高度 (v1.13b) |
+
+**跨層 over-fit = 反 pattern**。如：
+- ❌ 用 cost dim 解「某類 edge 應走某類 port」→ A* 會找替代路徑繞過 penalty（v1.13 S24 的失敗）
+- ❌ 用 candidate set 解「線太彎」→ candidate 是離散選擇，無法表達連續優化
+- ❌ 用 layout 解「動態避開既有 path」→ multi-pass 期間 layout 已 frozen
+
+**判斷流程**（接 §10.1 修改前必做）：
+1. 先讀 §10.5 表，找新需求屬哪一層
+2. 該層內找對應工具（既有 dim / 既有 candidate logic / 既有 layout pre-pass）
+3. 沒對應工具才考慮新增 — 仍在同層內擴展，不跨層
+4. **絕對不**因為一個工具好用就強塞到別層需求上
+
 ---
 
 ## 11. 測試 / 驗證情境
@@ -839,7 +843,9 @@ else:  // 幾乎同 col
 | Merge（多 incoming 進同 target）| **v1.12 S22**：incoming 邊整齊收斂到 target 軸 tail，共用箭頭位置 — 不可出現「進 port 前 1-grid 階梯」|
 | 兩條獨立 path 交叉 | 允許交叉（penalty 低）|
 | 兩條平行 path 重疊（異 source/target）| 自動分開到不同 row/col |
-| **短 backward edge B→B (同 lane 同 row)** | **v1.13 S24**：bend 落 d ≥ 3 from endpoint，進閘道 stub 至少 3 cells 不擠壓，箭頭不貼元件邊框 |
+| **同 row backward edge (任意 col 差)** | **v1.14 candidate 改寫**：強制 T→T / B→B 走 corridor，不再走 R→L 短直線；配合動態 lane 高度有寬度 spread，stub 自然不擠 |
+| **同 row forward edge 跨多 col (\|dx\| > 288px)** | **v1.14 candidate 改寫**：強制 T→T / B→B 走 corridor，避免 R→L 線被夾在 task 之間視覺辨識度低 |
+| **同 row forward edge adjacent (\|dx\| ≤ 288px)** | 維持 R→L 直線（autoPickSides）— 相鄰 task 無視覺辨識度問題 |
 | **大流程多 backward (6+) 同 lane** | **v1.13 lane 動態高度**：lane 自動從 144px 擴到 176-240px，多 backward edge 分散到多 row 不互蓋 label |
 | **純直連 lane (無 backward / fork)** | **v1.13 lane 動態高度**：load=0 不擴，維持 144px 不浪費版面 |
 
@@ -874,6 +880,7 @@ else:  // 幾乎同 col
 | 2026-05-17 | v1.10 | **Phase A.2 三合一 cost function 終極收尾**：(a) S15 TURN_PENALTY 累進 — 從固定 15 改成函式 (1st-2nd: 15, 3rd: 25, 4th+: 30)，A* node 維護 turnCount。長 path 的 3-bend 繞行不再「比 2-bend 直達便宜」(根因 A)。(b) S16 動態 COHERENCE_PENALTY — predictAnchors 投票記錄 strength (bestCount/total)，getCoherenceMismatchPenalty 用 factor=2*(1-strength) 縮放：壓倒性 majority (1.0) → 不罰、邊際 (0.5) → 全罰，解 end event 集中型 anchor 壓倒少數異類 edge (根因 B)。(c) S19 斜軸 pair candidate 關閉 Center Bias — generateCandidates 對 8 種斜軸 pair (R→T 等) 標 isAxisDiagonal: true，findPath 傳 centerBiasEnabled=false。斜軸 1-bend 的 corner bend 不再被 Center Bias 反向破壞 → A* 自然選 1-bend (根因 C)，full/partial override 斜軸也同樣享受。 | 2a25ad0 |
 | 2026-05-17 | v1.11 | **Phase A.3 兩合一精修**：(a) S20 不對稱 SHARE_RADIUS — fork (source) 跟 merge (target) 的 share 範圍分開設常數: SHARE_RADIUS_SOURCE=2 (出來早分叉)、SHARE_RADIUS_TARGET=5 (進去提早合流)。解問題 1：5-1-4-6/5-1-4-7 → 5-1-4-10 同 target 多 incoming 在接近 target 時不再各自轉折，5 cells 內共享 cost 0 自然合流。(b) S4 Endpoint Clearance — Proximity 加三段邊界：STUB (≤2) cost=0、END-ZONE (3-5) bonus=6 加強推開、中段 (6+) bonus=4 標準。解問題 2：backward edge 進入 target 時箭頭不再被擠在邊角，end-zone 範圍 cells 距 task 邊框 ≥ 6 才不罰。 | 1e72aa9 |
 | 2026-05-18 | v1.12 | **Phase B 雙軸延伸 share-free**：(a) S22 target 軸延伸 — 同 target cell 位於 entry port 進入軸 (perpDist=0) 不限距離 share-free。解「進 port 前 1-grid 階梯」：多 incoming 邊提早收斂到 port 軸，最後一段乾淨直達，共用箭頭位置。傳遞鏈：pickPath → findPath opts.entrySide → grid.getOccupyPenalty。(b) S23 source 軸延伸（對稱 S22）— 同 source cell 位於 exit port 出發軸 (perpDist=0) 不限距離 share-free。解「出發後 1-grid 階梯」：fork 邊堆疊在 source 軸 trunk，到該轉才分叉。Trade-off：fork trunk 上 label 可能重疊，「整齊出發」視覺優先。getOccupyPenalty 加 entrySide/exitSide 參數，astar.js findPath opts 對應加。 | 154a7ef + 768aa85 |
-| 2026-05-18 | v1.13 | **Phase C 兩合一精修**：(a) **S24 維度 7 Bend Endpoint Clearance** — astar.js 加 `BEND_ENDPOINT_PENALTY(20)`，turn cell 在距 endpoint < 3 cells 時付。解短 backward edge B→B candidate 的 bend 落 d=1 處 → 進閘道 stub 被擠 → 箭頭跟元件邊框重疊。對症（只罰 turn cell，stub 直走不變）。spec §6.1 已解。(b) **動態 lane 高度** — layout-astar.js Phase 2 加啟發式：對每條 raw edge 預判 corridor 機率（backward 1.0 / gap forward 0.5 / adjacent 0 / cross-lane 0.15），累加到 lane row。超出預設 4 row 容量時，每多 1 row 流量擴 `2*GRID_CELL=16px`，上限 240px。LPMC 大流程 lane 從 144→192px 後 6 條 backward 分散不擠；純直連 lane 維持 144px 不浪費。 | (本 PR) |
+| 2026-05-18 | v1.13 | **Phase C 兩合一精修**：(a) **S24 維度 7 Bend Endpoint Clearance** — astar.js 加 `BEND_ENDPOINT_PENALTY(20)`，turn cell 在距 endpoint < 3 cells 時付。解短 backward edge B→B candidate 的 bend 落 d=1 處 → 進閘道 stub 被擠 → 箭頭跟元件邊框重疊。對症（只罰 turn cell，stub 直走不變）。spec §6.1 已解。(b) **動態 lane 高度** — layout-astar.js Phase 2 加啟發式：對每條 raw edge 預判 corridor 機率（backward 1.0 / gap forward 0.5 / adjacent 0 / cross-lane 0.15），累加到 lane row。超出預設 4 row 容量時，每多 1 row 流量擴 `2*GRID_CELL=16px`，上限 240px。LPMC 大流程 lane 從 144→192px 後 6 條 backward 分散不擠；純直連 lane 維持 144px 不浪費。 | 0de9d36 |
+| 2026-05-18 | v1.14 | **Phase D 永續性重構**：(a) **回退 v1.13 S24 dim 7** — 實測發現 penalty=20 在 endpoint <3 處反向誘導 A* 找 3-turn 替代路徑（cost N+49 < 被罰的 2-turn N+52），引入新 bug（短 path 進 endpoint 多 1 個小彎）。cost function 回 6 維。教訓：cost dim 罰得太局部會讓 A* 找替代繞過 penalty。(b) **candidate generation 重劃** — 同 row 跨 col 分 adjacent / non-adjacent：`|dx| ≤ ADJACENT_DX_LIMIT(288, 1.5×COL_W)` 仍走 R→L 主候選；`|dx| > 288` (gap forward) 或 backward 強制 T→T / B→B 走 corridor，解觀察 2「R→L 短直線視覺辨識度低」+ 順便解 Issue 1 根因「短 backward stub 擠」。屬 candidate set 職責，不污染 cost function。(c) **新增 §10.5 職責分層** — 永續性核心：新需求先判斷屬 cost dim / candidate set / multi-pass / layout 哪層，不跨層 over-fit。修法決策樹第 0 步前置此判斷。(d) **保留 v1.13b 動態 lane 高度** — 跟 candidate 重劃互補，T→T/B→B 走 corridor 更需要 lane 寬度。 | (本 PR) |
 
-未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。
+未來每次 cost function / grid / multi-pass / candidate set / layout 邏輯變更都要在此記錄。

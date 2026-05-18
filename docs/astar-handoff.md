@@ -8,7 +8,7 @@
 
 ## 1. 一句話現狀
 
-A* router 已實作 **7 維 cost function (v1.13)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase C 完成「bend endpoint clearance (S24)」+「動態 lane 高度啟發式」，短 backward edge stub 不再擠壓 + 大流程多 backward 同 lane 自動擴張避免 label 互蓋。剩餘 corner case 在 §6。
+A* router 用 **6 維 cost function (v1.14)** + **candidate set design (v1.14)** + **動態 lane 高度 layout pre-pass (v1.13b)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase D 完成永續性重構：(a) 回退 v1.13 S24 dim 7（誘導 A* 找替代 3-turn 路徑的設計失敗），(b) candidate set 重劃同 row 跨 col 強制走 T→T/B→B（解視覺辨識度），(c) 新增 §10.5 職責分層原則（cost / candidate / layout 不跨層 over-fit）。剩餘 corner case 在 §6。
 
 ---
 
@@ -53,19 +53,42 @@ docs/
 
 ---
 
-## 4. Cost Function 當前狀態（v1.13）
+## 4. 三層架構當前狀態（v1.14）
+
+A\* router 工作分三層，**不跨層 over-fit**（spec §10.5）：
+
+### 4.1 Layout pre-pass (v1.13b)
 
 ```js
-// routeAll 開頭 (v1.8 S1 + v1.10 S16 strength)
-predictAnchors(grid, rawConns, positions)
-  // 投票 + majority threshold + 記錄 strength (給 dim 6 動態 factor)
-
-// layout-astar.js Phase 2 (v1.13)：依預估 corridor 流量擴 lane 高度
+// layout-astar.js Phase 2：依預估 corridor 流量擴 lane 高度
 laneHeights[row] = clamp(BASE_LANE_H + overflow * LANE_GROWTH_STEP,
                          BASE_LANE_H(144), MAX_LANE_H(240))
   // overflow = max(0, ⌈corridorLoad⌉ - 4)
+```
 
-// astar.js per-cell cost (v1.13)
+### 4.2 Candidate set (v1.7 + v1.14)
+
+```js
+// router/pickPath.js::generateCandidates
+sameRowAdjacent = sameRow && |dx| ≤ ADJACENT_DX_LIMIT(288)  // ≈ 1.5×COL_W
+
+// v1.14：同 row 跨多 col 或 backward → 不要 autoPick R→L/L→R 主候選
+if !(sameRow && !sameCol && !sameRowAdjacent):
+  candidates += [autoPickSides(src, tgt)]
+
+if (sameRow && !sameCol):
+  candidates += [T→T, B→B]   // adjacent: 主候選 + corridor 備援
+                              // non-adjacent: 沒主候選只 corridor
+
+// 其他象限 (sameCol / 對角) 維持 v1.7 邏輯
+```
+
+### 4.3 Cost function 6 維 (v1.14)
+
+```js
+// routeAll 開頭：predictAnchors 投票 + strength → 給 dim 6 動態 factor
+
+// astar.js per-cell cost
 cost(cell, dir) =
     1                                                              // 移動
   + (turn ? turnPenalty(turnCount) : 0)                            // dim 0: 累進 turn (v1.10 S15)
@@ -74,33 +97,31 @@ cost(cell, dir) =
                   start, goal, entrySide, exitSide)                //   (v1.11 S20 不對稱 + v1.12 S22/S23 軸延伸)
   + (isTurn && farFromRadius && centerBiasEnabled                  // dim 4: 中心偏好
        ? centerDist*CENTER_WEIGHT(1.5) : 0)                        //   v1.10 S19: 斜軸 pair 關閉
-  + (isTurn && distFromEndpoint < BEND_ENDPOINT_RADIUS(3)          // dim 7: bend endpoint clearance (v1.13 S24)
-       ? BEND_ENDPOINT_PENALTY(20) : 0)
 
-// router/pickPath.js::pickBestPath 算完 A* path 後加上：
+// router/pickPath.js::pickBestPath 算完 A* path 後加：
 adjustedCost = A* result.cost
   + getPortConflictPenalty(srcId, exitSide,  'out')                // dim 5: port reservation
   + getPortConflictPenalty(tgtId, entrySide, 'in')
   + getCoherenceMismatchPenalty(srcId, exitSide,  'out')           // dim 6: coherence (v1.10 動態權重)
-  + getCoherenceMismatchPenalty(tgtId, entrySide, 'in')            //   factor = 2*(1-anchorStrength)
+  + getCoherenceMismatchPenalty(tgtId, entrySide, 'in')
 ```
+
+**注**：v1.13 S24 dim 7 (bend endpoint clearance) 已於 v1.14 **回退**。設計反向誘導 A\* 找 3-turn 替代路徑（cost 反低於被罰的 2-turn），引入新 bug。改用 candidate set 解 Issue 1 根因。
 
 ### 各維度解的問題
 
-| 維度 | 解什麼 | 主要參數 |
-|---|---|---|
-| 0 Turn (v1.10 累進) | 少 bend，3+ bend 急升 cost | base=15 (1st-2nd), 25 (3rd), 30 (4th+) |
-| 1 Proximity (v1.9 stub + v1.11 S4 end-zone) | STUB(≤2)=0, END-ZONE(3-5)=6, 中段(6+)=4 | PROXIMITY_BONUS=4, ENDPOINT_BONUS=6 |
-| 2 Smart Occupy (v1.11 S20 + v1.12 S22/S23 軸延伸) | Fork 軸 trunk 整齊出發、Merge 軸 tail 共用箭頭；圓+軸雙重 share-free | SHARE_RADIUS_SOURCE=2, SHARE_RADIUS_TARGET=5, SHARE_PENALTY=3 |
-| 4 Center Bias (v1.8 動態 SKIP + v1.10 斜軸關閉) | 2-bend U/S bend 在中點；斜軸 1-bend 不誤罰 | CENTER_WEIGHT=1.5, SKIP=clamp(pathLen/4, [4,10]) |
-| 5 Port Reservation (v1.5) | 規則 1 (IN+OUT 不混用) | PORT_VIOLATION_PENALTY=500 |
-| 6 Coherence (v1.6 + v1.8 + v1.9 + v1.10 動態權重) | 多 incoming/outgoing 收斂；強 majority 不罰、弱 majority 全罰 | COHERENCE_PENALTY=12, factor=2*(1-strength) |
-| **7 Bend Endpoint Clearance (v1.13 S24)** | **turn cell 不貼 endpoint，stub 至少 3 cells 不擠** | **BEND_ENDPOINT_RADIUS=3, BEND_ENDPOINT_PENALTY=20** |
+| 層 | 工具 | 解什麼 | 主要參數 |
+|---|---|---|---|
+| Layout | 動態 lane 高度 (v1.13b) | 大流程多 backward 同 lane 自動擴張 | BASE_CORRIDOR_CAPACITY=4, MAX_LANE_H=240 |
+| Candidate | 同 row 跨多 col 強制 corridor (v1.14) | R→L 短直線視覺辨識度低 → T→T/B→B | ADJACENT_DX_LIMIT=288 |
+| Cost dim 0 | Turn 累進 (v1.10 S15) | 少 bend，3+ bend 急升 cost | base=15, 25, 30 |
+| Cost dim 1 | Proximity (v1.9 + v1.11 S4) | STUB(≤2)=0, END-ZONE(3-5)=6, 中段(6+)=4 | PROXIMITY_BONUS=4, ENDPOINT_BONUS=6 |
+| Cost dim 2 | Smart Occupy (v1.11 S20 + v1.12 S22/S23) | Fork trunk / Merge tail / 軸延伸 share-free | SHARE_RADIUS_*, SHARE_PENALTY=3 |
+| Cost dim 4 | Center Bias (v1.8 + v1.10 S19) | 2-bend bend 在中點；斜軸 1-bend 不誤罰 | CENTER_WEIGHT=1.5, SKIP=clamp(pathLen/4) |
+| Cost dim 5 | Port Reservation (v1.5) | 規則 1 (IN+OUT 不混用) | PORT_VIOLATION_PENALTY=500 |
+| Cost dim 6 | Coherence (v1.6 + v1.10 動態權重) | 多 incoming/outgoing 收斂 | COHERENCE_PENALTY=12, factor=2*(1-strength) |
 
-**Layout-level**（不算 cost 維度，但 v1.13 新增）：
-- **動態 Lane 高度** (`layout-astar.js`)：對每條 raw edge 預判走 corridor 機率，累加到 lane row。超出 4 row 預設容量時擴張 lane（每 row +16px、上限 240px）。
-
-詳細邏輯見 `docs/astar-routing-spec.md` §3 / §4.5。
+詳細邏輯見 `docs/astar-routing-spec.md` §3 / §4.5 / §6.2 / §10.5。
 
 ---
 
@@ -117,8 +138,9 @@ adjustedCost = A* result.cost
 ✅ 結構 hash cache（React 重 render 友善）
 ✅ 斜軸 1-bend 不被誤罰繞行（v1.10 S19）
 ✅ 集中型 anchor (5/5 majority) 不壓倒少數異類 edge（v1.10 S16 dynamic coherence）
-✅ **短 backward edge B→B candidate 進閘道 stub 不擠**（v1.13 S24 bend endpoint clearance）
-✅ **大流程多 backward 同 lane 自動擴張避免 label 互蓋**（v1.13 動態 lane 高度啟發式）
+✅ **大流程多 backward 同 lane 自動擴張避免 label 互蓋**（v1.13b 動態 lane 高度啟發式）
+✅ **同 row 跨多 col (\|dx\| > 288px) forward / 任意 backward 強制走 T→T / B→B corridor**（v1.14 candidate set 重劃，解視覺辨識度低 + 短 stub 擠 兩個觀察）
+✅ **同 row adjacent forward (\|dx\| ≤ 288px) 仍走 R→L 直線**（v1.14 candidate set 不過度強制 corridor，避免簡單相鄰被誤推走 corridor）
 
 ---
 
@@ -248,7 +270,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-17 | 1e72aa9 | A* round 15 (Phase A.3): S20 不對稱 SHARE_RADIUS + S4 Endpoint Clearance | v1.11 |
 | 2026-05-18 | 154a7ef | A* round 16 (Phase B): **S22 target 軸延伸 share-free** — 解 merge 進 port 前 1-grid 階梯 | v1.12 |
 | 2026-05-18 | 768aa85 | A* round 17 (Phase B): **S23 source 軸延伸 share-free**（對稱 S22）— 解 fork 出發後 1-grid 階梯 | v1.12 |
-| 2026-05-18 | (本 PR) | A* round 18 (Phase C): **S24 維度 7 Bend Endpoint Clearance** + **動態 lane 高度啟發式** — 解短 backward edge stub 擠壓 + 多平行線同 lane label 互蓋 | v1.13 |
+| 2026-05-18 | 0de9d36 | A* round 18 (Phase C): **S24 維度 7 Bend Endpoint Clearance** + **動態 lane 高度啟發式** — 解短 backward edge stub 擠壓 + 多平行線同 lane label 互蓋 | v1.13 |
+| 2026-05-18 | (本 PR) | A* round 19 (Phase D): **永續性重構** — 回退 v1.13 S24 (誘導 A* 找替代路徑 bug) + candidate set 重劃同 row 跨多 col 強制 T→T/B→B + 新增 §10.5 職責分層原則 | v1.14 |
 
 ---
 
@@ -264,9 +287,11 @@ git push origin claude/test-link-open-source-kKqHk
 | 多 incoming 進 end event / merge target | 共用同一個箭頭位置，**最後一段直線進 port 無 1-grid 階梯** | v1.12 S22 |
 | 跨多 lane 對角 task → end event 1-bend | 1-bend corner 不繞行 | v1.10 S19 |
 | 5/5 majority anchor 含少數 T→B 異類邊 | 少數邊自由走自然路徑（不被強拉到 anchor side） | v1.10 S16 |
-| **短 backward edge B→B 同 lane 同 row** | **bend 落 d ≥ 3 cells from endpoint，stub 至少 3 cells 不貼元件邊框** | **v1.13 S24** |
-| **LPMC 大流程 lane 內 6+ backward edges** | **lane 自動從 144→192+ px，多 backward 分散到 row 不擠 / label 不互蓋** | **v1.13 動態 lane 高度** |
-| **純直連 lane（只有 adjacent forward）** | **lane 維持 144px 不浪費版面** | **v1.13 啟發式 P_ADJACENT=0** |
+| **LPMC 大流程 lane 內 6+ backward edges** | **lane 自動從 144→192+ px，多 backward 分散到 row 不擠 / label 不互蓋** | v1.13b |
+| **純直連 lane（只有 adjacent forward）** | **lane 維持 144px 不浪費版面** | v1.13b P_ADJACENT=0 |
+| **同 row backward 任意 col 差** | **走 T→T 或 B→B corridor，不出現 R→L 短直線、不出現 v1.13 引入的「南→西→南→西」3-turn 替代繞行** | v1.14 candidate set |
+| **同 row forward 跨多 col (\|dx\| > 288px)** | **走 T→T / B→B corridor，不再 R→L 線被夾在 task 之間** | v1.14 candidate set |
+| **同 row forward adjacent (\|dx\| ≤ 288px)** | **走 R→L 直線（沒被誤推走 corridor）** | v1.14 ADJACENT_DX_LIMIT |
 
 若任一 case 退化（regression），先確認當前 deploy 是 latest commit (`/test-astar/` 顯示版本)，再回頭看 commit history 找 break point。
 
@@ -282,13 +307,26 @@ git push origin claude/test-link-open-source-kKqHk
 
 收到視覺優化需求時按此順序判斷：
 
+**0. 先判斷需求屬哪一層**（v1.14 新加，永續性核心，詳 spec §10.5）：
+
+| 需求類型 | 適合層 | 例子 |
+|---|---|---|
+| 線形狀 / proximity / edge 互動 | cost dim | turn / proximity / occupy / coherence |
+| 業務規則違規 | cost dim 大 penalty | port reservation |
+| **某類 edge 應走某類 port 組合** | **candidate set** | **v1.14 同 row 跨多 col → T→T/B→B** |
+| 空間配置（lane 大小、位置）| layout pre-pass | v1.13b 動態 lane 高度 |
+
+跨層 over-fit 是反 pattern — 如 v1.13 S24 用 cost dim 解 candidate 職責 → A\* 找替代路徑繞 penalty → 引入新 bug 被 v1.14 回退。
+
+**1-5. 同層內判斷工具**（cost dim 層為例）：
+
 1. **能否調既有維度權重解？** → 改常數（e.g., COHERENCE_PENALTY 20→12）
 2. **能否縮小既有維度適用範圍？** → 加 skip 條件（e.g., S8 stub skip proximity、S19 斜軸關 Center Bias）
 3. **能否擴大既有維度適用範圍？** → 加軸延伸 / radius 動態（e.g., S22/S23 軸延伸、S3 動態 SKIP_RADIUS）
 4. **能否拆對稱常數？** → e.g., S20 不對稱 SHARE_RADIUS（source vs target）
-5. **以上都不行才加新維度** → 在 spec §3 加新章節 + 更新 cost function 公式
+5. **以上都不行才加新維度** → 在 spec §3 加新章節 + 更新 cost function 公式（**但先回到 step 0 確認真的屬 cost 層**）
 
-**禁忌**：在 router.js / astar.js / pickPath.js 寫 `if (task.type === 'gateway' && ...) { specialCase }` 之類業務規則分支。
+**禁忌**：在 router.js / astar.js / pickPath.js 寫 `if (task.type === 'gateway' && ...) { specialCase }` 之類業務規則分支。Candidate set 內依 (col, row) geometry 分流不算（純空間幾何，不依 task attribute）。
 
 ### 對稱性檢查（v1.12 後新增）
 
@@ -300,16 +338,20 @@ git push origin claude/test-link-open-source-kKqHk
 
 ### 文件同步檢查單（**每輪 PR 前必跑**）
 
-- [ ] `docs/astar-routing-spec.md` §3 對應維度章節更新
+- [ ] `docs/astar-routing-spec.md` §3 對應 cost 維度章節更新（若改 cost）
+- [ ] `docs/astar-routing-spec.md` §4.5 lane 動態高度更新（若改 layout）
+- [ ] `docs/astar-routing-spec.md` §6.2 candidate generation 表 + pseudocode 更新（若改 candidate set）
 - [ ] `docs/astar-routing-spec.md` §8 參數表新增/修改
+- [ ] `docs/astar-routing-spec.md` §10.5 職責分層原則確認新需求屬正確層（v1.14 新增）
 - [ ] `docs/astar-routing-spec.md` §11 測試情境若有新覆蓋情境補上
 - [ ] `docs/astar-routing-spec.md` §13 變更歷史加一行（含 commit SHA）
 - [ ] `docs/astar-handoff.md` §1 一句話現狀更新
-- [ ] `docs/astar-handoff.md` §4 cost function 公式 + 維度表更新
+- [ ] `docs/astar-handoff.md` §4 三層架構更新
 - [ ] `docs/astar-handoff.md` §5 已覆蓋情境補上
 - [ ] `docs/astar-handoff.md` §6 已知未解清單：若 fix 涵蓋某項 → 移除；若引入新已知 corner → 新增
 - [ ] `docs/astar-handoff.md` §10 變更紀錄加一行
-- [ ] commit msg 引用對應 S 編號（e.g., S22/S23）+ 紅線複查條目
+- [ ] `docs/astar-handoff.md` §11 smoke check 表加新覆蓋情境
+- [ ] commit msg 引用對應 S / Round 編號 + 紅線複查條目
 
 ### 保持紅線
 

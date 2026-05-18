@@ -67,16 +67,28 @@ export function generateCandidates(src, tgt, override) {
   const dx = tgt.cx - src.cx;
   const dy = tgt.cy - src.cy;
   const T = 30;
+  // v1.14：同 row + col 差 > 1 (gap forward 或 backward) 強制走 corridor，
+  // 不生 R→L / L→R 候選。COL_W=192px 對齊 grid（src/diagram/constants.js），
+  // 1.5 倍當「相鄰」閾值容忍少量誤差。
+  const ADJACENT_DX_LIMIT = 288;  // ≈ 1.5 * COL_W (192)
   const candidates = [];
-
-  // 主候選：依 dx/dy 推「最自然」的 port
-  candidates.push(autoPickSides(src, tgt));
 
   const sameRow = Math.abs(dy) < T;
   const sameCol = Math.abs(dx) < T;
+  const sameRowAdjacent = sameRow && Math.abs(dx) <= ADJACENT_DX_LIMIT;
+
+  // 主候選：依 dx/dy 推「最自然」的 port
+  // 同 row 跨多 col / backward：不要 R→L / L→R autoPick，純走 corridor (見下)
+  if (!(sameRow && !sameCol && !sameRowAdjacent)) {
+    candidates.push(autoPickSides(src, tgt));
+  }
 
   if (sameRow && !sameCol) {
-    // 同 row 跨 col：加 corridor 繞行候選（解中間有 task 阻擋時走 corridor）
+    // v1.14：同 row 跨 col 區分 adjacent / 非 adjacent：
+    //   adjacent (|dx| ≤ ADJACENT_DX_LIMIT): 主候選 R→L 直線 + T→T/B→B 備援
+    //   非 adjacent (|dx| > ADJACENT_DX_LIMIT) 或 backward: 只生 T→T/B→B
+    //     強制走 corridor — 解短 R→L 線「stub 擠 / 視覺辨識度低」根因
+    //     (此屬 candidate set 職責，不該寫到 cost dim，詳 spec §10.5)
     candidates.push({ exit: 'top',    entry: 'top'    });
     candidates.push({ exit: 'bottom', entry: 'bottom' });
   } else if (sameCol && !sameRow) {

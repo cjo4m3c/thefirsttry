@@ -1,15 +1,20 @@
 /**
  * astar.js — A* orthogonal path finder with cost-based visual preferences.
  *
- * Cost function (v1.13) per-cell：
+ * Cost function (v1.14) per-cell：
  *   cost = 1                                                    // 基本移動
  *        + turnPenalty(turnCount)  if isTurn                    // dim 0: 累進 turn
  *        + max(0, PROXIMITY_BONUS - distFromObstacle) if !stub  // dim 1: corridor 中央
  *        + getOccupyPenalty(cell, dir, src, tgt, entry, exit)   // dim 2: smart 占用 (S22/S23 雙軸延伸)
  *        + centerDist*CENTER_WEIGHT  if !skipRadius && enabled  // dim 4: bend 拉中點
- *        + BEND_ENDPOINT_PENALTY  if isTurn && near endpoint    // dim 7: bend endpoint clearance (S24)
  *
  * dim 5 (Port Reservation) + dim 6 (Coherence) 在 router.js::pickBestPath 加。
+ *
+ * v1.14 回退 v1.13 S24 (dim 7 bend endpoint clearance)：penalty 在 endpoint <3 處
+ * 反向誘導 A* 找出「多 1 turn 替代路徑」(3-turn cost 反低於 2-turn 受罰版)，副作用
+ * 大於收益。Issue 1 的根因（同 row 跨元件 R→L 短直線 stub 擠）改在 candidate
+ * generation 解（強制走 T→T / B→B）— 屬「per-edge port 組合策略」職責，不該污染
+ * per-cell cost function。詳 docs/astar-routing-spec.md §10.5 職責分層原則。
  *
  * 沒有 if-then 業務規則。新增情境調權重 / 適用範圍，不寫新分支。
  */
@@ -31,15 +36,6 @@ const CENTER_WEIGHT = 1.5;     // turn cell 離 path 中點越遠，加 cost 越
 // 但 2-bend U/S 的中段 bend 仍進 Center Bias 計算 (保留 v1.1 修的 bend 拉中點)。
 const CENTER_SKIP_RADIUS_MIN = 4;
 const CENTER_SKIP_RADIUS_MAX = 10;
-
-// v1.13 S24 Bend Endpoint Clearance (維度 7)：
-// 解短 path backward edge bend 落在 endpoint 1 cell 處，stub 被擠 → 箭頭跟元件邊框重疊。
-// 根因：v1.9 S8 STUB skip 強制 proximity=0 + v1.8 動態 SKIP_RADIUS 下限 4 蓋掉 center bias
-// → endpoint 0-3 cell 範圍內沒任何維度反對「立刻 bend」，A* tie-break 用 h 拉早 bend。
-// 修法：對 turn cell 在距 endpoint < 3 cells 加 BEND_ENDPOINT_PENALTY(20)，
-//      bend 自然被推到 d ≥ 3。stub 沿軸直走不是 turn → 不付 penalty。
-const BEND_ENDPOINT_RADIUS = 3;
-const BEND_ENDPOINT_PENALTY = 20;
 
 /** S15 (v1.10) Turn penalty 累進：第 1-2 turn 同 base，第 3+ 急升。
  *  解長 path 中「bend 數權重相對 base cost 太小」(類型 A)：
@@ -235,14 +231,6 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
       const newTurnCount = cur.turnCount + (isTurn ? 1 : 0);
       const turnCost = isTurn ? turnPenalty(newTurnCount) : 0;
 
-      // ─ 維度 7：bend endpoint clearance（v1.13 S24）─
-      // turn cell 在 endpoint < 3 cells 範圍內加 penalty，把 bend 推到 d ≥ 3，
-      // stub 不被擠壓。stub 直走不是 turn → 不付。
-      const bendEndpointCost =
-        isTurn && (distFromStart < BEND_ENDPOINT_RADIUS || distFromGoal < BEND_ENDPOINT_RADIUS)
-          ? BEND_ENDPOINT_PENALTY
-          : 0;
-
       // Tie-break: 同方向 0.01 < perp 0.02 < perp 0.03 < opposite 0.04
       const tieBias = i * 0.01;
       const newG = cur.g + 1
@@ -250,7 +238,6 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
         + proximityCost
         + occupyCost
         + centerCost
-        + bendEndpointCost
         + tieBias;
       const newH = manhattan(ncell, goal);
 
