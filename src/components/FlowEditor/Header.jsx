@@ -69,7 +69,7 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
 
   return (
     <header className="px-6 py-3 shadow-md flex items-center gap-4 sticky top-0 z-10"
-      style={{ background: '#2A5598', color: 'white' }}>
+      style={{ background: 'var(--brand-dark)', color: 'white' }}>
       <button onClick={onBack} className="opacity-70 hover:opacity-100 text-base flex-shrink-0">← 返回</button>
       <img
         src={`${import.meta.env.BASE_URL}logo.png`}

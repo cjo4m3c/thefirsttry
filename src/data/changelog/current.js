@@ -6,6 +6,22 @@
 export default [
   {
     date: '2026-05-18',
+    title: 'Design system PR-1 — Token layer + 品牌色對齊 spec hex',
+    items: [
+      '**緣由**：使用者提供 `design_handoff_flowsprite` 設計手冊 + tokens.css + components.css。FlowSprite 現況散落寫死 hex（Header `#2A5598` / scrollbar `#7AB5DD` / 編輯器各處）+ 字級用 Tailwind 預設、與 spec 不一致。Audit 後拍板 6 個 PR 漸進對齊（token / Button / Modal+Callout / Chip / 8 種節點分色 / Selected vs hover）。本 PR 是 PR-1 基礎。',
+      '**新增**：`src/styles/tokens.css`（~170 行）— 對齊 spec tokens.css、含 FlowSprite 專有 canvas state tokens。涵蓋品牌 3 色 + 角色 2 色 + 語意 4 色（每色含 -soft / -ink 變體）+ 編輯器類型 3 色 + 中性 8 色 + accent / star / highlight + 字型 / 字級 7 階 / 間距 9 階 / 圓角 5 階 / 陰影 2 階 + 行高 3 階 + canvas state（hover-fill / hover-out / hover-in / select / violation）。`.t-display` 等 typography utility classes 同時定義。',
+      '**修改 tailwind.config.js**：`theme.extend.colors` 加入 36 個 token reference（`brand` / `brand-dark` / `internal` / `warning` / `paper` / `ink-soft` 等）。改 hex 一律改 `tokens.css` 不改這裡；這裡只是 Tailwind utility class（如 `bg-brand`）的對應層。',
+      '**修改 index.css**：頂部 `@import "./styles/tokens.css"`、body / scrollbar / SVG font 全部改用 `var(--*)`。body bg 從寫死 `#F5F8FC` → `var(--paper)`（hex 巧合相同、視覺無變化），scrollbar thumb `#7AB5DD` → `var(--brand-light)`（**視覺變化**：`#5EC7E8` 更亮 sky）/ track `#E8F1F9` → `var(--brand-light-soft)` (`#E0F4FB`) / hover `#3470B5` → `var(--brand)` (`#006EBC`)。',
+      '**修改 Header.jsx**：`background: "#2A5598"` → `background: "var(--brand-dark)"`。**這是本 PR 視覺上最明顯的改動** — Header 從現況的中藍 (#2A5598) 變成 spec 的深 navy (#1B2E4C)。Header text 仍白、可讀性更高。',
+      '**Backlog cleanup**：刪除 `.claude/backlog.md` 條目 #2「Phase C grid-based path-finder」（使用者：「可刪除」）。Phase A + B 已 ship（PR #196）足以應付實務、Phase C 多月工作 / 高回歸風險、無業務需求。其餘 backlog #3 / #4 升格為 #2 / #3。',
+      '**動到的檔案（5 個 + 2 新檔）**：`src/styles/tokens.css`（新）/ `tailwind.config.js`（theme.extend.colors）/ `src/index.css`（import + 換 var）/ `src/components/FlowEditor/Header.jsx`（bg 換 var）/ `.claude/backlog.md`（刪 Phase C）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過、bundle CSS 從 ~34KB → 37.6KB（增 token 定義屬正常）。手動驗證點：(a) Header 視覺從中藍變深 navy ✓ (b) scrollbar 從中淺藍變亮 sky ✓ (c) 流程圖 / FlowTable / Dashboard 卡片配色不變（COLORS 維持 hex literal、後續 PR 配套對齊）(d) 編輯 textarea / input 字級暫保持現況 — 後續 PR-2/3 抽元件時統一。',
+      '**設計取捨**：`src/diagram/constants.js COLORS` **保留 hex literal 不換 var**。原因：SVG `fill` / `stroke` attribute 不認 `var(--*)`（CSS variables 只在 CSS context 生效、不能塞給 SVG attribute）。tokens.css 內已加註解標明「SVG 用 hex mirror、改 token 同步改 mirror」。`COLORS.INTERNAL_BG/EXTERNAL_BG` 已 plain `#0066CC/#009900` 與 spec 一致、無需動。',
+      '**接下來**：PR-2 Button 元件化 → PR-3 Modal + Callout → PR-4 Chip → PR-5 TaskCard 8 種節點分色 → PR-6 Canvas Selected 區分 hover。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: '中英混排自動間距（display-only）— 流程圖 / FlowTable / Dashboard 統一插空格',
     items: [
       '**緣由**：使用者「我在 Excel 中輸入正常的文字後、你讓使用者在頁面上可以看到有調整過間距的舒服閱讀版、特別是流程圖上、流程圖元件內的文字、線段上的文字是必要的」。',
