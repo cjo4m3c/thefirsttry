@@ -90,7 +90,7 @@ routeAll
 
 ## 3. Cost Function（核心）
 
-### 3.1 完整公式（v1.12）
+### 3.1 完整公式（v1.13）
 
 ```js
 // astar.js per-cell cost
@@ -102,6 +102,8 @@ cost(cell, dir, parent) =
                      startCell, goalCell, entrySide, exitSide)           //   (v1.11 S20 不對稱 + v1.12 S22/S23 軸延伸)
   + (isTurn && farFromSkipRadius && centerBiasEnabled                    // 維度 4: 中心偏好 (v1.8 動態 + v1.10 S19 斜軸關)
        ? centerDist * CENTER_WEIGHT : 0)
+  + (isTurn && distFromEndpoint < BEND_ENDPOINT_RADIUS                   // 維度 7: bend endpoint clearance (v1.13 S24)
+       ? BEND_ENDPOINT_PENALTY : 0)
   + i * 0.01                                                              // tie-break (i = dirOrder index)
 
 // pickPath.js::pickBestPath 算完 A* 後加：
@@ -413,6 +415,45 @@ getCoherenceMismatchPenalty(taskId, side, direction):
 - Anchor 由 geometry 預測；只有 0 票的 task 不設 anchor（罕見）
 - 跟 port reservation 不衝突：reservation 是 hard 避反向，coherence 是 soft 偏向同 side
 
+### 3.7.1 維度 7：Bend Endpoint Clearance (v1.13 S24)
+
+**目的**：把 turn cell 從 endpoint 附近推開，避免短 path（特別是 backward + B→B 候選）的 bend 落在距 endpoint 1 cell 處 → 進 port 的 stub 被擠壓 → 箭頭跟元件邊框視覺重疊。
+
+```js
+// astar.js per-cell cost
+bendEndpointCost = (isTurn && (distFromStart < BEND_ENDPOINT_RADIUS
+                            || distFromGoal  < BEND_ENDPOINT_RADIUS))
+  ? BEND_ENDPOINT_PENALTY
+  : 0
+```
+
+| 參數 | 預設值 | 意義 |
+|---|---|---|
+| `BEND_ENDPOINT_RADIUS` | 3 | turn cell 距 endpoint < 此值要付 penalty (d ∈ {0,1,2}) |
+| `BEND_ENDPOINT_PENALTY` | 20 | 在 endpoint 附近 turn 的 cost penalty |
+
+**為什麼要新維度而不是擴 ENDPOINT_BONUS**：
+
+| 維度在 endpoint 1 cell 處 | 行為 | 是否擋早 bend |
+|---|---|---|
+| 1 proximity | STUB skip → cost=0 (v1.9 S8) | ❌ 無感 |
+| 4 center bias | SKIP_RADIUS_MIN=4 跳過 (v1.8) | ❌ 無感 |
+| 7 bend endpoint clearance | 20 (本維度) | ✅ 唯一擋住 |
+
+擴大 ENDPOINT_BONUS / ENDPOINT_RADIUS 會把 **所有** stub 段都推得更遠（直走 cell 也被推），整體 path 變長。本維度**只罰 turn cell**，stub 沿軸直走不付 → 對症且零副作用。
+
+**權重設計**：20 > TURN_PENALTY_BASE(15)，足以讓 A* 為避免「endpoint 1 cell 處 bend」多走 2 cells 再 bend（cost 差距 20 vs 額外 2 cells × 1 base = 2，penalty 屠殺）。 但 << COHERENCE(12) 不衝突、<< OCCUPY_SAME_DIR(80) 不阻擋必要避障。
+
+**解決哪些情境**：
+- 短 backward edge B→B candidate（同 lane 同 row、L→R / R→L 被 PORT_VIOLATION 屠殺後）的 bend 自然落 d ≥ 3，stub 至少 3 cells 不擠
+- 任何 1-bend / 2-bend 短 path 的 turn 不再貼 endpoint
+
+**對既有 case 的影響**：
+- 直走 cell（非 turn）：無付 → 不影響 ✓
+- 中段 turn（d ≥ 3）：無付 → 既有 fork/merge/center bias 不變 ✓
+- 斜軸 1-bend 長 path（pathLen ≥ 30）：corner d ≥ 4 → 無付 ✓
+- 短斜軸 1-bend（pathLen < 6，極罕見）：corner 可能 d=2，A* 可能改選 2-bend U/S（bend 在中段 d≈3 無付）→ 視覺差異微小（path 本來就短）
+
 ### 3.8 Tie-break
 
 ```js
@@ -429,7 +470,7 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 
 第一步不准回頭（`OPPOSITE[sourceExitDir]`）。
 
-### 3.9 為什麼這六個維度足夠
+### 3.9 為什麼這七個維度足夠
 
 任何「視覺好不好」的判斷都可拆解成：
 
@@ -443,6 +484,7 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 | 同 port IN+OUT 混用（規則 1 違規）| PORT_RESERVATION |
 | 多 incoming/outgoing 進入方向不一致 | COHERENCE |
 | Bend 不在 path 中點 | CENTER_BIAS |
+| Bend 太靠近 endpoint（stub 被擠）| BEND_ENDPOINT_CLEARANCE |
 | 線左右搖擺 | Tie-break |
 
 未來新增情境若用以上維度無法解決，再考慮**加新 cost 維度**（不寫 if-then）。
@@ -486,7 +528,59 @@ blocked cells = { (x, y) | left_x/CELL ≤ x < right_x/CELL,
 - 對 ~14k cells 約 5ms
 - Lazy compute：只有 A* 需要才算
 
-### 4.5 Port 對應 cell 處理
+### 4.5 動態 Lane 高度 (v1.13)
+
+**目的**：解多平行線段在同 lane 擠壓 → A* spread 受限於 lane 高度 hard cap → label 互蓋 + 箭頭間距 0-1 grid。
+
+```js
+// layout-astar.js Phase 2 在 positions 算出前
+laneLoad[row] = Σ over edges:
+  same_lane && dx < 0       : 1.0   (backward, 必走 corridor)
+  same_lane && dx == 1      : 0.0   (adjacent forward, 直連不佔)
+  same_lane && dx > 1       : 0.5   (gap forward, 可能走 corridor 避中間 task)
+  cross_lane                : 0.15  (對 src/tgt 兩個 lane 各加，1-bend 對角)
+
+overflow = max(0, ⌈laneLoad[row]⌉ - BASE_CORRIDOR_CAPACITY)
+laneHeights[row] = clamp(BASE_LANE_H + overflow * LANE_GROWTH_STEP,
+                         BASE_LANE_H, MAX_LANE_H)
+```
+
+| 參數 | 預設值 | 意義 |
+|---|---|---|
+| `BASE_CORRIDOR_CAPACITY` | 4 | 預設每 lane 上下 corridor 各有 ~4 row 容量 |
+| `LANE_GROWTH_STEP` | `2 * GRID_CELL = 16px` | 每多 1 row 流量擴的 lane 高度（保持 `2 * GRID_CELL` 倍數對齊） |
+| `MAX_LANE_H` | `30 * GRID_CELL = 240px` | lane 高度上限（極端流程應靠拆 lane 解，不靠 lane 撐） |
+| `P_BACKWARD` | 1.0 | 同 lane backward edge 走 corridor 機率 |
+| `P_GAP_FORWARD` | 0.5 | 同 lane 跨多 col forward 走 corridor 機率 |
+| `P_ADJACENT` | 0.0 | 同 lane adjacent forward 走 corridor 機率（直連） |
+| `P_CROSS_LANE` | 0.15 | 跨 lane edge 對 src/tgt 兩 lane 各加 |
+
+**幾何直覺**：
+
+```
+LPMC lane (BASE 144px, 6 backward → load=6 → overflow=2 → +32px → 176px)
+
+ＡＡＡ extra 2 rows (16px each)
+─────────────────────────────────────  ← 擴的空間，corridor 多 2 row
+ [t1] [t2] [t3] [t4] [t5] [t6] [t7]
+        ▲    ▲    ▲    ▲    ▲    ▲
+        │    │    │    │    │    │   6 backward edges
+ＶＶＶ   spread 在 6+ 個 row 不擠
+─────────────────────────────────────
+```
+
+**解決哪些情境**：
+- 大流程同 lane 多 backward retry / 多 fork 分散：lane 自動擴張，A* 有空間 spread → label 不重疊
+- 純直連 lane（無 backward / fork）：load = 0 → 不擴，版面不浪費
+
+**為何啟發式單 pass 而非兩階段**：30+ task 流程已 150-300ms，兩階段 ×2 破壞使用者體驗 + cache invalidation 變難。啟發式 O(N) 一次掃，精度夠用（對症型 backward / 異常處理流程）。
+
+**邊界**：
+- 啟發式有可能低估（如某些 cross-lane 邊實際走長 corridor 但只算 0.15）— 真擠時退一步靠人工拆 lane
+- 上限 240px：超過代表流程設計問題（單 lane 30+ task 應該 refactor）
+- structuralHash 已含 task.nextTaskIds / conditions，lane 高度變動已涵蓋 cache 失效
+
+### 4.6 Port 對應 cell 處理
 
 A* 的起終點是「task 外一格」（沿 exit/entry 方向）：
 
@@ -676,6 +770,12 @@ else:  // 幾乎同 col
 | `COHERENCE_PENALTY` | `grid.js` | 12 | base penalty (v1.6) ; v1.10 S16 動態 factor = 2*(1-strength)，壓倒性 anchor 不罰、邊際 anchor 全罰 |
 | `PROXIMITY_STUB_RADIUS` | `astar.js` | 2 | 距 start/goal ≤ 此值的 cells skip proximity (v1.9 S8, alignPortSegments 已強制 stub 沿軸方向，無需 push) |
 | `ANCHOR_MAJORITY` | `router.js` | > 0.5 | predictAnchors 嚴格 majority 才設 anchor (v1.9 S6, 票數分散時不預測回退 first-wins) |
+| **`BEND_ENDPOINT_RADIUS`** | `astar.js` | 3 | turn cell 距 endpoint < 此值要付 penalty（維度 7, v1.13 S24）|
+| **`BEND_ENDPOINT_PENALTY`** | `astar.js` | 20 | bend 落在 endpoint 附近的 cost penalty（解短 backward stub 擠壓）|
+| **`BASE_CORRIDOR_CAPACITY`** | `layout-astar.js` | 4 | 預設 lane 上下 corridor 各 ~4 row 容量（v1.13 動態 lane 高度）|
+| **`LANE_GROWTH_STEP`** | `layout-astar.js` | `2 * GRID_CELL = 16` | 每多 1 row 流量擴 16px (保 grid 對齊) |
+| **`MAX_LANE_H`** | `layout-astar.js` | `30 * GRID_CELL = 240` | lane 高度上限（極端應拆 lane 解）|
+| **`P_BACKWARD`** / `P_GAP_FORWARD` / `P_ADJACENT` / `P_CROSS_LANE` | `layout-astar.js` | 1.0 / 0.5 / 0.0 / 0.15 | corridor 機率啟發式（v1.13）|
 | `MAX_ITER` | `astar.js` | 50000 | A* 搜尋上限 |
 | `pickSides dx threshold` | `router.js` | 30 | 同 col 判定閾值（< 30 算同 col）|
 
@@ -689,7 +789,7 @@ else:  // 幾乎同 col
 | Backward edge 樣式 | dx<0 邊目前是「下方走 vs 上方繞」隨機 | 加 cost 維度：dx<0 時 north 方向有 small bonus |
 | 規則 3「target 欄左→右排 slot」 | 同 corridor 多條線順序由 multi-pass 決定，不一定跟 target col 對齊 | 改 multi-pass 排序，或加 cost 維度：path y 應該越接近 target row 越低 cost |
 | Drag preview 走 A* | 拖曳當下用簡單 L 預覽，放開後 A* 重算可能跳線 | useDragEndpoint 加 throttle 跑 A* |
-| Lane 動態高度 | 目前固定 `BASE_LANE_H`，大流程可能擁擠 | 預估每 lane 內 corridor 流量，動態擴 lane height |
+| ~~Lane 動態高度~~ | **v1.13 已解（啟發式）** — 詳 §4.5。極端流程仍可能高估/低估，靠調參數或加最小 line spacing 維度 | — |
 | 大流程效能 | 30+ tasks 約 100-300ms | per-edge 結構 hash cache |
 
 ---
@@ -739,6 +839,9 @@ else:  // 幾乎同 col
 | Merge（多 incoming 進同 target）| **v1.12 S22**：incoming 邊整齊收斂到 target 軸 tail，共用箭頭位置 — 不可出現「進 port 前 1-grid 階梯」|
 | 兩條獨立 path 交叉 | 允許交叉（penalty 低）|
 | 兩條平行 path 重疊（異 source/target）| 自動分開到不同 row/col |
+| **短 backward edge B→B (同 lane 同 row)** | **v1.13 S24**：bend 落 d ≥ 3 from endpoint，進閘道 stub 至少 3 cells 不擠壓，箭頭不貼元件邊框 |
+| **大流程多 backward (6+) 同 lane** | **v1.13 lane 動態高度**：lane 自動從 144px 擴到 176-240px，多 backward edge 分散到多 row 不互蓋 label |
+| **純直連 lane (無 backward / fork)** | **v1.13 lane 動態高度**：load=0 不擴，維持 144px 不浪費版面 |
 
 ---
 
@@ -771,5 +874,6 @@ else:  // 幾乎同 col
 | 2026-05-17 | v1.10 | **Phase A.2 三合一 cost function 終極收尾**：(a) S15 TURN_PENALTY 累進 — 從固定 15 改成函式 (1st-2nd: 15, 3rd: 25, 4th+: 30)，A* node 維護 turnCount。長 path 的 3-bend 繞行不再「比 2-bend 直達便宜」(根因 A)。(b) S16 動態 COHERENCE_PENALTY — predictAnchors 投票記錄 strength (bestCount/total)，getCoherenceMismatchPenalty 用 factor=2*(1-strength) 縮放：壓倒性 majority (1.0) → 不罰、邊際 (0.5) → 全罰，解 end event 集中型 anchor 壓倒少數異類 edge (根因 B)。(c) S19 斜軸 pair candidate 關閉 Center Bias — generateCandidates 對 8 種斜軸 pair (R→T 等) 標 isAxisDiagonal: true，findPath 傳 centerBiasEnabled=false。斜軸 1-bend 的 corner bend 不再被 Center Bias 反向破壞 → A* 自然選 1-bend (根因 C)，full/partial override 斜軸也同樣享受。 | 2a25ad0 |
 | 2026-05-17 | v1.11 | **Phase A.3 兩合一精修**：(a) S20 不對稱 SHARE_RADIUS — fork (source) 跟 merge (target) 的 share 範圍分開設常數: SHARE_RADIUS_SOURCE=2 (出來早分叉)、SHARE_RADIUS_TARGET=5 (進去提早合流)。解問題 1：5-1-4-6/5-1-4-7 → 5-1-4-10 同 target 多 incoming 在接近 target 時不再各自轉折，5 cells 內共享 cost 0 自然合流。(b) S4 Endpoint Clearance — Proximity 加三段邊界：STUB (≤2) cost=0、END-ZONE (3-5) bonus=6 加強推開、中段 (6+) bonus=4 標準。解問題 2：backward edge 進入 target 時箭頭不再被擠在邊角，end-zone 範圍 cells 距 task 邊框 ≥ 6 才不罰。 | 1e72aa9 |
 | 2026-05-18 | v1.12 | **Phase B 雙軸延伸 share-free**：(a) S22 target 軸延伸 — 同 target cell 位於 entry port 進入軸 (perpDist=0) 不限距離 share-free。解「進 port 前 1-grid 階梯」：多 incoming 邊提早收斂到 port 軸，最後一段乾淨直達，共用箭頭位置。傳遞鏈：pickPath → findPath opts.entrySide → grid.getOccupyPenalty。(b) S23 source 軸延伸（對稱 S22）— 同 source cell 位於 exit port 出發軸 (perpDist=0) 不限距離 share-free。解「出發後 1-grid 階梯」：fork 邊堆疊在 source 軸 trunk，到該轉才分叉。Trade-off：fork trunk 上 label 可能重疊，「整齊出發」視覺優先。getOccupyPenalty 加 entrySide/exitSide 參數，astar.js findPath opts 對應加。 | 154a7ef + 768aa85 |
+| 2026-05-18 | v1.13 | **Phase C 兩合一精修**：(a) **S24 維度 7 Bend Endpoint Clearance** — astar.js 加 `BEND_ENDPOINT_PENALTY(20)`，turn cell 在距 endpoint < 3 cells 時付。解短 backward edge B→B candidate 的 bend 落 d=1 處 → 進閘道 stub 被擠 → 箭頭跟元件邊框重疊。對症（只罰 turn cell，stub 直走不變）。spec §6.1 已解。(b) **動態 lane 高度** — layout-astar.js Phase 2 加啟發式：對每條 raw edge 預判 corridor 機率（backward 1.0 / gap forward 0.5 / adjacent 0 / cross-lane 0.15），累加到 lane row。超出預設 4 row 容量時，每多 1 row 流量擴 `2*GRID_CELL=16px`，上限 240px。LPMC 大流程 lane 從 144→192px 後 6 條 backward 分散不擠；純直連 lane 維持 144px 不浪費。 | (本 PR) |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。

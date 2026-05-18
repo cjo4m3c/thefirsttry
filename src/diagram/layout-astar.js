@@ -14,13 +14,28 @@
  * 這個 router 是 sync 的（A* 同步演算法），但 interface 仍跟其他 router 對齊
  * （warmAsync 是 no-op resolved promise）。
  */
-import { LAYOUT } from './constants.js';
+import { LAYOUT, GRID_CELL } from './constants.js';
 import { computeDisplayLabels } from '../utils/taskDefs.js';
 import { computeColumnMap, resolveRowCollisions } from './layout/columnAssign.js';
 import { halfExtent, NODE_VOFFSET } from './layout/helpers.js';
 import { routeAll } from './pathfinding/router.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
+
+// v1.13 動態 lane 高度（解多平行線段擠壓）：
+//   智慧啟發式 — 對每條 raw edge 預判 corridor 機率，累加到每 lane 的 corridorLoad。
+//   負載超出預設 capacity 時，每多 1 row 流量擴 lane 高度 LANE_GROWTH_STEP，
+//   保持 grid 對齊（NODE_VOFFSET = LANE_H / 2 需 lane_h 是 2*GRID_CELL 倍數）。
+//   上限 MAX_LANE_H 防止單 lane 失控擴張（極端情境應靠拆 lane 解，不靠 lane 撐）。
+const BASE_CORRIDOR_CAPACITY = 4;          // 預設 lane 上下 corridor 各有 ~4 row 容量
+const LANE_GROWTH_STEP = 2 * GRID_CELL;    // 每多 1 row 流量擴 16px (保 2*GRID_CELL 倍數)
+const MAX_LANE_H = 30 * GRID_CELL;          // lane 高度上限 240px (BASE 144 + 96 = 12 cells 擴張空間)
+
+// edge 走 corridor 機率啟發式（v1.13）：純幾何，不寫業務 if-then。
+const P_BACKWARD = 1.0;        // backward edge 100% 走 corridor (避同 lane task 阻擋)
+const P_GAP_FORWARD = 0.5;     // 同 lane 跨多 col 的 forward (col diff > 1)，可能走 corridor 避中間 task
+const P_ADJACENT = 0.0;        // 相鄰 col forward (col diff = 1)，直連不佔 corridor
+const P_CROSS_LANE = 0.15;     // 跨 lane edge 對 src/tgt lane 各加 0.15（多為 1-bend 對角，輕度佔 corridor）
 
 // 兩層 cache：
 //   1. WeakMap by flow object identity（無 hash 開銷，命中時直接回）
@@ -116,8 +131,16 @@ function doLayout(flow) {
   tasks.forEach(t => { taskRowOf[t.id] = roleIndexMap[t.roleId] ?? 0; });
   resolveRowCollisions(tasks, colOf, taskRowOf);
 
-  // ── 2. Lane 位置（沿用 main 簡化版，跳過 phase 算的 corridor 高度）──
-  const laneHeights = roles.map(() => BASE_LANE_H);
+  // ── 2. Lane 動態高度 + 位置 ─────────────────────────────────────
+  // v1.13：依預估 corridor 流量擴展擁擠 lane，避免多平行線段擠壓。
+  const taskIds = new Set(tasks.map(t => t.id));
+  const laneLoads = estimateLaneCorridorLoads(tasks, taskIds, colOf, taskRowOf);
+  const laneHeights = roles.map((_, row) => {
+    const load = laneLoads.get(row) || 0;
+    const overflow = Math.max(0, Math.ceil(load) - BASE_CORRIDOR_CAPACITY);
+    const extra = Math.min(overflow * LANE_GROWTH_STEP, MAX_LANE_H - BASE_LANE_H);
+    return BASE_LANE_H + extra;
+  });
   const laneTopY = [];
   let y = TITLE_H;
   roles.forEach((_, row) => {
@@ -145,7 +168,6 @@ function doLayout(flow) {
 
   // ── 4. 收集所有 raw connections（含 user drag override）──
   const rawConns = [];
-  const taskIds = new Set(tasks.map(t => t.id));
   tasks.forEach(task => {
     const overrides = task.connectionOverrides || {};
     if (task.type === 'gateway' && task.conditions?.length) {
@@ -191,6 +213,60 @@ function doLayout(flow) {
     laneTopY,
     laneHeights,
   };
+}
+
+/**
+ * 預估每 lane 的 corridor 流量（v1.13）。
+ *
+ * 對每條 raw edge 啟發式預判走 corridor 機率，累加到 src / tgt 的 lane row。
+ * 機率純依幾何（col/row 差），不寫業務 if-then 規則。
+ *
+ *   backward (同 lane, dx<0)     → 1.0
+ *   同 lane gap forward (dx>1)   → 0.5
+ *   同 lane adjacent (dx=1)      → 0.0  (直連不佔 corridor)
+ *   cross-lane                   → src 0.15 + tgt 0.15
+ *
+ * @returns {Map<number, number>} laneRow → 累計流量
+ */
+function estimateLaneCorridorLoads(tasks, taskIds, colOf, taskRowOf) {
+  const load = new Map();
+  const add = (row, p) => { load.set(row, (load.get(row) || 0) + p); };
+
+  const addEdge = (fromId, toId) => {
+    if (!taskIds.has(toId)) return;
+    const srcRow = taskRowOf[fromId];
+    const tgtRow = taskRowOf[toId];
+    const srcCol = colOf[fromId];
+    const tgtCol = colOf[toId];
+    if (srcRow == null || tgtRow == null || srcCol == null || tgtCol == null) return;
+
+    if (srcRow === tgtRow) {
+      const dx = tgtCol - srcCol;
+      let p;
+      if (dx < 0) p = P_BACKWARD;
+      else if (dx === 1) p = P_ADJACENT;
+      else p = P_GAP_FORWARD;
+      add(srcRow, p);
+    } else {
+      add(srcRow, P_CROSS_LANE);
+      add(tgtRow, P_CROSS_LANE);
+    }
+  };
+
+  tasks.forEach(task => {
+    if (task.type === 'gateway' && task.conditions?.length) {
+      task.conditions.forEach(cond => {
+        if (cond.nextTaskId) addEdge(task.id, cond.nextTaskId);
+      });
+    } else if (task.type !== 'end' && task.type !== 'gateway') {
+      const nextIds = task.nextTaskIds?.length
+        ? task.nextTaskIds
+        : (task.nextTaskId ? [task.nextTaskId] : []);
+      nextIds.forEach(nextId => { if (nextId) addEdge(task.id, nextId); });
+    }
+  });
+
+  return load;
 }
 
 function emptyLayout() {

@@ -8,7 +8,7 @@
 
 ## 1. 一句話現狀
 
-A* router 已實作 **6 維 cost function (v1.12)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase B 完成「雙軸延伸 share-free」(S22/S23)，merge/fork 視覺顯著改善（共用箭頭、整齊出發）。剩餘 corner case 在 §6。
+A* router 已實作 **7 維 cost function (v1.13)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase C 完成「bend endpoint clearance (S24)」+「動態 lane 高度啟發式」，短 backward edge stub 不再擠壓 + 大流程多 backward 同 lane 自動擴張避免 label 互蓋。剩餘 corner case 在 §6。
 
 ---
 
@@ -53,14 +53,19 @@ docs/
 
 ---
 
-## 4. Cost Function 當前狀態（v1.12）
+## 4. Cost Function 當前狀態（v1.13）
 
 ```js
 // routeAll 開頭 (v1.8 S1 + v1.10 S16 strength)
 predictAnchors(grid, rawConns, positions)
   // 投票 + majority threshold + 記錄 strength (給 dim 6 動態 factor)
 
-// astar.js per-cell cost (v1.12)
+// layout-astar.js Phase 2 (v1.13)：依預估 corridor 流量擴 lane 高度
+laneHeights[row] = clamp(BASE_LANE_H + overflow * LANE_GROWTH_STEP,
+                         BASE_LANE_H(144), MAX_LANE_H(240))
+  // overflow = max(0, ⌈corridorLoad⌉ - 4)
+
+// astar.js per-cell cost (v1.13)
 cost(cell, dir) =
     1                                                              // 移動
   + (turn ? turnPenalty(turnCount) : 0)                            // dim 0: 累進 turn (v1.10 S15)
@@ -69,6 +74,8 @@ cost(cell, dir) =
                   start, goal, entrySide, exitSide)                //   (v1.11 S20 不對稱 + v1.12 S22/S23 軸延伸)
   + (isTurn && farFromRadius && centerBiasEnabled                  // dim 4: 中心偏好
        ? centerDist*CENTER_WEIGHT(1.5) : 0)                        //   v1.10 S19: 斜軸 pair 關閉
+  + (isTurn && distFromEndpoint < BEND_ENDPOINT_RADIUS(3)          // dim 7: bend endpoint clearance (v1.13 S24)
+       ? BEND_ENDPOINT_PENALTY(20) : 0)
 
 // router/pickPath.js::pickBestPath 算完 A* path 後加上：
 adjustedCost = A* result.cost
@@ -84,12 +91,16 @@ adjustedCost = A* result.cost
 |---|---|---|
 | 0 Turn (v1.10 累進) | 少 bend，3+ bend 急升 cost | base=15 (1st-2nd), 25 (3rd), 30 (4th+) |
 | 1 Proximity (v1.9 stub + v1.11 S4 end-zone) | STUB(≤2)=0, END-ZONE(3-5)=6, 中段(6+)=4 | PROXIMITY_BONUS=4, ENDPOINT_BONUS=6 |
-| 2 Smart Occupy (v1.11 S20 + **v1.12 S22/S23 軸延伸**) | Fork 軸 trunk 整齊出發、Merge 軸 tail 共用箭頭；圓+軸雙重 share-free | SHARE_RADIUS_SOURCE=2, SHARE_RADIUS_TARGET=5, SHARE_PENALTY=3 |
+| 2 Smart Occupy (v1.11 S20 + v1.12 S22/S23 軸延伸) | Fork 軸 trunk 整齊出發、Merge 軸 tail 共用箭頭；圓+軸雙重 share-free | SHARE_RADIUS_SOURCE=2, SHARE_RADIUS_TARGET=5, SHARE_PENALTY=3 |
 | 4 Center Bias (v1.8 動態 SKIP + v1.10 斜軸關閉) | 2-bend U/S bend 在中點；斜軸 1-bend 不誤罰 | CENTER_WEIGHT=1.5, SKIP=clamp(pathLen/4, [4,10]) |
 | 5 Port Reservation (v1.5) | 規則 1 (IN+OUT 不混用) | PORT_VIOLATION_PENALTY=500 |
 | 6 Coherence (v1.6 + v1.8 + v1.9 + v1.10 動態權重) | 多 incoming/outgoing 收斂；強 majority 不罰、弱 majority 全罰 | COHERENCE_PENALTY=12, factor=2*(1-strength) |
+| **7 Bend Endpoint Clearance (v1.13 S24)** | **turn cell 不貼 endpoint，stub 至少 3 cells 不擠** | **BEND_ENDPOINT_RADIUS=3, BEND_ENDPOINT_PENALTY=20** |
 
-詳細邏輯見 `docs/astar-routing-spec.md` §3。
+**Layout-level**（不算 cost 維度，但 v1.13 新增）：
+- **動態 Lane 高度** (`layout-astar.js`)：對每條 raw edge 預判走 corridor 機率，累加到 lane row。超出 4 row 預設容量時擴張 lane（每 row +16px、上限 240px）。
+
+詳細邏輯見 `docs/astar-routing-spec.md` §3 / §4.5。
 
 ---
 
@@ -106,24 +117,12 @@ adjustedCost = A* result.cost
 ✅ 結構 hash cache（React 重 render 友善）
 ✅ 斜軸 1-bend 不被誤罰繞行（v1.10 S19）
 ✅ 集中型 anchor (5/5 majority) 不壓倒少數異類 edge（v1.10 S16 dynamic coherence）
+✅ **短 backward edge B→B candidate 進閘道 stub 不擠**（v1.13 S24 bend endpoint clearance）
+✅ **大流程多 backward 同 lane 自動擴張避免 label 互蓋**（v1.13 動態 lane 高度啟發式）
 
 ---
 
 ## 6. 已知未解 corner cases（接下來工作清單）
-
-### 🔴 高優先級
-
-#### 6.1 短 path「彎折離元件太近」(Issue B from 2026-05-18)
-**症狀**：當 path 全長 < 10 cells 時，center bias 的 SKIP_RADIUS (clamp(pathLen/4, [4,10]) 下限 4) 蓋掉中段，bend 無 center pressure 拉中。實際 bend 落點靠近 endpoint，stub 段太短 → 箭頭視覺上跟線段重疊。
-
-**已觀察**：圖三 右線進 1-1-2-5 — 線往南 1 grid 後就東轉，到極接近 1-1-2-5 才南轉指入。
-
-**S23 (v1.12) 部分緩解**：source 軸 trunk 共享後，path 不再被 OCCUPY 鎖到元件旁，center bias 有更大空間。若仍殘留：
-
-**修法方向（S24 候選）**：
-- 加新維度「stub 最小長度」— 最後一段（進 port 前）< K cells 時加 penalty
-- 或加「endpoint clearance bend」— bend 落在距 endpoint < 3 cells 加 cost
-- 不可選：把 SKIP_RADIUS 下限拉到 0（會把 stub turn 算進 center → 解 v1.2 已修的問題）
 
 ### 🟡 中優先級
 
@@ -149,10 +148,15 @@ parallel gateway 視覺習慣從 bottom 出（往下分叉），exclusive 從 ri
 
 ### 🟢 低優先級
 
-#### 6.6 Lane 動態高度
-30+ tasks 在同 lane 的大流程，A* 用固定 BASE_LANE_H 可能擁擠。
+#### 6.6 Lane 動態高度 — **v1.13 已解（啟發式版）**
+~~30+ tasks 在同 lane 的大流程，A* 用固定 BASE_LANE_H 可能擁擠。~~
 
-**修法方向**：layout-astar 預估每 lane corridor 流量，動態擴 lane height。
+v1.13 已實作「啟發式預估 corridor 流量 + 動態擴 lane 高度」。詳見 spec §4.5。
+
+**目前限制**：機率啟發式可能低估 / 高估，極端流程靠拆 lane / refactor 解。若實測仍擠，下一步可考慮：
+- 提高 `P_GAP_FORWARD` (目前 0.5) 或 `P_CROSS_LANE` (目前 0.15)
+- 降低 `BASE_CORRIDOR_CAPACITY` (目前 4) 讓 lane 更早擴
+- 加新維度「最小 line spacing」強推 spread（避免 A* 在擴張後仍把 path 擠在一起）
 
 #### 6.7 大流程效能
 30+ tasks ~150-300ms。當前 hash cache 在「同結構新 flow object」命中，但編輯任意欄位都失效。
@@ -244,6 +248,7 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-17 | 1e72aa9 | A* round 15 (Phase A.3): S20 不對稱 SHARE_RADIUS + S4 Endpoint Clearance | v1.11 |
 | 2026-05-18 | 154a7ef | A* round 16 (Phase B): **S22 target 軸延伸 share-free** — 解 merge 進 port 前 1-grid 階梯 | v1.12 |
 | 2026-05-18 | 768aa85 | A* round 17 (Phase B): **S23 source 軸延伸 share-free**（對稱 S22）— 解 fork 出發後 1-grid 階梯 | v1.12 |
+| 2026-05-18 | (本 PR) | A* round 18 (Phase C): **S24 維度 7 Bend Endpoint Clearance** + **動態 lane 高度啟發式** — 解短 backward edge stub 擠壓 + 多平行線同 lane label 互蓋 | v1.13 |
 
 ---
 
@@ -259,6 +264,9 @@ git push origin claude/test-link-open-source-kKqHk
 | 多 incoming 進 end event / merge target | 共用同一個箭頭位置，**最後一段直線進 port 無 1-grid 階梯** | v1.12 S22 |
 | 跨多 lane 對角 task → end event 1-bend | 1-bend corner 不繞行 | v1.10 S19 |
 | 5/5 majority anchor 含少數 T→B 異類邊 | 少數邊自由走自然路徑（不被強拉到 anchor side） | v1.10 S16 |
+| **短 backward edge B→B 同 lane 同 row** | **bend 落 d ≥ 3 cells from endpoint，stub 至少 3 cells 不貼元件邊框** | **v1.13 S24** |
+| **LPMC 大流程 lane 內 6+ backward edges** | **lane 自動從 144→192+ px，多 backward 分散到 row 不擠 / label 不互蓋** | **v1.13 動態 lane 高度** |
+| **純直連 lane（只有 adjacent forward）** | **lane 維持 144px 不浪費版面** | **v1.13 啟發式 P_ADJACENT=0** |
 
 若任一 case 退化（regression），先確認當前 deploy 是 latest commit (`/test-astar/` 顯示版本)，再回頭看 commit history 找 break point。
 
