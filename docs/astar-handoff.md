@@ -8,7 +8,7 @@
 
 ## 1. 一句話現狀
 
-A* router 用 **6 維 cost function (v1.14)** + **candidate set design (v1.14)** + **動態 lane 高度 layout pre-pass (v1.13b)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase D 完成永續性重構：(a) 回退 v1.13 S24 dim 7（誘導 A* 找替代 3-turn 路徑的設計失敗），(b) candidate set 重劃同 row 跨 col 強制走 T→T/B→B（解視覺辨識度），(c) 新增 §10.5 職責分層原則（cost / candidate / layout 不跨層 over-fit）。剩餘 corner case 在 §6。
+A* router 用 **6 維 cost function** + **candidate set design (v1.14)** + **動態 lane 高度 layout pre-pass (v1.13b + v1.15)** + **視覺距離 unified framework (v1.15 §10.5.1)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase E (v1.15) 補上 v1.0-v1.14 對「視覺距離」處理的結構不對稱：dim 2 加 halo radius=2 + STUB_LENGTH=3 + lane 啟發式 fork pattern 識別 — 三個獨立工具同 framework，解情境 1（cross 緊鄰）/ 2（stub 進 port）/ 3（fork trunk 擠 + label 蓋）。剩餘 corner case 在 §6。
 
 ---
 
@@ -138,9 +138,13 @@ adjustedCost = A* result.cost
 ✅ 結構 hash cache（React 重 render 友善）
 ✅ 斜軸 1-bend 不被誤罰繞行（v1.10 S19）
 ✅ 集中型 anchor (5/5 majority) 不壓倒少數異類 edge（v1.10 S16 dynamic coherence）
-✅ **大流程多 backward 同 lane 自動擴張避免 label 互蓋**（v1.13b 動態 lane 高度啟發式）
+✅ **大流程多 backward 同 lane 自動擴張避免 label 互蓋**（v1.13b 動態 lane 高度啟發式 + v1.15 fine-tune）
 ✅ **同 row 跨多 col (\|dx\| > 288px) forward / 任意 backward 強制走 T→T / B→B corridor**（v1.14 candidate set 重劃，解視覺辨識度低 + 短 stub 擠 兩個觀察）
 ✅ **同 row adjacent forward (\|dx\| ≤ 288px) 仍走 R→L 直線**（v1.14 candidate set 不過度強制 corridor，避免簡單相鄰被誤推走 corridor）
+✅ **Cross path 同 col 共用 vertical 段不再 1 grid 緊貼**（v1.15 OCCUPY halo radius=2，path 自動 spread 2-3 cells）
+✅ **任何 edge 進 port stub 至少 3 cells 不重疊元件邊框**（v1.15 STUB_LENGTH=3 hard 內縮 startCell/goalCell + short-path fallback）
+✅ **同 source 多 fork (N≥2) trunk 不再擠 + label 不互蓋**（v1.15 lane 啟發式 fork pattern 識別，自動擴 lane）
+✅ **視覺距離 unified framework**（v1.15 §10.5.1）：未來「距離不夠」類需求都按 framework 內找對應參數調整，不再加新 cost dim
 
 ---
 
@@ -271,7 +275,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-18 | 154a7ef | A* round 16 (Phase B): **S22 target 軸延伸 share-free** — 解 merge 進 port 前 1-grid 階梯 | v1.12 |
 | 2026-05-18 | 768aa85 | A* round 17 (Phase B): **S23 source 軸延伸 share-free**（對稱 S22）— 解 fork 出發後 1-grid 階梯 | v1.12 |
 | 2026-05-18 | 0de9d36 | A* round 18 (Phase C): **S24 維度 7 Bend Endpoint Clearance** + **動態 lane 高度啟發式** — 解短 backward edge stub 擠壓 + 多平行線同 lane label 互蓋 | v1.13 |
-| 2026-05-18 | (本 PR) | A* round 19 (Phase D): **永續性重構** — 回退 v1.13 S24 (誘導 A* 找替代路徑 bug) + candidate set 重劃同 row 跨多 col 強制 T→T/B→B + 新增 §10.5 職責分層原則 | v1.14 |
+| 2026-05-18 | d339715 | A* round 19 (Phase D): **永續性重構** — 回退 v1.13 S24 (誘導 A* 找替代路徑 bug) + candidate set 重劃同 row 跨多 col 強制 T→T/B→B + 新增 §10.5 職責分層原則 | v1.14 |
+| 2026-05-18 | (本 PR) | A* round 20 (Phase E): **視覺距離 unified framework** — 補上 v1.0-v1.14 對軟障礙處理的結構不對稱 (dim 1 task 邊距 vs dim 2 path 邊距 vs stub 區黑洞)。三個獨立工具同 framework (§10.5.1): (a) OCCUPY halo radius=2 (解 cross 緊鄰 + fork trunk 擠) (b) STUB_LENGTH=3 (解 stub 進 port 重疊) (c) lane 啟發式 fork pattern + BASE_CAP/STEP fine-tune (解 fork trunk + label 蓋) | v1.15 |
 
 ---
 
@@ -287,11 +292,14 @@ git push origin claude/test-link-open-source-kKqHk
 | 多 incoming 進 end event / merge target | 共用同一個箭頭位置，**最後一段直線進 port 無 1-grid 階梯** | v1.12 S22 |
 | 跨多 lane 對角 task → end event 1-bend | 1-bend corner 不繞行 | v1.10 S19 |
 | 5/5 majority anchor 含少數 T→B 異類邊 | 少數邊自由走自然路徑（不被強拉到 anchor side） | v1.10 S16 |
-| **LPMC 大流程 lane 內 6+ backward edges** | **lane 自動從 144→192+ px，多 backward 分散到 row 不擠 / label 不互蓋** | v1.13b |
+| **LPMC 大流程 lane 內 6+ backward edges** | **lane 自動從 144→240 px，多 backward 分散到 row 不擠 / label 不互蓋** | v1.13b + v1.15 |
 | **純直連 lane（只有 adjacent forward）** | **lane 維持 144px 不浪費版面** | v1.13b P_ADJACENT=0 |
 | **同 row backward 任意 col 差** | **走 T→T 或 B→B corridor，不出現 R→L 短直線、不出現 v1.13 引入的「南→西→南→西」3-turn 替代繞行** | v1.14 candidate set |
 | **同 row forward 跨多 col (\|dx\| > 288px)** | **走 T→T / B→B corridor，不再 R→L 線被夾在 task 之間** | v1.14 candidate set |
 | **同 row forward adjacent (\|dx\| ≤ 288px)** | **走 R→L 直線（沒被誤推走 corridor）** | v1.14 ADJACENT_DX_LIMIT |
+| **Cross path 同 col 共用 vertical 段** | **後 route path 偏 2-3 cells 視覺清楚分離**（不再 1 grid 緊貼）| v1.15 OCCUPY halo |
+| **任何 edge stub 進 port** | **箭頭距元件邊框 3 cells 不重疊**（短 path<6 manhattan 降為 max(1, M/3)）| v1.15 STUB_LENGTH |
+| **同 source 4 fork trunk 同 lane** | **lane 擴到 192-240px，trunk 間 2 cells halo spread，label 不互蓋** | v1.15 lane fine-tune + halo |
 
 若任一 case 退化（regression），先確認當前 deploy 是 latest commit (`/test-astar/` 顯示版本)，再回頭看 commit history 找 break point。
 

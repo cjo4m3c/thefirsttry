@@ -516,11 +516,12 @@ laneHeights[row] = clamp(BASE_LANE_H + overflow * LANE_GROWTH_STEP,
 | 參數 | 預設值 | 意義 |
 |---|---|---|
 | `BASE_CORRIDOR_CAPACITY` | 4 | 預設每 lane 上下 corridor 各有 ~4 row 容量 |
-| `LANE_GROWTH_STEP` | `2 * GRID_CELL = 16px` | 每多 1 row 流量擴的 lane 高度（保持 `2 * GRID_CELL` 倍數對齊） |
+| `LANE_GROWTH_STEP` | `3 * GRID_CELL = 24px` (v1.15) | 每多 1 row 流量擴 24px（trunk + label 上下空間，保 grid 對齊）|
 | `MAX_LANE_H` | `30 * GRID_CELL = 240px` | lane 高度上限（極端流程應靠拆 lane 解，不靠 lane 撐） |
 | `P_BACKWARD` | 1.0 | 同 lane backward edge 走 corridor 機率 |
-| `P_GAP_FORWARD` | 0.5 | 同 lane 跨多 col forward 走 corridor 機率 |
-| `P_ADJACENT` | 0.0 | 同 lane adjacent forward 走 corridor 機率（直連） |
+| `P_GAP_FORWARD` | 0.5 | 同 lane 跨多 col forward 走 corridor 機率（非 fork）|
+| `P_SAME_SOURCE_FORK` | 1.0 (v1.15) | 同 lane forward from fork source (outDegree≥2) — 每條 fork trunk 都 100% 佔 |
+| `P_ADJACENT` | 0.0 | 同 lane adjacent forward 走 corridor 機率（直連，非 fork）|
 | `P_CROSS_LANE` | 0.15 | 跨 lane edge 對 src/tgt 兩 lane 各加 |
 
 **幾何直覺**：
@@ -751,7 +752,12 @@ else:  // 幾乎同 col
 | `ANCHOR_MAJORITY` | `router.js` | > 0.5 | predictAnchors 嚴格 majority 才設 anchor (v1.9 S6, 票數分散時不預測回退 first-wins) |
 | ~~`BEND_ENDPOINT_RADIUS` / `BEND_ENDPOINT_PENALTY`~~ | (已移除 v1.14) | — | v1.13 dim 7 已回退，詳 §3.7.1 |
 | **`ADJACENT_DX_LIMIT`** | `pickPath.js` | 288px (≈1.5×COL_W) | 同 row 跨 col 是否算「相鄰」的閾值（v1.14）。≤ 此值仍走 R→L 主候選；> 此值或 backward 強制 T→T / B→B（candidate set 層解視覺辨識度，避免 cost dim 污染）|
-| **`BASE_CORRIDOR_CAPACITY`** | `layout-astar.js` | 4 | 預設 lane 上下 corridor 各 ~4 row 容量（v1.13 動態 lane 高度）|
+| **`STUB_LENGTH`** | `pickPath.js` | 3 cells | v1.15 startCell/goalCell 內縮 K cells，A\* 不搜尋 stub 區（視覺距離 §10.5.1）。短 path (manhattan<6) fallback 降到 max(1, floor(M/3)) |
+| **`HALO_RADIUS`** | `grid.js` | 2 cells | v1.15 path cell perpendicular ±N cells 標 halo（視覺距離 §10.5.1）|
+| **`HALO_PENALTY_NEAR / FAR`** | `grid.js` | 30 / 10 | v1.15 halo cell 異 source/target same/opposite dir 的遞減 penalty |
+| **`BASE_CORRIDOR_CAPACITY`** | `layout-astar.js` | 1 (v1.15) | 預設 lane corridor 容量（v1.15 從 4→1 更敏感擴張，配合 fork trunk 識別）|
+| **`P_SAME_SOURCE_FORK`** | `layout-astar.js` | 1.0 | v1.15 同 source N+ fork 每條 100% 佔 corridor 機率 |
+| **`FORK_THRESHOLD`** | `layout-astar.js` | 2 | v1.15 outDegree ≥ 此值才算 fork（1 outgoing 不算）|
 | **`LANE_GROWTH_STEP`** | `layout-astar.js` | `2 * GRID_CELL = 16` | 每多 1 row 流量擴 16px (保 grid 對齊) |
 | **`MAX_LANE_H`** | `layout-astar.js` | `30 * GRID_CELL = 240` | lane 高度上限（極端應拆 lane 解）|
 | **`P_BACKWARD`** / `P_GAP_FORWARD` / `P_ADJACENT` / `P_CROSS_LANE` | `layout-astar.js` | 1.0 / 0.5 / 0.0 / 0.15 | corridor 機率啟發式（v1.13）|
@@ -812,7 +818,8 @@ else:  // 幾乎同 col
 | Edge 間互動（重疊、收斂） | cost dim per-cell + multi-pass | occupy (dim 2) / coherence (dim 6) |
 | 業務規則違規 | cost dim 大 penalty | port reservation (dim 5) |
 | **某類 edge 應該走某類 port 組合** | **candidate set design** | **同 row 跨多 col → 強制 T→T/B→B (v1.14)** |
-| 空間配置（lane 大小、task 位置）| layout pre-pass | 動態 lane 高度 (v1.13b) |
+| **視覺距離（軟障礙推開）** | **§10.5.1 unified framework** | **dim 1 / dim 2 halo / STUB_LENGTH / lane 啟發式 (v1.15)** |
+| 空間配置（lane 大小、task 位置）| layout pre-pass | 動態 lane 高度 (v1.13b + v1.15 fine-tune) |
 
 **跨層 over-fit = 反 pattern**。如：
 - ❌ 用 cost dim 解「某類 edge 應走某類 port」→ A* 會找替代路徑繞過 penalty（v1.13 S24 的失敗）
@@ -824,6 +831,43 @@ else:  // 幾乎同 col
 2. 該層內找對應工具（既有 dim / 既有 candidate logic / 既有 layout pre-pass）
 3. 沒對應工具才考慮新增 — 仍在同層內擴展，不跨層
 4. **絕對不**因為一個工具好用就強塞到別層需求上
+
+### 10.5.1 視覺距離 Unified Framework (v1.15 立)
+
+**設計觀察**：v1.0-v1.14 對「視覺間距」這個概念**處理不對稱**：
+
+```
+   軟障礙類型           | 處理工具                | 推開半徑
+─────────────────────────┼─────────────────────────┼────────
+   Task 邊緣 (blocked)   | dim 1 distance map     | 4 cells (PROXIMITY_BONUS) ✓
+   Routed path cells     | dim 2 occupy           | 0 cell  (只罰自己) ❌ 不對稱
+   Port 軸 (stub 區)     | dim 1/4 在 d≤2 全 skip  | 0 cell  (黑洞) ❌ 盲區
+   Lane 邊界             | 固定 BASE_LANE_H       | 動態擴 (v1.13b) ✓
+```
+
+使用者持續抱怨的「線跟線擠 / 線跟元件擠 / stub 太短 / fork trunk 擠 label 蓋」**6 個情境都歸結到這個結構性遺漏**。
+
+v1.13 S24 嘗試用 cost dim 補 stub 黑洞 → 失敗（cost penalty 太局部誘導 A\* 替代）。**正確補法是把「視覺距離」當作 unified concept，依不同障礙類型用不同工具**：
+
+| 軟障礙 | v1.15 工具 | 位置 | 數值 |
+|---|---|---|---|
+| Task 邊緣 | dim 1 distance map (既有) | astar.js + grid.proximityDist | PROXIMITY_BONUS=4 |
+| Routed path | **dim 2 halo (v1.15 新)** | grid.markHalo + getOccupyPenalty halo branch | HALO_RADIUS=2, HALO_PENALTY=[30,10] |
+| Port 軸 stub | **STUB_LENGTH (v1.15 新, search-space)** | pickPath.js::computePath startCell/goalCell 內縮 | STUB_LENGTH=3, fallback when pathLen<6 |
+| Lane 邊界 | 動態 lane 高度 (v1.13b + v1.15 fine-tune) | layout-astar.js | BASE_CAP=1, STEP=24, P_SAME_SOURCE_FORK=1.0 |
+
+**Framework 原則**：
+1. 新「視覺距離」需求**先在此框架內**找對應工具
+2. 不開新 cost dim（v1.13 S24 教訓）
+3. 工具間參數可獨立 fine-tune，不互相干擾
+4. Halo 用 perpendicular ±radius 標記、share-free 邏輯（同 source/target 不罰）
+5. STUB_LENGTH 用 hard 內縮 startCell/goalCell（不是 soft cost），避免 A\* 找替代
+
+**未來「距離不夠」類需求都按本框架調參數**：
+- 線跟線太近 → 調 HALO_RADIUS / HALO_PENALTY
+- 線跟 task 太近 → 調 PROXIMITY_BONUS / ENDPOINT_BONUS
+- 線跟 port 太近 → 調 STUB_LENGTH
+- 多 trunk 擠 lane → 調 BASE_CORRIDOR_CAPACITY / LANE_GROWTH_STEP / P_SAME_SOURCE_FORK
 
 ---
 
@@ -846,8 +890,11 @@ else:  // 幾乎同 col
 | **同 row backward edge (任意 col 差)** | **v1.14 candidate 改寫**：強制 T→T / B→B 走 corridor，不再走 R→L 短直線；配合動態 lane 高度有寬度 spread，stub 自然不擠 |
 | **同 row forward edge 跨多 col (\|dx\| > 288px)** | **v1.14 candidate 改寫**：強制 T→T / B→B 走 corridor，避免 R→L 線被夾在 task 之間視覺辨識度低 |
 | **同 row forward edge adjacent (\|dx\| ≤ 288px)** | 維持 R→L 直線（autoPickSides）— 相鄰 task 無視覺辨識度問題 |
-| **大流程多 backward (6+) 同 lane** | **v1.13 lane 動態高度**：lane 自動從 144px 擴到 176-240px，多 backward edge 分散到多 row 不互蓋 label |
+| **大流程多 backward (6+) 同 lane** | **v1.13 lane 動態高度 + v1.15 fine-tune**：lane 自動從 144px 擴到 240px，多 backward 分散不互蓋 label |
 | **純直連 lane (無 backward / fork)** | **v1.13 lane 動態高度**：load=0 不擴，維持 144px 不浪費版面 |
+| **v1.15 兩個 cross path 緊鄰**（左上→右下 + 左下→右上 同 col 共用 vertical 段）| **OCCUPY halo radius=2**：後 route path 偏 2-3 cells (HALO_PENALTY=30/10) 視覺清楚分離，不再 1 grid 緊貼 |
+| **v1.15 同 source 多 fork trunk (4+ 條 corridor)**| **lane 動態高度 fine-tune** (BASE_CAP=1, STEP=24, P_SAME_SOURCE_FORK=1.0)：lane 自動擴張 + trunk 間 halo spread，label 不互蓋 |
+| **v1.15 任何 edge 進 port stub**| **STUB_LENGTH=3**：箭頭至少距元件邊框 3 cells (24px)，不重疊；短 path fallback (manhattan<6) 降到 max(1, floor(M/3)) |
 
 ---
 
@@ -881,6 +928,7 @@ else:  // 幾乎同 col
 | 2026-05-17 | v1.11 | **Phase A.3 兩合一精修**：(a) S20 不對稱 SHARE_RADIUS — fork (source) 跟 merge (target) 的 share 範圍分開設常數: SHARE_RADIUS_SOURCE=2 (出來早分叉)、SHARE_RADIUS_TARGET=5 (進去提早合流)。解問題 1：5-1-4-6/5-1-4-7 → 5-1-4-10 同 target 多 incoming 在接近 target 時不再各自轉折，5 cells 內共享 cost 0 自然合流。(b) S4 Endpoint Clearance — Proximity 加三段邊界：STUB (≤2) cost=0、END-ZONE (3-5) bonus=6 加強推開、中段 (6+) bonus=4 標準。解問題 2：backward edge 進入 target 時箭頭不再被擠在邊角，end-zone 範圍 cells 距 task 邊框 ≥ 6 才不罰。 | 1e72aa9 |
 | 2026-05-18 | v1.12 | **Phase B 雙軸延伸 share-free**：(a) S22 target 軸延伸 — 同 target cell 位於 entry port 進入軸 (perpDist=0) 不限距離 share-free。解「進 port 前 1-grid 階梯」：多 incoming 邊提早收斂到 port 軸，最後一段乾淨直達，共用箭頭位置。傳遞鏈：pickPath → findPath opts.entrySide → grid.getOccupyPenalty。(b) S23 source 軸延伸（對稱 S22）— 同 source cell 位於 exit port 出發軸 (perpDist=0) 不限距離 share-free。解「出發後 1-grid 階梯」：fork 邊堆疊在 source 軸 trunk，到該轉才分叉。Trade-off：fork trunk 上 label 可能重疊，「整齊出發」視覺優先。getOccupyPenalty 加 entrySide/exitSide 參數，astar.js findPath opts 對應加。 | 154a7ef + 768aa85 |
 | 2026-05-18 | v1.13 | **Phase C 兩合一精修**：(a) **S24 維度 7 Bend Endpoint Clearance** — astar.js 加 `BEND_ENDPOINT_PENALTY(20)`，turn cell 在距 endpoint < 3 cells 時付。解短 backward edge B→B candidate 的 bend 落 d=1 處 → 進閘道 stub 被擠 → 箭頭跟元件邊框重疊。對症（只罰 turn cell，stub 直走不變）。spec §6.1 已解。(b) **動態 lane 高度** — layout-astar.js Phase 2 加啟發式：對每條 raw edge 預判 corridor 機率（backward 1.0 / gap forward 0.5 / adjacent 0 / cross-lane 0.15），累加到 lane row。超出預設 4 row 容量時，每多 1 row 流量擴 `2*GRID_CELL=16px`，上限 240px。LPMC 大流程 lane 從 144→192px 後 6 條 backward 分散不擠；純直連 lane 維持 144px 不浪費。 | 0de9d36 |
-| 2026-05-18 | v1.14 | **Phase D 永續性重構**：(a) **回退 v1.13 S24 dim 7** — 實測發現 penalty=20 在 endpoint <3 處反向誘導 A* 找 3-turn 替代路徑（cost N+49 < 被罰的 2-turn N+52），引入新 bug（短 path 進 endpoint 多 1 個小彎）。cost function 回 6 維。教訓：cost dim 罰得太局部會讓 A* 找替代繞過 penalty。(b) **candidate generation 重劃** — 同 row 跨 col 分 adjacent / non-adjacent：`|dx| ≤ ADJACENT_DX_LIMIT(288, 1.5×COL_W)` 仍走 R→L 主候選；`|dx| > 288` (gap forward) 或 backward 強制 T→T / B→B 走 corridor，解觀察 2「R→L 短直線視覺辨識度低」+ 順便解 Issue 1 根因「短 backward stub 擠」。屬 candidate set 職責，不污染 cost function。(c) **新增 §10.5 職責分層** — 永續性核心：新需求先判斷屬 cost dim / candidate set / multi-pass / layout 哪層，不跨層 over-fit。修法決策樹第 0 步前置此判斷。(d) **保留 v1.13b 動態 lane 高度** — 跟 candidate 重劃互補，T→T/B→B 走 corridor 更需要 lane 寬度。 | (本 PR) |
+| 2026-05-18 | v1.14 | **Phase D 永續性重構**：(a) **回退 v1.13 S24 dim 7** — 實測發現 penalty=20 在 endpoint <3 處反向誘導 A* 找 3-turn 替代路徑（cost N+49 < 被罰的 2-turn N+52），引入新 bug（短 path 進 endpoint 多 1 個小彎）。cost function 回 6 維。教訓：cost dim 罰得太局部會讓 A* 找替代繞過 penalty。(b) **candidate generation 重劃** — 同 row 跨 col 分 adjacent / non-adjacent：`|dx| ≤ ADJACENT_DX_LIMIT(288, 1.5×COL_W)` 仍走 R→L 主候選；`|dx| > 288` (gap forward) 或 backward 強制 T→T / B→B 走 corridor，解觀察 2「R→L 短直線視覺辨識度低」+ 順便解 Issue 1 根因「短 backward stub 擠」。屬 candidate set 職責，不污染 cost function。(c) **新增 §10.5 職責分層** — 永續性核心：新需求先判斷屬 cost dim / candidate set / multi-pass / layout 哪層，不跨層 over-fit。修法決策樹第 0 步前置此判斷。(d) **保留 v1.13b 動態 lane 高度** — 跟 candidate 重劃互補，T→T/B→B 走 corridor 更需要 lane 寬度。 | d339715 |
+| 2026-05-18 | v1.15 | **Phase E 視覺距離 unified framework**：補上 v1.0-v1.14 對「視覺間距」處理的結構不對稱（dim 1 對 task 邊距推 4 cells、dim 2 對 path 邊距 0 cells、stub 區 dim 全 skip 黑洞）。三個獨立工具同框架 (§10.5.1)：(a) **OCCUPY halo radius=2** — `grid.js` markHalo + getOccupyPenalty halo branch：path cell perpendicular ±2 cells 標 halo，異 source/target same/opposite dir 付 30/10 penalty。解情境 1/3「cross path 緊鄰 + fork trunk 擠」。same source/target halo 不罰（share-free 不退化）。(b) **STUB_LENGTH=3** — `router/pickPath.js::computePath` startCell/goalCell 內縮 K cells，A\* 不搜尋 stub 區。Hard 內縮非 soft penalty 避免 v1.13 S24 重蹈覆轍。短 path fallback (manhattan<6) 降到 max(1, floor(M/3))。解情境 2「stub 1 grid 進 port、箭頭重疊邊框」。(c) **lane 啟發式 fine-tune** — `layout-astar.js`：BASE_CAP 4→1（更敏感擴張）+ STEP 16→24（trunk + label 上下空間）+ 新加 P_SAME_SOURCE_FORK=1.0 識別同 source N+ fork pattern。解情境 3「4 fork trunk 擠 + label 蓋」(原 v1.13b load=2 不擴 → 現在 load=4 擴到 240px)。永續性檢查 ✓ 不違反紅線、不加新 cost dim、3 個工具獨立可調。 | (本 PR) |
 
 未來每次 cost function / grid / multi-pass / candidate set / layout 邏輯變更都要在此記錄。
