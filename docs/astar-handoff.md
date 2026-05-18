@@ -35,9 +35,15 @@ src/diagram/
   layout-astar.js          ← A* router 入口，含 cache + position 算法
   layout/                  ← main 原 rule-based 邏輯（不動，僅 sync mode 用）
   pathfinding/
-    grid.js                ← 網格 + distance map + occupy metadata
-    astar.js               ← A* 核心 + MinHeap
-    router.js              ← multi-port trial + multi-pass + path 後處理
+    grid.js                ← 網格 + distance map + occupy metadata + port reservation + coherence
+    astar.js               ← A* 核心 + MinHeap + 6 維 cost function
+    router.js              ← Shim re-export (1 行)
+    router/                ← v1.9 拆檔
+      index.js             ← Public API
+      routeAll.js          ← orchestrator
+      anchorPredict.js     ← anchor 預測 (S1+S6)
+      pickPath.js          ← multi-port trial + candidates
+      pathPostProc.js      ← alignment / cleanup / fallback
   constants.js             ← GRID_CELL=8，所有尺寸都從這推導
 
 docs/

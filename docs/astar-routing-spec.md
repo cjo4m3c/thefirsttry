@@ -41,9 +41,15 @@ A* 的本質是「給定 cost，找最低成本路徑」。我們的工作不是
 src/diagram/
   layout-astar.js              ← Entry：orchestrate 整個 layout
   pathfinding/
-    grid.js                    ← 網格化 + 障礙物標記 + 距離地圖 + 占用追蹤
-    astar.js                   ← A* core + min-heap
-    router.js                  ← Multi-pass routing + port 選擇 + path 後處理
+    grid.js                    ← 網格化 + 障礙物標記 + 距離地圖 + 占用追蹤 + port reservation + coherence
+    astar.js                   ← A* core + min-heap + 6 維 cost function
+    router.js                  ← Shim re-export (1 行 export from ./router/index.js)
+    router/                    ← 拆檔子目錄 (v1.9 size cap split)
+      index.js                 ← Public API: export { routeAll }
+      routeAll.js              ← Orchestrator (multi-pass + reservePort + markOccupied)
+      anchorPredict.js         ← S1/S6 anchor by geometry pre-compute (維度 6)
+      pickPath.js              ← multi-port trial + candidate generation + A* 包裝
+      pathPostProc.js          ← alignPortSegments / cleanOrtho / fallback / side helpers
 ```
 
 ### 2.1 資料流
