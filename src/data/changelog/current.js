@@ -6,6 +6,16 @@
 export default [
   {
     date: '2026-05-18',
+    title: 'FlowCard role chips 第二排切到 — maxHeight 3rem → 4rem',
+    items: [
+      '**緣由**：使用者「首頁卡片內，第二排的角色標籤被切到了」。PR-4 把 role chip 從 inline `<span>` 改 `<Chip>` 元件後、Chip 多 1px border + 寬 px-2.5 padding（原 px-2）→ 整體高度多 2-4px → 超過 FlowCard role-chip 容器 fixed `maxHeight: 3rem`（48px）→ 第二排底部被切。',
+      '**修法**：`src/components/Dashboard/FlowCard.jsx` role chips container `maxHeight: "3rem"` → `"4rem"`（48 → 64px）。accommodate Chip 新尺寸 + 留 safety margin。`minHeight: 3rem` 維持不變、確保 grid baseline 對齊。超過 2 排的 chip 仍 `overflow-hidden` 截掉（極少出現、業務上 1-5 個角色為常態）。',
+      '**動到的檔案（2 個）**：`src/components/Dashboard/FlowCard.jsx`（一個 style + 5 行歷史註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) 2 排 role chips（如「業務 / 財務 / 倉儲 / [外部角色]報關行 / [外部角色]物流商」）完整顯示、底部不再被切 (b) 1 排 chip 的卡片仍以 3rem 為高度 baseline、跟其他卡片對齊 (c) 卡片整體高度增加 16px。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: 'TaskCard「L4 任務」pill 文字改白字 — 跟其他 7 種類型拉齊',
     items: [
       '**緣由**：使用者「編輯器中每區塊左上角 L4 任務元件說明的請改為白色字、跟其他小標籤拉齊」。PR #220 KIND_BADGE 對齊 spec §11 時把 task pill 設為「brand-light 底 + brand-dark 深字」（spec 唯一不同的組合），其他 7 種類型都是白字。使用者偏好整站一致。',
