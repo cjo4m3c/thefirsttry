@@ -8,6 +8,7 @@ import {
   migrateMergeConnectionType,
   migrateTaskMeta,
   migrateTypeFromL4Suffix,
+  migrateImportWarningsToFixes,
   cleanStaleOverrides,
 } from './storage/migrations.js';
 
@@ -40,7 +41,11 @@ function migrateFlow(flow) {
   // PR-D4: ensure `[外部角色]` prefix on legacy external roles missing it.
   // Idempotent — same-ref when already prefixed.
   const roles = applyExternalPrefixToRoles(flow.roles || []);
-  const out = { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks, roles };
+  // 2026-05-13: 把舊版單一 importWarnings array 拆成 importFixes + importNotices。
+  // Idempotent — 已拆過的 flow（有 importFixes/importNotices 任一）跳過。
+  const { importFixes, importNotices } = migrateImportWarningsToFixes(flow);
+  const out = { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks, roles, importFixes, importNotices };
+  if ('importWarnings' in out) delete out.importWarnings;  // 舊欄位不再使用
   // Stash end-suffix fixes on the flow; loadFlows turns them into an
   // importWarning entry and persists the rewritten data so the notice
   // fires once. Underscore-prefixed key so it can't collide with real
@@ -61,7 +66,8 @@ export function loadFlows() {
       const diffs = f._endMigrationFixes
         .map(x => `${x.before} → ${x.after}`).join('、');
       const msg = `🔧 結束事件編號已自動更新（多結束事件對齊 BPMN 規則）：${diffs}`;
-      f.importWarnings = [...(Array.isArray(f.importWarnings) ? f.importWarnings : []), msg];
+      // 2026-05-13：寫進 importFixes（這是 fix、不是純提醒）。
+      f.importFixes = [...(Array.isArray(f.importFixes) ? f.importFixes : []), msg];
       delete f._endMigrationFixes;
       mutated = true;
     });
@@ -117,7 +123,7 @@ export function generateId() {
  * Reset (per spec):
  *   - l3Number / l3Name → caller-supplied
  *   - pinned → false
- *   - importWarnings / flowAnnotation → cleared (源 Excel 匯入歷史，不該跟著複本走)
+ *   - importFixes / importNotices / flowAnnotation → cleared (源 Excel 匯入歷史，不該跟著複本走)
  *   - createdAt / updatedAt → left undefined (saveFlow sets them)
  *   - tasks[].l4Number → stripped (computeDisplayLabels regenerates from new L3)
  *
@@ -185,7 +191,8 @@ export function cloneFlow(source, { newL3Number, newL3Name }) {
     roles: newRoles,
     tasks: newTasks,
     pinned: false,
-    importWarnings: [],
+    importFixes: [],
+    importNotices: [],
   };
 }
 

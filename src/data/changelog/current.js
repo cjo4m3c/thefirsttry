@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-13',
+    title: '匯入提醒拆成「已自動調整」+「建議檢視」兩段顯示 — Dashboard + FlowEditor 兩 banner 共用',
+    items: [
+      '**緣由**：使用者「現在匯入提醒中、會把有修改的和提醒事項都綜合再一起計算 — 例如顯示『匯入時自動調整了 22 筆內容』但實際上只有其中 4 筆有修改、其他都是沒改動的提醒」。要求兩種訊息視覺區別、計數分開。',
+      '**選項討論**（拍 1 不拍 2）：1. 拆兩個 array（schema 改 + migration、長期顯式好維護）2. 用 pattern 分類（不動 schema、helper 分類、改動小但 fragile）。使用者選「一次改對」=> 選項 1。',
+      '**Schema 改動**：`flow.importWarnings` (legacy 單一 array) → `flow.importFixes` + `flow.importNotices` 兩個 array。fixes = 系統實際改過的（已自動補子流程 / 已自動調整 L4 編號 / 🔧 結束事件 _x 自動更新）、notices = 純提醒（merge incoming 不足 / validation / cross-row / 閘道鏈 / ❌ blocking）。',
+      '**Producer 改動**：(a) `src/utils/excelImport/index.js` — 每個 flow 初始化兩個 array、autoSubWarnings + normalizeWarnings 推進 importFixes、mergeWarnings + validation + cross-row 推進 importNotices。Return value `{ warnings: [...] }` → `{ fixes, notices }`。(b) `src/utils/storage.js loadFlows` — 🔧 結束事件訊息推進 importFixes。',
+      '**Consumer 改動**：(a) `src/components/FlowEditor/index.jsx` banner 拆兩個 section、標題「系統已自動調整 X 筆內容；另有 Y 筆建議檢視（未自動處理）」、各區塊各自 max-h-48 overflow scroll、dismiss 一鍵清空兩 array。(b) `src/components/Dashboard/Banners.jsx ImportWarningsBanner` 同樣兩 section、notices 維持原 20 筆 collapse + 展開 + 複製全部行為（fixes 通常數量少不 collapse）。(c) `src/components/Dashboard/index.jsx` state 從 `importWarnings` 拆成 `importFixes` + `importNotices`。',
+      '**Migration（backward compat）**：`src/utils/storage/migrations.js` 新增 `migrateImportWarningsToFixes(flow)` — 舊版單一 importWarnings array 由 `loadFlows` 一次性拆成兩 array、寫回 localStorage、舊欄位 strip。Heuristic：「已自動補上」/「已自動調整」 headline 後續 detail lines 跟著進 fix；「🔧」單行進 fix；其他（`❌` / `[L3 ...]` / `第 N 列` / `任務 X 未連接` 等）進 notice。Idempotent — 已拆過的 flow 不重做。',
+      '**動到的檔案（7 個）**：`src/utils/excelImport/index.js`（producer 拆兩 bucket + return shape）/ `src/utils/storage.js`（loadFlows 🔧 → importFixes、migrate flow shape、cloneFlow reset 兩 array）/ `src/utils/storage/migrations.js`（新增 migrateImportWarningsToFixes）/ `src/components/FlowEditor/index.jsx`（banner 拆兩 section + dismiss 清兩 array）/ `src/components/Dashboard/Banners.jsx`（ImportWarningsBanner 接 fixes/notices props）/ `src/components/Dashboard/index.jsx`（state 拆 + finalizeImport signature）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) 上傳 4 fix + 18 notice Excel → Dashboard banner 顯示「已自動調整 4 / 建議檢視 18」(b) 進編輯器 → FlowEditor banner 同樣兩段 (c) 按 ✕ → 兩段都消失 (d) localStorage 有舊版單一 importWarnings 的 flow → 載入後自動拆兩 array、舊欄位被砍 (e) cloneFlow 複製出來的新 flow 兩個 array 都空 ✓。',
+    ],
+  },
+  {
+    date: '2026-05-13',
     title: 'fix: 多 end 事件 (`-99_x{K}`) 在 Excel 匯入 + 載入 migration 被誤判為 task',
     items: [
       '**緣由**：使用者「上傳兩個結束事件的資料時，結束事件被自動改成了任務」+ 要求全面 audit 上傳 / 圖面 / 表單 / 編輯器 / 儲存五個路徑與 PR #210 多 end `-99_x{K}` 規則一致性。',

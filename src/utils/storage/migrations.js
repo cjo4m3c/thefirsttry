@@ -321,3 +321,64 @@ export function migrateTypeFromL4Suffix(tasks) {
   });
   return changed ? next : tasks;
 }
+
+/**
+ * 2026-05-13：把舊版單一 `flow.importWarnings` array 拆成兩個語義不同的
+ * array：
+ *   - `importFixes`：系統自動改過資料的提醒（已自動補上 / 已自動調整 /
+ *     🔧 結束事件編號已自動更新）
+ *   - `importNotices`：純提醒、系統沒改（validation / 合併 incoming /
+ *     cross-row / ❌ blocking）
+ *
+ * Idempotent：flow 已有 `importFixes` 或 `importNotices` 任一欄位 →
+ * 視為已遷移過、直接回傳現值（避免被 `migrateEndSuffix` 重新 push 進
+ * importFixes 後又被誤拆）。
+ *
+ * Heuristic（best effort，舊資料一次性轉換）：
+ *   - 開頭 `已自動補上` / `已自動調整` → fix headline + 後續 lines 跟著 fix
+ *   - 開頭 `🔧` → 單行 fix（不消化後續）
+ *   - 其他（`❌ ` / `[L3 ...]` / `任務 X 未連接...` / merge 提醒等）→ notice
+ *
+ * 由 `storage.migrateFlow` 呼叫；產生的 importFixes / importNotices 寫回
+ * flow 物件（取代舊 importWarnings）。
+ */
+export function migrateImportWarningsToFixes(flow) {
+  if (!flow) return { importFixes: [], importNotices: [] };
+  const hasNew = Array.isArray(flow.importFixes) || Array.isArray(flow.importNotices);
+  if (hasNew) {
+    return {
+      importFixes: Array.isArray(flow.importFixes) ? flow.importFixes : [],
+      importNotices: Array.isArray(flow.importNotices) ? flow.importNotices : [],
+    };
+  }
+  const legacy = Array.isArray(flow.importWarnings) ? flow.importWarnings : [];
+  if (legacy.length === 0) return { importFixes: [], importNotices: [] };
+
+  const fixes = [];
+  const notices = [];
+  let bucket = null;  // 'fix' | null：fix headline 後續 lines 跟著進 fix
+  for (const line of legacy) {
+    if (typeof line !== 'string') { notices.push(String(line)); continue; }
+    if (/^已自動補上/.test(line) || /^已自動調整/.test(line)) {
+      bucket = 'fix';
+      fixes.push(line);
+      continue;
+    }
+    if (/^🔧/.test(line)) {
+      bucket = null;
+      fixes.push(line);
+      continue;
+    }
+    // 視為新 notice 開頭（重置 bucket）的 patterns：blocking / cross-row / merge / validation
+    if (/^❌/.test(line) || /^\[L3 /.test(line) || /^第 \d+ 列/.test(line)
+        || /^任務|^角色|^外部角色|^連線/.test(line)) {
+      bucket = null;
+      notices.push(line);
+      continue;
+    }
+    // 沒匹配到任何 standalone pattern → 視為 detail continuation
+    if (bucket === 'fix') fixes.push(line);
+    else notices.push(line);
+  }
+  return { importFixes: fixes, importNotices: notices };
+}
