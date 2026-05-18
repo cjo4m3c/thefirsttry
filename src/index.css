@@ -1,3 +1,6 @@
+/* Design tokens — 必須先載入、Tailwind theme.extend.colors 用 var(--*) 引用。 */
+@import './styles/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,19 +11,19 @@
 
 body {
   margin: 0;
-  font-family: 'Microsoft JhengHei', '微軟正黑體', 'PingFang TC', 'Noto Sans TC', sans-serif;
-  background: #F5F8FC;
+  font-family: var(--font-sans);
+  background: var(--paper);
 }
 
-/* Smooth scrollbars (blue tint) */
+/* Smooth scrollbars (blue tint) — 2026-05-18 對齊 design tokens */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #E8F1F9; }
-::-webkit-scrollbar-thumb { background: #7AB5DD; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3470B5; }
+::-webkit-scrollbar-track { background: var(--brand-light-soft); }
+::-webkit-scrollbar-thumb { background: var(--brand-light); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand); }
 
 /* SVG font fallback */
 svg text {
-  font-family: 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans TC', sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* Logo hover: spin + bounce + glow combo ("歡迎、開心、我在發光") */

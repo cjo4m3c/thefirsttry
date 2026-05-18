@@ -6,6 +6,92 @@
 export default [
   {
     date: '2026-05-18',
+    title: 'Design tokens 微調 — brand-dark 改 #2A5598、L3 chip 用深輔色、task 邊框 30% mix + business-spec.md 加 §13.9 design system',
+    items: [
+      '**緣由**：使用者四件事：(1) TaskCard task 邊框 `#C8E2EE`（brand-light 30% mix）(2) design guideline 寫進業務規則文件 (3) 編輯頁 header 跟首頁同色 (4) 首頁 L3 編號用品牌深色輔色。',
+      '**`--brand-dark` 從 `#1B2E4C` → `#2A5598`**：使用者「編輯頁面中的 header 用跟首頁一樣顏色」。Dashboard / HelpPanel / Wizard / BackToTop 多處仍寫死 `#2A5598`、把 token 對齊既有實際使用色比反向更新所有 inline hex 更實際。Spec 的 `#1B2E4C` 偏深 navy 跟現有 UI 視覺不協調、使用者偏好較亮的 `#2A5598`。連帶影響：FlowEditor Header / KIND_BADGE start/end pill / L3 chip 都自動切換為 `#2A5598`。',
+      '**FlowCard L3 chip 改用 `--brand-dark`**：使用者「首頁 L3 編號改用品牌深色輔色」。`Chip.jsx` id variant: `bg-brand border-brand` → `bg-brand-dark border-brand-dark`。視覺上深一階、跟 Header / Canvas head 同色階對齊。',
+      '**TaskCard task 邊框 30% mix**：`elementTypes.js KIND_CARD_STYLE.task.border` 從 22% mix → 30% mix（`#C8E2EE`）。比預設略深、提升「task 卡」跟周遭視覺辨識度。其他類型（並行 / 排他 / 包容 / L3 / 外部互動）維持 22% mix 邊框、唯獨 task 30%（per 使用者指定）。',
+      '**`docs/business-spec.md` 加 §13.9 Design System tokens**：完整把 design guideline 寫進業務規則文件。涵蓋 (a) §13.9.1 色彩 token 對照表（13 個 token）(b) §13.9.2 8 種節點 pill + 卡背配色（對應 §3 元件類型、SOT 在 elementTypes.js）(c) §13.9.3 字級 / 間距 / 圓角 / 陰影 (d) §13.9.4 Base 元件層 Button / Modal / Callout / Chip API。未來改設計規範改本章。',
+      '**動到的檔案（5 個）**：`src/styles/tokens.css`（`--brand-dark` hex 改 + 註解）/ `src/utils/elementTypes.js`（task 邊框 22→30% mix）/ `src/components/ui/Chip.jsx`（id variant bg-brand → bg-brand-dark）/ `docs/business-spec.md`（§13.9 新章節）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) Dashboard header 跟 FlowEditor Header 同色（皆 `#2A5598`）(b) FlowCard L3 chip 深一階（從 `#006EBC` brand 變 `#2A5598` brand-dark）(c) TaskCard task 卡邊框略深 (d) start/end 事件 pill 同步變色 (e) ChangelogPanel / HelpPanel 開啟可看 §13.9 design system 摘要（透過 helpPanelData 可能需後續同步）。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: '設計規範文件補齊 + changelog 日期 audit + TaskCard task pill 加深',
+    items: [
+      '**緣由**：使用者三件事一次處理：(1) 確認設計規範相關 doc 都更新 (2) changelog 日期跟 PR 拉齊、預防未來再 drift (3) TaskCard task pill 底色加深 + 卡背 12% mix。',
+      '**Doc 補齊**：(a) `HANDOVER.md` 加 `src/styles/tokens.css` + `src/components/ui/` 目錄項（Button / Modal / Callout / Chip 4 個 base 元件）— PR #220-221 建立、之前 doc 沒提。(b) `CLAUDE.md` 頂部 pointer 區加 tokens.css 跟 ui/ 兩條 — 給未來 Claude session 知道改 hex 改 tokens.css、新增 UI 優先用 base 元件。',
+      '**Changelog 日期 audit + 修正 5 條 drift**：對齊 PR `merged_at` UTC 日期（per CLAUDE.md §4 規則）— PR #218（匯入提醒拆兩段）`2026-05-13 → 2026-05-18` / PR #217（多 end 誤判）`2026-05-13 → 2026-05-17` / PR #216（handleCancel refresh）`2026-05-13 → 2026-05-15` / PR #215（overwrite createdAt）`2026-05-13 → 2026-05-15` / PR #211（start drag）`2026-05-12 → 2026-05-13`。**Root cause**：之前一個 session 跨多天、寫 entry 用 currentDate 系統提示（local 時區）而非 PR merged_at（UTC）。`/ship-feature` step 6.5 audit 只 check 最頂條目、批次寫不會 catch 舊條目。',
+      '**預防 logic**：`CLAUDE.md §4` 加「批次補正 audit」規則 — 動 current.js 改非頂條目時、跑 `get_pull_request merged_at` 比對該 entry 對應 PR。寫 entry 時先標明對應 PR 號方便回溯比對。',
+      '**TaskCard task pill 配色加深**（使用者指定）：(a) `tokens.css` 新增 `--brand-light-deep: #1A9EC5`（brand-light 加深版）(b) `elementTypes.js KIND_BADGE.task.bg`: `var(--brand-light)` `#5EC7E8` → `var(--brand-light-deep)` `#1A9EC5`、白字配深底對比提升 (c) `KIND_CARD_STYLE.task`: 卡背從 `var(--card)` 白 → `color-mix(in oklch, var(--brand-light) 12%, var(--card))`（≈ `#EFF7FC` 淺 sky）、邊框同色 22% mix。task 不再是「卡背白」唯一例外、跟其他 7 種類型有 mix 卡背一致。(d) `tailwind.config.js theme.extend.colors` 加 `brand-light-deep` token reference。',
+      '**動到的檔案（6 個）**：`HANDOVER.md`（加 styles / ui 目錄項）/ `CLAUDE.md`（pointer 區加 tokens.css + ui/、§4 加批次 audit + §8 step 6 / §7 trim 控制檔案 size 在 12KB 硬上限）/ `src/styles/tokens.css`（新增 `--brand-light-deep`）/ `tailwind.config.js`（加 brand-light-deep）/ `src/utils/elementTypes.js`（task pill + card 兩處 + 註解）/ `src/data/changelog/current.js`（5 條 drift 修正 + 本條）。',
+      '**驗證**：`npm run build` 通過、`wc -c CLAUDE.md` = 12262 bytes < 12288 hard cap ✓。手動驗證：(a) TaskCard 「L4 任務」pill 從淺 sky 變更深 sky `#1A9EC5` + 白字 (b) task 卡背從白 → 淺 sky `#EFF7FC` (c) ContextMenu kind chip 同步變色（自動跟 KIND_BADGE）(d) Update Log 對應條目日期變正確。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: 'FlowCard role chips 第二排切到 — maxHeight 3rem → 4rem',
+    items: [
+      '**緣由**：使用者「首頁卡片內，第二排的角色標籤被切到了」。PR-4 把 role chip 從 inline `<span>` 改 `<Chip>` 元件後、Chip 多 1px border + 寬 px-2.5 padding（原 px-2）→ 整體高度多 2-4px → 超過 FlowCard role-chip 容器 fixed `maxHeight: 3rem`（48px）→ 第二排底部被切。',
+      '**修法**：`src/components/Dashboard/FlowCard.jsx` role chips container `maxHeight: "3rem"` → `"4rem"`（48 → 64px）。accommodate Chip 新尺寸 + 留 safety margin。`minHeight: 3rem` 維持不變、確保 grid baseline 對齊。超過 2 排的 chip 仍 `overflow-hidden` 截掉（極少出現、業務上 1-5 個角色為常態）。',
+      '**動到的檔案（2 個）**：`src/components/Dashboard/FlowCard.jsx`（一個 style + 5 行歷史註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) 2 排 role chips（如「業務 / 財務 / 倉儲 / [外部角色]報關行 / [外部角色]物流商」）完整顯示、底部不再被切 (b) 1 排 chip 的卡片仍以 3rem 為高度 baseline、跟其他卡片對齊 (c) 卡片整體高度增加 16px。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: 'TaskCard「L4 任務」pill 文字改白字 — 跟其他 7 種類型拉齊',
+    items: [
+      '**緣由**：使用者「編輯器中每區塊左上角 L4 任務元件說明的請改為白色字、跟其他小標籤拉齊」。PR #220 KIND_BADGE 對齊 spec §11 時把 task pill 設為「brand-light 底 + brand-dark 深字」（spec 唯一不同的組合），其他 7 種類型都是白字。使用者偏好整站一致。',
+      '**修法**：`src/utils/elementTypes.js KIND_BADGE.task.text` 從 `var(--brand-dark)` → `#FFFFFF`。其他類型不動（本來就白字）。',
+      '**動到的檔案（2 個）**：`src/utils/elementTypes.js`（一行 + 註解說明 trade-off）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：TaskCard / ContextMenu 「L4 任務」pill 文字從深色 (brand-dark `#1B2E4C`) 變白色、跟「並行閘道 / 排他閘道 / L3 流程 / 外部互動 / 開始事件 / 結束事件」一致。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: '全站字體拉齊 — `--font-mono` 改 fallback 到 `--font-sans`',
+    items: [
+      '**緣由**：使用者「全站的中英文字體要拉齊，像是現在 L3 編號就用了不一樣的字體」。Spec 規定 mono 字型用於編號 / 數字 / 時間戳、但使用者偏好整站單一字體。',
+      '**修法**：`src/styles/tokens.css` `--font-mono` 從獨立 mono stack (`ui-monospace, SFMono-Regular, Menlo, ...`) 改成 `var(--font-sans)` — 自動 fallback 到 sans。一行修改、影響所有使用 `font-mono` / `var(--font-mono)` 的地方（不用逐個元件改）。',
+      '**受影響的元件**（全部自動拉齊到 sans）：(a) Dashboard FlowCard L3 chip（PR #220 Chip id variant）(b) TaskCard L4 number 顯示 (c) ContextMenu header L4 number (d) ChangelogPanel 日期欄 (e) CloneFlowModal L3 字串顯示 + input (f) DuplicateImportModal L3 number (g) HelpPanel 規則 / 副檔名標籤 (h) tokens.css `.t-mono` utility class。',
+      '**未來若想恢復 mono**：改回 `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` 即可、`var(--font-mono)` references 自動切回。',
+      '**動到的檔案（2 個）**：`src/styles/tokens.css`（一行 + 4 行歷史註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) L3 chip 數字現在用 Microsoft JhengHei sans、跟旁邊「{l3Name}」標題字體一致 (b) TaskCard L4 number 同 sans (c) 整站任何 `font-mono` class 都自動 fallback。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: 'Design system follow-up — Banners → Callout（Dashboard + FlowEditor 視覺一致）',
+    items: [
+      '**緣由**：PR #220 建立了 `<Callout>` base 元件但尚未套用既有 banner。本 PR 完成 Dashboard 3 個 banner（ImportError / ImportSuccess / ImportWarnings）+ FlowEditor importFixes/Notices banner 的 Callout 化、視覺與內部一致。',
+      '**Dashboard/Banners.jsx**：(a) `ImportErrorBanner` 從 inline red palette → `<Callout variant="danger">` (b) `ImportSuccessBanner` 從 inline sky palette → `<Callout variant="info">` (c) `ImportWarningsBanner` 外層 amber div → `<Callout variant="warning">`、保留 fixes/notices 雙 section + 展開 + 複製全部 complex body 不變。文字色從 `text-amber-900` → `text-warning-ink`（token 化）。',
+      '**FlowEditor/index.jsx**：importFixes/Notices banner 外層 amber div → `<Callout variant="warning">`。複雜雙 section body 保留。dismiss handler 不變。',
+      '**動到的檔案（3 個）**：`src/components/Dashboard/Banners.jsx`（3 個 banner → Callout）/ `src/components/FlowEditor/index.jsx`（import + banner 換 Callout）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) Dashboard 匯入失敗 → 紅色 callout（內容 `!` icon + 訊息 + ✕）(b) 匯入成功多 L3 → 藍色 callout（✓ icon + 訊息 + ✕）(c) 匯入有警告 → 琥珀 callout 雙 section（fixes 列表 + notices 列表 + 展開 + 複製按鈕）(d) FlowEditor 編輯流程 banner 琥珀 callout 同步（已 dismiss 不再顯示 — PR #216 stale state fix 持續生效）。',
+      '**剩餘 incremental migration**（仍未做、待後續或不做）：Header 上 8 顆 button → `<Button>`（需新增 `variant="dark-bar"` 給深色 header 用、新功能、暫不做避免特殊邏輯破壞）/ SaveModals + CloneFlowModal + DuplicateImportModal → `<Modal>`（每個 modal 用法 nuance、逐個 migration 較安全、留後續）/ Selected 兩端 task 同步亮 brand（shapes.jsx + index.jsx 配套）。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: 'Design system overhaul — PR-1~PR-6 一次到位（token + Button + Modal + Callout + Chip + 8 種節點分色 + Selected）',
+    items: [
+      '**緣由**：使用者提供 design_handoff_flowsprite 設計手冊（README + Design Guideline.html + tokens.css + components.css）。Audit 後拍板 6 個改動方向（**Canvas Violation 不做**、Chip 從 Modal+Callout PR 拆出獨立 PR）— 一次到位、單 PR 統籌。',
+      '**PR-1 Token Layer + 品牌色 hex 對齊**：新檔 `src/styles/tokens.css` ~170 行、定義 36+ CSS variables（品牌 3 + 角色 2 + 語意 4×3 + 編輯器類型 3 + 中性 8 + accent / star + 字型 / 字級 7 階 / 間距 9 階 / 圓角 5 階 / 陰影 2 階 + canvas state token）。`tailwind.config.js theme.extend.colors` 加 token reference 讓 `bg-brand` / `text-ink-soft` 等 Tailwind class 自動接到 token。`index.css` 頂部 import tokens.css、body / scrollbar / SVG font 全換 `var(--*)`。**Header bg 從 `#2A5598` → `var(--brand-dark) #1B2E4C`**（中藍變深 navy、最明顯視覺變化）、scrollbar `#7AB5DD` → `var(--brand-light) #5EC7E8`（更亮 sky）。SVG `COLORS` 保留 hex literal（attribute 不認 CSS variable）。同 PR 刪除 `.claude/backlog.md` 條目 #2 Phase C（使用者「可刪除」）。',
+      '**PR-2 Button 元件化**：新檔 `src/components/ui/Button.jsx`、forwardRef、variants (default / primary / ghost / danger) × sizes (md / sm / xs)、token-driven 樣式。**套用 FlowCard**（移除 PR #203 `ACTION_BTN` 字串常數）— 編輯 / 複製 / 刪除 / 下載 PNG / Drawio / Excel 6 顆按鈕全改 `<Button>`。L3 chip bg 改 `var(--brand)` + mono、pin star 改 token 色。其他 surfaces（Header / SaveModals / ContextMenu / Wizard / FlowTable）的 button 留後續 incremental migration（避免本 PR 過大）。',
+      '**PR-3 Modal + Callout 元件化（base 元件先做）**：新檔 `Modal.jsx`（含 ModalBody / ModalFoot 子元件、ESC 鍵 dismiss、click backdrop dismiss、body scroll lock）+ `Callout.jsx`（variant info/warning/danger/success、可選 onDismiss）。本 PR 只建 base 元件、既有 SaveModals / CloneFlowModal / DuplicateImportModal / ImportWarningsBanner / FlowEditor 警示 banner 套用留後續 incremental migration（避免一次改動過大、容易出錯）。',
+      '**PR-4 Chip 元件化**：新檔 `Chip.jsx`、variants (default / internal / external / id / more)。`id` variant 用 mono 字 + brand 色 + tracking-wider。internal / external 對齊既有色（`#0066CC` / `#009900`、與 spec hex 一致）。**套用 FlowCard**：L3 編號徽章 → `<Chip variant="id">`、role chips → `<Chip variant="internal|external">`。',
+      '**PR-5 TaskCard 8 種節點分色（spec §11）— 視覺最明顯的改動**：`elementTypes.js KIND_BADGE` 從寫死 hex（如 #FEF3C7 #E5E7EB）改用 token reference — start/end 用 `var(--brand-dark)` 深 pill、task 用 `var(--brand-light)` 配深字、並行 success / 排他 warning / 包容 inclusive / L3 subflow / 外部互動 external-node。新增 `KIND_CARD_STYLE` 對應卡片背景（5% mix / 外部 6%）+ 邊框（22% mix / 包容 25%）— 用 `color-mix(in oklch, ...)` CSS 原生語法。TaskCard 從 `CONN_ROW_BG[ct]`（依連線型態）→ `KIND_CARD_STYLE[kind]`（依元件類型、spec 規定的 SOT）。視覺改變：排他卡背淡琥珀 / 並行淡綠 / 包容淡 teal / L3 淡紫 / 外部互動灰板岩 / 任務 / 開始 / 結束保持白底。ContextMenu kind chip 因為已用 `KIND_BADGE`、**自動跟著變色**。',
+      '**PR-6 Canvas Selected 區分 hover**：`arrows.jsx` Selected 連線 stroke 2.5 → **3px**（spec §12 要求 selected 比 hover 再粗一階）。Hover 仍 2.5px。讓使用者區分「臨時 hover 經過」vs「主動選中編輯」。Selected 兩端 task 同步亮 brand 色配套（spec 進階要求）留後續 PR — 涉及 shapes.jsx 加 isSelectedEndpoint prop。',
+      '**整體動到的檔案（11 個 + 5 新檔）**：`src/styles/tokens.css`（新、170 行）/ `src/components/ui/Button.jsx`（新、60 行）/ `src/components/ui/Modal.jsx`（新、80 行）/ `src/components/ui/Callout.jsx`（新、55 行）/ `src/components/ui/Chip.jsx`（新、45 行）/ `tailwind.config.js`（theme.extend.colors）/ `src/index.css`（import tokens + 換 var）/ `src/components/FlowEditor/Header.jsx`（bg 換 var）/ `src/components/Dashboard/FlowCard.jsx`（Button + Chip 套用）/ `src/components/FlowEditor/TaskCard.jsx`（卡背改 KIND_CARD_STYLE）/ `src/utils/elementTypes.js`（KIND_BADGE 換 token、新增 KIND_CARD_STYLE）/ `src/components/DiagramRenderer/arrows.jsx`（selected stroke 3px）/ `.claude/backlog.md`（刪 Phase C）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) Header 視覺從中藍變深 navy ✓ (b) scrollbar 從中淺藍變亮 sky ✓ (c) FlowCard 6 顆按鈕走 `<Button>`、視覺保持 (d) FlowCard L3 chip + role chips 走 `<Chip>` (e) TaskCard 各類型節點卡背依類型變色（並行綠 / 排他琥珀 / 包容 teal / L3 紫 / 外部灰板岩）(f) ContextMenu kind chip 同步變色（自動跟 KIND_BADGE）(g) 選中連線比 hover 再粗一階 (h) Tailwind class 如 `bg-brand` / `text-ink-soft` 可用。',
+      '**未含但 spec 列出的項目（後續或不做）**：Canvas Violation dashed + ! 圓徽（使用者明示不做）/ Header 其他 button 套 Button（incremental）/ SaveModals / CloneFlowModal / DuplicateImportModal 套 Modal（incremental、要逐個改、避免 modal 用法 regression）/ ImportWarningsBanner 套 Callout（incremental）/ Selected 兩端 task 同步亮 brand（要 shapes.jsx + index.jsx 配套）/ Update Log Modal accordion / Rules Modal / Index Hub / List Page 三檢視 / 字型換 Noto Sans TC — **這些是建議跳過的項目**（per audit）。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: '中英混排自動間距（display-only）— 流程圖 / FlowTable / Dashboard 統一插空格',
     items: [
       '**緣由**：使用者「我在 Excel 中輸入正常的文字後、你讓使用者在頁面上可以看到有調整過間距的舒服閱讀版、特別是流程圖上、流程圖元件內的文字、線段上的文字是必要的」。',
@@ -18,7 +104,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-13',
+    date: '2026-05-18',
     title: '匯入提醒拆成「已自動調整」+「建議檢視」兩段顯示 — Dashboard + FlowEditor 兩 banner 共用',
     items: [
       '**緣由**：使用者「現在匯入提醒中、會把有修改的和提醒事項都綜合再一起計算 — 例如顯示『匯入時自動調整了 22 筆內容』但實際上只有其中 4 筆有修改、其他都是沒改動的提醒」。要求兩種訊息視覺區別、計數分開。',
@@ -32,7 +118,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-13',
+    date: '2026-05-17',
     title: 'fix: 多 end 事件 (`-99_x{K}`) 在 Excel 匯入 + 載入 migration 被誤判為 task',
     items: [
       '**緣由**：使用者「上傳兩個結束事件的資料時，結束事件被自動改成了任務」+ 要求全面 audit 上傳 / 圖面 / 表單 / 編輯器 / 儲存五個路徑與 PR #210 多 end `-99_x{K}` 規則一致性。',
@@ -44,7 +130,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-13',
+    date: '2026-05-15',
     title: 'fix: 「← 返回」refresh App.flows — 修 dismiss 過的 import warning 重複出現',
     items: [
       '**緣由**：使用者「我發現這個提示資訊每次點開編輯畫面都會出現」— `🔧 結束事件編號已自動更新（多結束事件對齊 BPMN 規則）：5-1-5-99 → 1-1-2-99` 即使按 ✕ dismiss 後、重新進編輯器又出現。',
@@ -57,7 +143,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-13',
+    date: '2026-05-15',
     title: 'fix: overwrite 匯入保留原始 createdAt — 只更新 updatedAt',
     items: [
       '**緣由**：使用者「上傳一個已經有該 L3 的新流程、覆蓋的話產出日期和編輯日期會是新的還是舊的？」追蹤後發現：overwrite 模式下、舊 flow 整筆 `deleteFlow`、匯入的 flow 帶新 id 進 `saveFlow` → 走 `else` branch → `createdAt: now`。**原本的建立日期完全遺失**、Dashboard 卡片「建立：YYYY/MM/DD」會被洗成上傳日期。',
@@ -100,7 +186,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-12',
+    date: '2026-05-13',
     title: 'fix: 開始事件連線兩端點都拉不動 — phase3e 漏處理 start',
     items: [
       '**緣由**：使用者「我發現連到開始事件元件的線段不能自主拖曳選擇要連線的出發端點，及連過去其他元件的結束端點」。從 start 出發的連線、任一端點拖了沒效。',

@@ -84,18 +84,57 @@ export const KIND_SHORT_LABEL = {
   end:            '結束事件',
 };
 
+// 2026-05-18 對齊 design_handoff_flowsprite spec §11「節點 8 種」。
+// 每種類型對應一個品牌 / 語意 / 編輯器類型 token、深字配淺底（task /
+// 開始 / 結束）或白字配飽和底（閘道 / L3 / 外部）。
+//   - start / end: brand-dark 深色 pill（兩者皆為「事件邊界」）
+//   - task: brand-light 配 brand-dark 文字（柔和、最常用元件識別色）
+//   - gateway-and (並行): success 綠
+//   - gateway-xor (排他): warning 琥珀
+//   - gateway-or  (包容): inclusive teal
+//   - l3activity: subflow purple
+//   - interaction: external-node slate
+// 使用 CSS variable 直接套（inline style）— 改 token 自動同步。
 export const KIND_BADGE = {
-  task:           { bg: '#E5E7EB', text: '#374151' },
-  interaction:    { bg: '#A0A0A0', text: '#FFFFFF' },
-  'gateway-xor':  { bg: '#FEF3C7', text: '#92400E' },
-  'gateway-and':  { bg: '#D1FAE5', text: '#065F46' },
-  'gateway-or':   { bg: '#FEF9C3', text: '#854D0E' },
-  l3activity:     { bg: '#EDE9FE', text: '#5B21B6' },
-  start:          { bg: '#D1FAE5', text: '#065F46' },
-  end:            { bg: '#FEE2E2', text: '#991B1B' },
+  // 2026-05-18：使用者指定 task pill 用「brand-light 加深版」#1A9EC5
+  // （tokens.css `--brand-light-deep`）配白字、提升白字對比度。原 spec 規定
+  // brand-light + brand-dark 深字、改後也比 PR-5 第一版的 brand-light + 白字
+  // 對比更佳。
+  task:           { bg: 'var(--brand-light-deep)', text: '#FFFFFF' },
+  interaction:    { bg: 'var(--external-node)', text: '#FFFFFF' },
+  'gateway-xor':  { bg: 'var(--warning)',       text: '#FFFFFF' },
+  'gateway-and':  { bg: 'var(--success)',       text: '#FFFFFF' },
+  'gateway-or':   { bg: 'var(--inclusive)',     text: '#FFFFFF' },
+  l3activity:     { bg: 'var(--subflow)',       text: '#FFFFFF' },
+  start:          { bg: 'var(--brand-dark)',    text: '#FFFFFF' },
+  end:            { bg: 'var(--brand-dark)',    text: '#FFFFFF' },
 };
 
-export const KIND_BADGE_FALLBACK = { bg: '#E5E7EB', text: '#374151' };
+export const KIND_BADGE_FALLBACK = { bg: 'var(--paper-2)', text: 'var(--ink-soft)' };
+
+// 2026-05-18：每種節點對應的卡片背景 + 邊框（5% mix 卡背 + 22% mix 邊
+// 框；外部互動用 6% / 包容閘道用 25%）。給 TaskCard / DrawerContent
+// 編輯區塊用、視覺化「同類元件」識別度。spec §11 直接規範。
+//
+// `color-mix(in oklch, ... %, var(--card))` 是 CSS 原生語法、
+// 不需要 SVG attribute、可直接用在 React style prop。
+export const KIND_CARD_STYLE = {
+  // 2026-05-18：task 卡背從 spec 規定的 card 白 → brand-light 12% mix
+  // (`#EFF7FC` 淺 sky)。使用者偏好「task 也視覺辨識」、跟其他 7 類型有
+  // mix 卡背一致（spec 原規定只 task / start / end 用白）。
+  // task border 30% mix (`#C8E2EE`) — 比預設 22% mix 略深、提升「task 卡」
+  // 跟周遭視覺辨識度（使用者 2026-05-18 指定）。
+  task:           { bg: 'color-mix(in oklch, var(--brand-light) 12%, var(--card))',         border: 'color-mix(in oklch, var(--brand-light) 30%, var(--card))' },
+  interaction:    { bg: 'color-mix(in oklch, var(--external-node) 6%, var(--card))',        border: 'color-mix(in oklch, var(--external-node) 22%, var(--card))' },
+  'gateway-xor':  { bg: 'color-mix(in oklch, var(--warning) 5%, var(--card))',              border: 'color-mix(in oklch, var(--warning) 22%, var(--card))' },
+  'gateway-and':  { bg: 'color-mix(in oklch, var(--success) 5%, var(--card))',              border: 'color-mix(in oklch, var(--success) 22%, var(--card))' },
+  'gateway-or':   { bg: 'color-mix(in oklch, var(--inclusive) 5%, var(--card))',            border: 'color-mix(in oklch, var(--inclusive) 25%, var(--card))' },
+  l3activity:     { bg: 'color-mix(in oklch, var(--subflow) 5%, var(--card))',              border: 'color-mix(in oklch, var(--subflow) 22%, var(--card))' },
+  start:          { bg: 'var(--card)',                                                      border: 'var(--line)' },
+  end:            { bg: 'var(--card)',                                                      border: 'var(--line)' },
+};
+
+export const KIND_CARD_STYLE_FALLBACK = { bg: 'var(--card)', border: 'var(--line)' };
 
 /** Subset filter for the OtherSubForm "新增其他" button row. */
 export function getOtherElementTypes() {

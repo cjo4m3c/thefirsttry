@@ -11,9 +11,8 @@
 | # | 項目 | 詳情 |
 |---|---|---|
 | 1 | **迴圈返回 BPMN 偵測** | 任意 task 的 `nextTaskIds` 指向上游 task（DAG 反向邊）→ 自動標記成 loop-return 連線型，比照 auto-merge 衍生偵測。動到 `src/model/connectionFormat.js formatConnection` + `src/model/flowSelectors.js` 加 `isBackEdge(task, allTasks)` selector。**注意**：編輯器已移除「迴圈返回」入口（PR-2026-04-29），這裡是衍生顯示不是手動標記。原 backlog 代號 AD |
-| 2 | **自動連線優化、閘道避開（Phase C 重構）** | **Phase A + B 已 DONE（PR #196）**：col 改 topological+L4 walk / Phase 1 4-pass mixed priority / Phase 3f L1 retry — 80% 紅線情境自動修。**Phase C 仍 open**：grid-based path-finder（A* / BFS）取代「挑 port → 套樣板」架構，多 bend 視覺懲罰、cost function、全圖效能。建議只在 Phase 3f 仍有顯著紅線殘留時才啟動 — 多月工作、回歸風險高。對應 spec `docs/business-spec.md` §5 |
-| 3 | **Edge 瀏覽器批量下載漏檔** | 「批量下載數量太多時比較後面的編號會漏檔案 → 目前只有 edge 瀏覽器有，晚點再修」。原 backlog 代號 H |
-| 4 | **匯出圖 ISO A4 等比寬度** | 「匯出的圖檔要符合 ISO 文件適用寬度」— PNG 匯出規格、ISO A4 等比縮放。原 backlog 代號 G |
+| 2 | **Edge 瀏覽器批量下載漏檔** | 「批量下載數量太多時比較後面的編號會漏檔案 → 目前只有 edge 瀏覽器有，晚點再修」。原 backlog 代號 H |
+| 3 | **匯出圖 ISO A4 等比寬度** | 「匯出的圖檔要符合 ISO 文件適用寬度」— PNG 匯出規格、ISO A4 等比縮放。原 backlog 代號 G |
 
 ## 歷史 — 已 DONE / OBSOLETED / DROPPED
 
