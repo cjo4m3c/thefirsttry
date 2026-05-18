@@ -57,10 +57,7 @@ export default function InfoDropdown() {
         <button
           onClick={() => setMenuOpen(v => !v)}
           title="查看更新紀錄、業務規則、設計規範"
-          className="px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors inline-flex items-center gap-1.5"
-          style={{ background: '#3470B5' }}
-          onMouseEnter={e => e.currentTarget.style.background = '#5B8AC9'}
-          onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}>
+          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors inline-flex items-center gap-1.5">
           <span>說明</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
             <polygon points="0,0 10,0 5,6" />

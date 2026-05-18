@@ -24,7 +24,8 @@ const NODE_TYPES = [
 // 色彩 token swatch（取自 §13.9.1）
 const COLOR_TOKENS = [
   { token: '--brand',            label: '品牌主色',          desc: 'Primary CTA / focus ring' },
-  { token: '--brand-dark',       label: '品牌深輔色',        desc: 'App bar / Canvas head / L3 編號徽章 / 開始/結束事件 pill' },
+  { token: '--brand-dark',       label: '品牌深輔色',        desc: 'App bar / Canvas head / 開始/結束事件 pill' },
+  { token: '--brand-darker',     label: '品牌最深輔色',      desc: 'L3 編號徽章（比 brand-dark 更深一階）' },
   { token: '--brand-light',      label: '品牌淺輔色',        desc: 'hover 入口連線 / highlight' },
   { token: '--brand-light-deep', label: 'L4 任務 pill 底色', desc: 'brand-light 加深版' },
   { token: '--internal',         label: '內部角色（固定）',  desc: '內部角色 chip / 泳道（必須成對外部）' },
