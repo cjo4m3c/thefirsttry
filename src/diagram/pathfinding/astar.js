@@ -1,18 +1,21 @@
 /**
  * astar.js — A* orthogonal path finder with cost-based visual preferences.
  *
- * Cost function 由四個維度組成，每個維度透過獨立常數 tune（不寫 if-then 規則）：
- *
+ * Cost function (v1.10) per-cell：
  *   cost = 1                                                    // 基本移動
- *        + (turn ? TURN_PENALTY : 0)                            // 轉彎
- *        + max(0, PROXIMITY_BONUS - distFromObstacle)           // 障礙物距離 (push 中央)
- *        + getOccupyPenalty(cell, dir, src, tgt)                // 占用 (smart 判斷)
+ *        + turnPenalty(turnCount)  if isTurn                    // dim 0: 累進 turn
+ *        + max(0, PROXIMITY_BONUS - distFromObstacle) if !stub  // dim 1: corridor 中央
+ *        + getOccupyPenalty(cell, dir, src, tgt)                // dim 2: smart 占用
+ *        + centerDist*CENTER_WEIGHT  if !skipRadius && enabled  // dim 4: bend 拉中點
  *
- * 4 個維度全是 cost function 的權重，**沒有任何 if-then 規則**。
- * 新增情境只需「加新維度 / 調權重」，不寫新分支。
+ * dim 5 (Port Reservation) + dim 6 (Coherence) 在 router.js::pickBestPath 加。
+ *
+ * 沒有 if-then 業務規則。新增情境調權重 / 適用範圍，不寫新分支。
  */
 
-const TURN_PENALTY = 15;       // 每 90° 轉彎扣分（v1.2: 10→15 阻止 proximity-driven zigzag）
+const TURN_PENALTY_BASE = 15;  // 第 1-2 turn 的 cost
+                                // (v1.2: 10→15 阻止 proximity-driven zigzag)
+                                // v1.10 S15：改成累進函式，base 仍 15 給短 path 用
 const PROXIMITY_BONUS = 4;     // cell 離障礙物距離 ≥ 此值時無 penalty
                                 // (push path 走 corridor 中央，解決「貼邊」+「bend 靠 target」)
 const CENTER_WEIGHT = 1.5;     // turn cell 離 path 中點越遠，加 cost 越多
@@ -23,6 +26,17 @@ const CENTER_WEIGHT = 1.5;     // turn cell 離 path 中點越遠，加 cost 越
 // 但 2-bend U/S 的中段 bend 仍進 Center Bias 計算 (保留 v1.1 修的 bend 拉中點)。
 const CENTER_SKIP_RADIUS_MIN = 4;
 const CENTER_SKIP_RADIUS_MAX = 10;
+
+/** S15 (v1.10) Turn penalty 累進：第 1-2 turn 同 base，第 3+ 急升。
+ *  解長 path 中「bend 數權重相對 base cost 太小」(類型 A)：
+ *  3-bend 繞行 vs 2-bend 直達，cost 差距從 (3-2)*15=15 拉開到 25+25=50。
+ *  避免 A* 為省 base cost 而多 bend 繞行。
+ */
+function turnPenalty(turnCount) {
+  if (turnCount <= 2) return TURN_PENALTY_BASE;  // 1st-2nd: 15
+  if (turnCount === 3) return 25;
+  return 30;                                      // 4th+
+}
 
 const DIRS = {
   east:  { dx:  1, dy:  0 },
@@ -108,12 +122,18 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
     CENTER_SKIP_RADIUS_MAX,
     Math.max(CENTER_SKIP_RADIUS_MIN, Math.floor(pathLen / 4))
   );
+  // S19 (v1.10)：對「斜軸 pair candidate」關閉 Center Bias。
+  // 斜軸 pair (R→T, B→L 等) 的 1-bend bend 在 corner，centerCost 必高。
+  // 維度 4 (Center Bias) 設計目的是「2-bend U/S 拉中點」，對 1-bend 斜軸是
+  // 反向破壞 → A* 寧可選 3-bend 繞行讓 bend 進中段。關閉解情境 1+2+4。
+  const centerBiasEnabled = opts.centerBiasEnabled !== false;
 
   const startNode = {
     cell: start,
     dir: sourceExitDir,
     g: 0,
     h: manhattan(start, goal),
+    turnCount: 0,  // S15 (v1.10) 累進 turn penalty 用
     parent: null,
   };
   open.push(startNode);
@@ -175,8 +195,9 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
 
       // ─ 維度 4：center bias（turn cell 偏離 path 中點時加 cost）─
       // 只對「中段」轉彎點加 cost (距 start/goal > 動態 skipRadius)
+      // S19 (v1.10)：斜軸 pair candidate 整體關閉 (centerBiasEnabled=false)
       let centerCost = 0;
-      if (isTurn && hasCenter) {
+      if (isTurn && hasCenter && centerBiasEnabled) {
         if (distFromStart > centerSkipRadius && distFromGoal > centerSkipRadius) {
           const cellPxX = nx * cellSize;
           const cellPxY = ny * cellSize;
@@ -185,10 +206,14 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
         }
       }
 
+      // S15 (v1.10): turn penalty 累進。新 turnCount = 父 + (isTurn ? 1 : 0)
+      const newTurnCount = cur.turnCount + (isTurn ? 1 : 0);
+      const turnCost = isTurn ? turnPenalty(newTurnCount) : 0;
+
       // Tie-break: 同方向 0.01 < perp 0.02 < perp 0.03 < opposite 0.04
       const tieBias = i * 0.01;
       const newG = cur.g + 1
-        + (isTurn ? TURN_PENALTY : 0)
+        + turnCost
         + proximityCost
         + occupyCost
         + centerCost
@@ -198,7 +223,7 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
       const nkey = cellKey(ncell, d);
       if (closed.has(nkey) && closed.get(nkey) <= newG) continue;
 
-      open.push({ cell: ncell, dir: d, g: newG, h: newH, parent: cur });
+      open.push({ cell: ncell, dir: d, g: newG, h: newH, turnCount: newTurnCount, parent: cur });
     }
   }
 

@@ -101,17 +101,34 @@ cost(cell, dir, parent) =
   + i * 0.01                                   // 微小 tie-break (i = dirOrder index)
 ```
 
-### 3.2 維度 0：Turn Penalty
+### 3.2 維度 0：Turn Penalty (v1.10 S15 累進)
 
 **目的**：偏好直線，減少轉彎。
 
+```js
+// v1.10 S15：累進函式取代固定值
+turnPenalty(turnCount):
+  if (turnCount <= 2) return 15  // 1st-2nd: base
+  if (turnCount === 3) return 25
+  return 30                       // 4th+
+
+// A* node 維護 turnCount，每次轉彎遞增
+```
+
 | 參數 | 預設值 | 意義 |
 |---|---|---|
-| `TURN_PENALTY` | 10 | 每 90° 轉彎扣分 |
+| `TURN_PENALTY_BASE` | 15 | 第 1-2 turn 的 penalty (v1.2: 10→15 阻止 proximity-driven zigzag) |
+| 第 3 turn | 25 | 累進開始 |
+| 第 4+ turn | 30 | 上限 |
 
-- 太低（< 5）：路徑會 zigzag
-- 太高（> 20）：路徑為了少轉彎而繞遠路
-- 10 是平衡點
+**為何累進**：長 path 中 base cost 主導，固定 15 的 turn penalty 相對小 → A* 為省 base cost 願意多 bend 繞行。累進讓「3-bend 繞行」cost 顯著高於「2-bend 直達」(差 25)，A* 自然偏好少 bend path (解情境 2/4 多 bend 繞行案例)。
+
+**對既有 case 的影響**：
+- 1-bend / 2-bend path：跟 v1.9 一樣 (15 per turn)
+- 3-bend 必要避障：base+25 略升 (從 base+15)
+- 4+ bend 嚴重繞行：cost 明顯升高，A* 偏好別的 candidate
+
+**邊界**：避免極端 — 不會 ∞ 累進，4+ bend 都是 30 上限。
 
 ### 3.3 維度 1：Proximity Penalty
 
@@ -177,7 +194,15 @@ getOccupyPenalty(cell, dir, myId, myTargetId):
 
 實作：iterate 每對相鄰 bend points 之間的 cell，逐一 markOccupied。
 
-### 3.4 維度 4：Center Bias (v1.1 + v1.2 + v1.8 動態 SKIP_RADIUS)
+### 3.4 維度 4：Center Bias (v1.1 + v1.2 + v1.8 動態 SKIP_RADIUS + v1.10 S19 斜軸關閉)
+
+**v1.10 S19 重要適用範圍**：對「斜軸 pair」candidate（exit/entry 不同軸的 8 種：R→T, B→L, R→B, T→L, L→T, B→R, L→B, T→R），A* 跑 candidate 時**完全關閉** Center Bias。
+
+理由：斜軸 pair 的 ideal 是 1-bend，bend 必在 corner（非 path midpoint）。Center Bias 設計目的是「2-bend U/S 拉中點」，對 1-bend 斜軸是**反向破壞** — A* 為避 centerCost 改走 3-bend 讓 bend 進中段，反而選繞行版本。
+
+關閉後：斜軸 pair 1-bend 不被罰 → A* 自然選 1-bend。同軸 pair (T→T, R→L 等) 仍受 Center Bias 拉中點。
+
+
 
 **目的**：讓 2-bend U/S path 的 bend 點落在 path 中點（避免「一邊短一邊長」）。
 
@@ -251,7 +276,25 @@ getPortConflictPenalty(taskId, side, direction):
 
 **Multi-pass 順序影響**：reservation state 依排序累加。目前 sort 是 `source.col asc → target.col asc`，先 route 的 edge 先 reserve port。若順序不合理可後續調 sort。
 
-### 3.6 維度 6：Same-target / Same-source Coherence (v1.6 + v1.8 anchor by geometry)
+### 3.6 維度 6：Same-target / Same-source Coherence (v1.6 + v1.8 anchor by geometry + v1.10 S16 動態權重)
+
+**v1.10 S16 動態 COHERENCE_PENALTY**：依 anchor strength（投票多數比例）縮放：
+
+```js
+factor = 2 * (1 - strength)
+penalty = COHERENCE_PENALTY * factor
+
+  strength=1.0 (壓倒性 majority 5/5) → factor=0   → 不罰
+  strength=0.8 (4/5)                  → factor=0.4 → 4.8
+  strength=0.6 (3/5)                  → factor=0.8 → 9.6
+  strength=0.5 (邊際 2/4 / first-wins) → factor=1.0 → 12.0 (全罰)
+```
+
+**為何動態**：壓倒性 anchor 表示「大多數 path 已自然朝某 side」(cost-based 已收斂)，不需要 COHERENCE 強推一致；但少數異類 edge 反而應該放行（如 1-0-1-5 → end event B→T 不被強拉成 B→L）。弱 majority anchor 才強推一致（如 5-1-4-10 多 incoming 票數分散但有微弱多數）。
+
+**解情境 4**：end event 集中型 anchor (5/5 票) 不再壓倒少數異類 edge。
+
+
 
 **目的**：多 incoming 進同 target / 多 outgoing 出同 source 偏好收斂一致 entry/exit side。
 
@@ -538,7 +581,7 @@ else:  // 幾乎同 col
 | 參數 | 位置 | 預設值 | 影響 |
 |---|---|---|---|
 | `GRID_CELL` | `constants.js` | 8 | 網格細度（改了所有 LAYOUT 倍數也要改）|
-| `TURN_PENALTY` | `astar.js` | 10 | 轉彎扣分 |
+| `TURN_PENALTY_BASE` | `astar.js` | 15 | 第 1-2 turn (v1.10 S15 累進 base, 第 3+ turn 升到 25/30) |
 | `PROXIMITY_BONUS` | `astar.js` | 4 | 障礙物距離 ≥ 此值時無 penalty |
 | `CENTER_WEIGHT` | `astar.js` | 1.5 | Turn cell 離 path 中點越遠加 cost |
 | `CENTER_SKIP_RADIUS_MIN` | `astar.js` | 4 | 短 path 的 SKIP_RADIUS 下限 (v1.8 動態) |
@@ -548,7 +591,7 @@ else:  // 幾乎同 col
 | `SHARE_RADIUS` | `grid.js` | 2 | 同 source/target 在離 port 此值內 share，超出 spread (v1.3) |
 | `SHARE_PENALTY` | `grid.js` | 3 | 超出 SHARE_RADIUS 後同 source/target 的單 cell 扣分 |
 | `PORT_VIOLATION_PENALTY` | `grid.js` | 500 | 同 port 反向使用（規則 1 違規）的 cost penalty (v1.5) |
-| `COHERENCE_PENALTY` | `grid.js` | 12 | 同 task 同方向 anchor side 已設時選不一致 side 的 cost (v1.6 / v1.9 弱化 20→12) |
+| `COHERENCE_PENALTY` | `grid.js` | 12 | base penalty (v1.6) ; v1.10 S16 動態 factor = 2*(1-strength)，壓倒性 anchor 不罰、邊際 anchor 全罰 |
 | `PROXIMITY_STUB_RADIUS` | `astar.js` | 2 | 距 start/goal ≤ 此值的 cells skip proximity (v1.9 S8, alignPortSegments 已強制 stub 沿軸方向，無需 push) |
 | `ANCHOR_MAJORITY` | `router.js` | > 0.5 | predictAnchors 嚴格 majority 才設 anchor (v1.9 S6, 票數分散時不預測回退 first-wins) |
 | `MAX_ITER` | `astar.js` | 50000 | A* 搜尋上限 |
@@ -642,6 +685,7 @@ else:  // 幾乎同 col
 | 2026-05-16 | v1.6 | **維度 6 Coherence**：grid 加 `coherence` map (first-wins anchor)，`reservePort` 順便鎖 anchor side。`pickBestPath` 加 `COHERENCE_PENALTY(20)` if 後續 edge 選不一致 side。解多 incoming 進同 target / 多 outgoing 出同 source 視覺一致性。 | 6feacf9 |
 | 2026-05-16 | v1.7 | **斜軸 pair 開放**：對角象限每個加 2 個自然順向斜軸 pair (R→T, B→L 等)，A* 比 cost。1-bend 屠殺同軸 2-bend → 暢通對角邊更短。副作用由維度 5 (PORT_VIOLATION) + 6 (COHERENCE) 受控。每 edge A* runs 3-4 → 3-6，效能 +50% (30 tasks 約 270-540ms)。 | caa9b37 |
 | 2026-05-17 | v1.8 | **Phase A 三合一**：(a) S1 Anchor by Geometry pre-compute — routeAll 開頭預測每 task 的 in/out anchor side (多數投票)，coherence 跟 multi-pass 順序解耦，編輯一條 edge 不再打亂其他 edge 視覺 (解圖二跳變)。(b) S2 Sort 結構性穩定化 — sort key 加 sourceId/targetId 字典序 tie-break，同 layout 永遠跑出同 result。(c) S3 Center Bias 動態 SKIP_RADIUS — CENTER_SKIP_RADIUS 從固定 4 改成 clamp(pathLen/4, [4, 10])，長 path 的 1-bend corner bend 不被誤罰 (解圖一 5-1-4-3/5-1-4-6 → 5-1-4-10 多餘彎折)，2-bend U/S 仍保留 bend 拉中點。 | ddc475e |
-| 2026-05-17 | v1.9 | **Phase A.1 三合一精修**：(a) S6 Anchor majority threshold + COHERENCE 弱化 — predictAnchors 加嚴格 majority(>50%) 才設 anchor (票數分散回退 first-wins)，COHERENCE_PENALTY 20→12，避免錯誤 anchor 強迫自然 1-bend 路徑繞行 (解 5-1-4-5/6 多彎、包容閘道→5-1-4-5 R→L 繞遠)。(b) S7 拖曳 pin 對側 — useDragEndpoint::endDrag 把 partial override 改 full (pin 對側為當前 route 結果)，拖一端不影響另一端視覺。(c) S8 Proximity stub skip — astar.js 距 start/goal ≤ 2 cells 的 cells skip proximity，alignPortSegments 已強制 stub 沿軸方向，proximity 推開 stub 無視覺好處反而製造出發處小 bend (解 5-1-4-3→5-1-4-10 出發處彎折)。 | TBD |
+| 2026-05-17 | v1.9 | **Phase A.1 三合一精修**：(a) S6 Anchor majority threshold + COHERENCE 弱化 — predictAnchors 加嚴格 majority(>50%) 才設 anchor (票數分散回退 first-wins)，COHERENCE_PENALTY 20→12，避免錯誤 anchor 強迫自然 1-bend 路徑繞行 (解 5-1-4-5/6 多彎、包容閘道→5-1-4-5 R→L 繞遠)。(b) S7 拖曳 pin 對側 — useDragEndpoint::endDrag 把 partial override 改 full (pin 對側為當前 route 結果)，拖一端不影響另一端視覺。(c) S8 Proximity stub skip — astar.js 距 start/goal ≤ 2 cells 的 cells skip proximity，alignPortSegments 已強制 stub 沿軸方向，proximity 推開 stub 無視覺好處反而製造出發處小 bend (解 5-1-4-3→5-1-4-10 出發處彎折)。 | 2a44010 |
+| 2026-05-17 | v1.10 | **Phase A.2 三合一 cost function 終極收尾**：(a) S15 TURN_PENALTY 累進 — 從固定 15 改成函式 (1st-2nd: 15, 3rd: 25, 4th+: 30)，A* node 維護 turnCount。長 path 的 3-bend 繞行不再「比 2-bend 直達便宜」(根因 A)。(b) S16 動態 COHERENCE_PENALTY — predictAnchors 投票記錄 strength (bestCount/total)，getCoherenceMismatchPenalty 用 factor=2*(1-strength) 縮放：壓倒性 majority (1.0) → 不罰、邊際 (0.5) → 全罰，解 end event 集中型 anchor 壓倒少數異類 edge (根因 B)。(c) S19 斜軸 pair candidate 關閉 Center Bias — generateCandidates 對 8 種斜軸 pair (R→T 等) 標 isAxisDiagonal: true，findPath 傳 centerBiasEnabled=false。斜軸 1-bend 的 corner bend 不再被 Center Bias 反向破壞 → A* 自然選 1-bend (根因 C)，full/partial override 斜軸也同樣享受。 | TBD |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。

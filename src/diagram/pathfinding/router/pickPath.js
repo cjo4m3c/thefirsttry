@@ -18,10 +18,22 @@ import { alignPortSegments, cleanOrtho, dirDelta, sideToDir } from './pathPostPr
  *
  * @returns {{ path, sides, cost } | null}
  */
+/** 判斷 (exit, entry) 是否為斜軸 pair (一個垂直 + 一個水平)，給 S19 用 */
+function isAxisDiagonal(exit, entry) {
+  const exitVertical  = exit === 'top'  || exit === 'bottom';
+  const entryVertical = entry === 'top' || entry === 'bottom';
+  return exitVertical !== entryVertical;
+}
+
 export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
   // 有 user override 時尊重，不試其他組合
   if (override?.exitSide && override?.entrySide) {
-    const sides = { exit: override.exitSide, entry: override.entrySide };
+    const sides = {
+      exit: override.exitSide,
+      entry: override.entrySide,
+      // S19: 拖出的 sides 若是斜軸 pair 也享受 Center Bias 關閉
+      isAxisDiagonal: isAxisDiagonal(override.exitSide, override.entrySide),
+    };
     const result = computePath(grid, src, tgt, sides, sourceId, targetId);
     return result ? { path: result.path, sides, cost: result.cost } : null;
   }
@@ -77,22 +89,24 @@ export function generateCandidates(src, tgt, override) {
     else        candidates.push({ exit: 'top',    entry: 'bottom' });
     candidates.push({ exit: 'top',    entry: 'top'    });
     candidates.push({ exit: 'bottom', entry: 'bottom' });
-    // R4 (v1.7) 自然順向斜軸 pair (依 dx/dy 號決定方位的 2 種 1-bend pair)
-    // 不開繞遠的逆向斜軸。R2 port reservation + R3 coherence 已落地保證副作用受控：
+    // R4 (v1.7) 自然順向斜軸 pair (依 dx/dy 號決定方位的 2 種 1-bend pair)。
+    // S19 (v1.10) 標 isAxisDiagonal: true → computePath 跑 A* 時關 Center Bias
+    // (維度 4 設計給 2-bend U/S 拉中點，對斜軸 1-bend 反向破壞)。
+    // R2 port reservation + R3 coherence 仍受控：
     //   - 反向 port 使用會被 PORT_VIOLATION(500) 屠殺
     //   - 同 target 多 incoming 由 coherence anchor 自然收斂同 side
     if (dx > 0 && dy > 0) {       // 右下
-      candidates.push({ exit: 'right',  entry: 'top'  });
-      candidates.push({ exit: 'bottom', entry: 'left' });
+      candidates.push({ exit: 'right',  entry: 'top',    isAxisDiagonal: true });
+      candidates.push({ exit: 'bottom', entry: 'left',   isAxisDiagonal: true });
     } else if (dx > 0 && dy < 0) { // 右上
-      candidates.push({ exit: 'right',  entry: 'bottom' });
-      candidates.push({ exit: 'top',    entry: 'left'   });
+      candidates.push({ exit: 'right',  entry: 'bottom', isAxisDiagonal: true });
+      candidates.push({ exit: 'top',    entry: 'left',   isAxisDiagonal: true });
     } else if (dx < 0 && dy > 0) { // 左下
-      candidates.push({ exit: 'left',   entry: 'top'   });
-      candidates.push({ exit: 'bottom', entry: 'right' });
+      candidates.push({ exit: 'left',   entry: 'top',    isAxisDiagonal: true });
+      candidates.push({ exit: 'bottom', entry: 'right',  isAxisDiagonal: true });
     } else {                        // 左上
-      candidates.push({ exit: 'left',   entry: 'bottom' });
-      candidates.push({ exit: 'top',    entry: 'right'  });
+      candidates.push({ exit: 'left',   entry: 'bottom', isAxisDiagonal: true });
+      candidates.push({ exit: 'top',    entry: 'right',  isAxisDiagonal: true });
     }
   }
 
@@ -107,16 +121,17 @@ export function generateCandidates(src, tgt, override) {
     const isVertical = override.exitSide === 'top' || override.exitSide === 'bottom';
     if (isVertical) {
       const entry = (tgt.cx - src.cx) >= 0 ? 'left' : 'right';
-      return [{ exit: override.exitSide, entry }];
+      // S19: 垂直 exit + 水平 entry = 斜軸 pair
+      return [{ exit: override.exitSide, entry, isAxisDiagonal: true }];
     }
     const entry = override.exitSide === 'right' ? 'left' : 'right';
-    return [{ exit: override.exitSide, entry }];
+    return [{ exit: override.exitSide, entry }];  // 水平+水平 同軸
   }
   if (override?.entrySide && !override?.exitSide) {
     const isVertical = override.entrySide === 'top' || override.entrySide === 'bottom';
     if (isVertical) {
       const exit = (tgt.cx - src.cx) >= 0 ? 'right' : 'left';
-      return [{ exit, entry: override.entrySide }];
+      return [{ exit, entry: override.entrySide, isAxisDiagonal: true }];
     }
     const exit = override.entrySide === 'right' ? 'left' : 'right';
     return [{ exit, entry: override.entrySide }];
@@ -183,8 +198,10 @@ function computePath(grid, src, tgt, sides, sourceId, targetId) {
   grid.unblock(goalCell.x, goalCell.y);
 
   const startDir = sideToDir(sides.exit);
+  // S19 (v1.10)：斜軸 candidate 關 Center Bias，讓 1-bend corner bend 不被誤罰
   const cells = findPath(grid, startCell, goalCell, startDir, sourceId, targetId, {
     srcCx: src.cx, srcCy: src.cy, tgtCx: tgt.cx, tgtCy: tgt.cy,
+    centerBiasEnabled: !sides.isAxisDiagonal,
   });
   if (!cells) return null;
 

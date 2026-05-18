@@ -27,11 +27,16 @@ const SHARE_PENALTY = 3;
 //   不是 hard block 而是大 cost 讓 A* 自然避開（仍可選做 fallback）。
 const PORT_VIOLATION_PENALTY = 500;
 
-// Coherence 參數（v1.6 維度 6；v1.9 弱化）：
+// Coherence 參數（v1.6 維度 6；v1.9 弱化；v1.10 S16 動態權重）：
 //   多 incoming 進同 target / 多 outgoing 出同 source 偏好收斂一致 side。
 //   anchor 由 v1.8 predictAnchors 預測 / first-wins 補填。
-//   v1.9 從 20 降到 12：仍 > TURN_PENALTY(15) 不到，避免壓過自然 1-bend 路徑，
-//   但同 cost 平手時仍偏好 anchor side。
+//
+//   v1.10 S16 動態權重：依 anchor strength (predictAnchors 投票比例) 縮放：
+//     - 壓倒性 majority (5/5 = 1.0): factor=0 → 不罰，異類 edge 自由選自然路徑
+//     - 弱 majority (3/5 = 0.6):     factor=0.8 → 中等罰，鼓勵跟隨
+//     - 邊際 majority (2/4 = 0.5):   factor=1.0 → 全罰，最強推一致
+//     - first-wins (沒預測):         strength=0.5 默認，full penalty
+//   解情境 4：end event 集中型 anchor 不再壓倒少數異類 edge。
 const COHERENCE_PENALTY = 12;
 
 export class RoutingGrid {
@@ -47,8 +52,13 @@ export class RoutingGrid {
     // Port reservation state (v1.5)：每 task 每 port 的 IN/OUT 使用計數
     // { taskId: { left: { in, out }, right, top, bottom } }
     this.portReservations = {};
-    // Coherence state (v1.6)：每 task 的 in/out 第一條 edge 用的 side (first-wins)
-    // { taskId: { in: 'left'|null, out: 'bottom'|null } }
+    // Coherence state (v1.6 + v1.10 strength)：每 task 的 in/out anchor side + strength
+    // { taskId: {
+    //     in: 'left'|null, inStrength: 0.5-1.0|0,
+    //     out: 'bottom'|null, outStrength: 0.5-1.0|0,
+    //   }
+    // }
+    // strength = 投票多數比例 (predictAnchors 設) 或 0.5 (first-wins 默認)。
     this.coherence = {};
     this.markTasks(positions);
     this.markBoundaries(svgWidth, svgHeight);
@@ -215,10 +225,15 @@ export class RoutingGrid {
     }
     const r = this.portReservations[taskId][side];
     if (r) r[direction]++;
-    // R3 (v1.6) coherence first-wins：記錄該 task 該方向的 anchor side
-    if (!this.coherence[taskId]) this.coherence[taskId] = { in: null, out: null };
+    // R3 (v1.6) coherence first-wins：記錄該 task 該方向的 anchor side。
+    // v1.10 S16：first-wins 默認 strength=0.5 (full penalty)。
+    // predictAnchors 預先設定的 anchor 已含 strength，這裡不覆寫。
+    if (!this.coherence[taskId]) {
+      this.coherence[taskId] = { in: null, inStrength: 0, out: null, outStrength: 0 };
+    }
     if (!this.coherence[taskId][direction]) {
       this.coherence[taskId][direction] = side;
+      this.coherence[taskId][`${direction}Strength`] = 0.5;
     }
   }
 
@@ -233,17 +248,23 @@ export class RoutingGrid {
     return r[opposite] > 0 ? PORT_VIOLATION_PENALTY : 0;
   }
 
-  /** Coherence mismatch penalty (v1.6 維度 6)。
-   * 該 task 該方向的 anchor side (first edge 用的 side) 已記錄時，
-   * 後續選不一致 side 加 COHERENCE_PENALTY。
-   * Anchor 未設或一致 → 0 cost。
-   * 設計：first-wins，第一條 edge 決定 anchor，後續同 task 同方向跟隨。
+  /** Coherence mismatch penalty (v1.6 維度 6 + v1.10 S16 動態權重)。
+   * 該 task 該方向的 anchor side 已記錄時，後續選不一致 side 加 penalty。
+   * Penalty 依 anchor strength 動態縮放：
+   *   factor = 2 * (1 - strength)
+   *     strength=1.0 (壓倒性) → factor=0  → 不罰
+   *     strength=0.75         → factor=0.5
+   *     strength=0.5 (邊際)   → factor=1.0 → 全罰
+   * 解情境 4：集中型 anchor (5/5 票) 不再壓倒少數異類 edge。
    */
   getCoherenceMismatchPenalty(taskId, side, direction) {
     if (!taskId || !side || (direction !== 'in' && direction !== 'out')) return 0;
-    const anchor = this.coherence[taskId]?.[direction];
-    if (anchor && anchor !== side) return COHERENCE_PENALTY;
-    return 0;
+    const c = this.coherence[taskId];
+    const anchor = c?.[direction];
+    if (!anchor || anchor === side) return 0;
+    const strength = c[`${direction}Strength`] || 0.5;
+    const factor = 2 * (1 - strength);  // 1.0 → 0, 0.5 → 1.0
+    return COHERENCE_PENALTY * factor;
   }
 
   /** Pixel coord → grid cell */

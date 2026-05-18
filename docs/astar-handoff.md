@@ -53,38 +53,40 @@ docs/
 
 ---
 
-## 4. Cost Function 當前狀態（v1.8）
+## 4. Cost Function 當前狀態（v1.10）
 
 ```js
-// routeAll 開頭 (v1.8 S1)
-predictAnchors(grid, rawConns, positions)  // 每 task in/out anchor by geometry 預測
+// routeAll 開頭 (v1.8 S1 + v1.10 S16 strength)
+predictAnchors(grid, rawConns, positions)
+  // 投票 + majority threshold + 記錄 strength
 
 // astar.js per-cell cost
 cost(cell, dir) =
-    1                                                    // 移動
-  + (turn ? TURN_PENALTY(15) : 0)                        // dim 0: 轉彎
-  + max(0, PROXIMITY_BONUS(4) - distMap[cell])           // dim 1: 障礙物距離
-  + occupyPenalty(cell, dir, src, tgt, start, goal)      // dim 2: 智慧占用
-  + (isTurn && farFromDynamicRadius ? centerDist*CENTER_WEIGHT(1.5) : 0)  // dim 4: 中心偏好 (v1.8 動態 skipRadius)
+    1                                                              // 移動
+  + (turn ? turnPenalty(turnCount) : 0)                            // dim 0: 累進 turn (v1.10 S15)
+  + max(0, PROXIMITY_BONUS(4) - distMap[cell])  if !inStub          // dim 1: 障礙物距離 (v1.9 stub skip)
+  + occupyPenalty(cell, dir, src, tgt, start, goal)                // dim 2: 智慧占用
+  + (isTurn && farFromRadius && centerBiasEnabled                  // dim 4: 中心偏好
+       ? centerDist*CENTER_WEIGHT(1.5) : 0)                        //   v1.10 S19: 斜軸 pair 關閉
 
 // router.js::pickBestPath 算完 A* path 後加上：
 adjustedCost = A* result.cost
-  + getPortConflictPenalty(srcId, exitSide,  'out')           // dim 5: port reservation
+  + getPortConflictPenalty(srcId, exitSide,  'out')                // dim 5: port reservation
   + getPortConflictPenalty(tgtId, entrySide, 'in')
-  + getCoherenceMismatchPenalty(srcId, exitSide,  'out')      // dim 6: coherence (v1.8 anchor 預測)
-  + getCoherenceMismatchPenalty(tgtId, entrySide, 'in')
+  + getCoherenceMismatchPenalty(srcId, exitSide,  'out')           // dim 6: coherence (v1.10 動態權重)
+  + getCoherenceMismatchPenalty(tgtId, entrySide, 'in')            //   factor = 2*(1-anchorStrength)
 ```
 
 ### 各維度解的問題
 
 | 維度 | 解什麼 | 主要參數 |
 |---|---|---|
-| 0 Turn | 偏好直線、減少彎折 | TURN_PENALTY=15 |
-| 1 Proximity | 不貼 task 邊框、走 corridor 中央 | PROXIMITY_BONUS=4 |
+| 0 Turn (v1.10 累進) | 少 bend，3+ bend 急升 cost | base=15 (1st-2nd), 25 (3rd), 30 (4th+) |
+| 1 Proximity (v1.9 stub skip) | 中段 corridor 中央，stub 不推開 | PROXIMITY_BONUS=4, STUB_RADIUS=2 |
 | 2 Smart Occupy | 多 fork/merge 共享 port、中段 spread | SHARE_RADIUS=2, SHARE_PENALTY=3, OCCUPY_SAME_DIR=80, OCCUPY_PERP=8 |
-| 4 Center Bias (v1.8 動態) | 2-bend 路徑 bend 在中點；長 path 1-bend corner 不誤罰 | CENTER_WEIGHT=1.5, SKIP_RADIUS clamp(pathLen/4, [4, 10]) |
-| 5 Port Reservation (v1.5) | 同 port 不可混 IN+OUT (business-spec §5 規則 1) | PORT_VIOLATION_PENALTY=500 |
-| 6 Coherence (v1.6 + v1.8 anchor pre-compute + v1.9 majority threshold) | 多 incoming/outgoing 收斂一致 side；anchor 嚴格 majority 才設，弱 penalty 不壓自然路徑 | COHERENCE_PENALTY=12 |
+| 4 Center Bias (v1.8 動態 SKIP + v1.10 斜軸關閉) | 2-bend U/S bend 在中點；斜軸 1-bend 不誤罰 | CENTER_WEIGHT=1.5, SKIP=clamp(pathLen/4, [4,10]) |
+| 5 Port Reservation (v1.5) | 規則 1 (IN+OUT 不混用) | PORT_VIOLATION_PENALTY=500 |
+| 6 Coherence (v1.6 + v1.8 + v1.9 + v1.10 動態權重) | 多 incoming/outgoing 收斂；強 majority 不罰、弱 majority 全罰 | COHERENCE_PENALTY=12, factor=2*(1-strength) |
 
 詳細邏輯見 `docs/astar-routing-spec.md` §3。
 
@@ -236,7 +238,9 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-16 | 6feacf9 | A* round 10: 維度 6 Coherence（多 incoming/outgoing 收斂一致 side） | v1.6 |
 | 2026-05-16 | caa9b37 | A* round 11: 斜軸 pair 開放（對角象限每個加 2 個自然順向 1-bend 候選） | v1.7 |
 | 2026-05-17 | ddc475e | A* round 12 (Phase A): S1 anchor by geometry + S2 sort 穩定化 + S3 動態 SKIP_RADIUS | v1.8 |
-| 2026-05-17 | TBD | A* round 13 (Phase A.1): S6 anchor majority/COHERENCE 弱化 + S7 拖曳 pin 對側 + S8 proximity stub skip | v1.9 |
+| 2026-05-17 | 2a44010 | A* round 13 (Phase A.1): S6 anchor majority/COHERENCE 弱化 + S7 拖曳 pin 對側 + S8 proximity stub skip | v1.9 |
+| 2026-05-17 | 474c338 | F1 router.js split — shim + router/ 5 subfiles (size cap) | v1.9 |
+| 2026-05-17 | TBD | A* round 14 (Phase A.2): S15 TURN 累進 + S16 動態 COHERENCE + S19 斜軸關 Center Bias | v1.10 |
 
 ---
 

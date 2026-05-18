@@ -34,6 +34,7 @@ export function predictAnchors(grid, rawConns, positions) {
     ensure(conn.toId).in[vote(src.cx - tgt.cx, src.cy - tgt.cy)]++;
   }
   // Tie-break: right > bottom > left > top (forward-east 偏好)
+  // S16 (v1.10)：回傳 { side, strength } 給 grid.coherence 算動態 penalty。
   const pickMaxSide = (counts) => {
     let best = null, bestCount = 0, total = 0;
     for (const side of ['right', 'bottom', 'left', 'top']) {
@@ -41,16 +42,21 @@ export function predictAnchors(grid, rawConns, positions) {
       if (counts[side] > bestCount) { bestCount = counts[side]; best = side; }
     }
     // S6 (v1.9)：嚴格 majority (> 50%) 才設 anchor。
-    // 票數分散時不預測，回退 first-wins (route 時自然決定)，避免錯誤鎖死導致
-    // 自然路徑被 coherence 強迫繞行 (圖五包容閘道→5-1-4-5 R→L 繞遠案例)。
-    if (total >= 2 && bestCount / total > 0.5) return best;
+    if (total >= 2 && bestCount / total > 0.5) {
+      return { side: best, strength: bestCount / total };
+    }
     return null;
   };
   for (const taskId in votes) {
-    const inAnchor  = pickMaxSide(votes[taskId].in);
-    const outAnchor = pickMaxSide(votes[taskId].out);
-    if (inAnchor || outAnchor) {
-      grid.coherence[taskId] = { in: inAnchor, out: outAnchor };
+    const inResult  = pickMaxSide(votes[taskId].in);
+    const outResult = pickMaxSide(votes[taskId].out);
+    if (inResult || outResult) {
+      grid.coherence[taskId] = {
+        in:  inResult?.side ?? null,
+        inStrength:  inResult?.strength ?? 0,
+        out: outResult?.side ?? null,
+        outStrength: outResult?.strength ?? 0,
+      };
     }
   }
 }
