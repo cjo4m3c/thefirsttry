@@ -75,8 +75,11 @@ export function ConnectionArrow({ conn, connKey, positions, hoveredId, hoveredCo
     strokeW = 2.5;
     markerId = 'ah-violation';
   } else if (isSelected) {
+    // 2026-05-18 對齊 spec §12：Selected 連線比 hover 再粗一階（3px vs 2.5px）
+    // 區分「臨時 hover」vs「主動選中」。配套：兩端 task 同步亮 brand 色（由
+    // shapes.jsx isSelectedEndpoint prop 處理）。
     strokeColor = HOVER_STROKE;
-    strokeW = 2.5;
+    strokeW = 3;
     markerId = 'ah-hover';
   } else if (hoveredConnKey === connKey) {
     strokeColor = HOVER_STROKE;
