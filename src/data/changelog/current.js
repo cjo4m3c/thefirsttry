@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-18',
+    title: '首頁「說明 ▾」按鈕對齊編輯頁規格 + L3 chip 改用 `#1B2E4C` 品牌最深色',
+    items: [
+      '**緣由**：使用者「首頁按鈕規格請跟編輯頁按鈕規格拉齊」+「首頁 L3 編號的 chip 請都改成用品牌深色 #1B2E4C」。',
+      '**InfoDropdown 按鈕規格對齊**：`px-3 py-2 rounded-lg bg-#3470B5 solid filled` → `px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10` — 與 FlowEditor Header 8 顆按鈕（圖例 / 密度 / undo / redo / 重設端點 / 打開編輯器 / 下載 / 儲存）完全一致的 spec App-bar 樣式（深色 header + 白半透明 outline）。視覺上從填色厚重藍變成輕量白邊。',
+      '**新增 token `--brand-darker: #1B2E4C`**：spec 原 brand-dark 色（PR #223 把 `--brand-dark` 改為 `#2A5598` 對齊 Header 後、原 `#1B2E4C` 成為孤兒）。本 PR 重新登記為新 token 用於需要比 brand-dark 更深一階的識別徽章。視覺層級：`--brand-dark` `#2A5598` = Header bg、`--brand-darker` `#1B2E4C` = identifier chip。`tailwind.config.js` 加對應 reference 讓 `bg-brand-darker` 可用。',
+      '**FlowCard L3 chip 改用 `--brand-darker`**：`src/components/ui/Chip.jsx` id variant 從 `bg-brand-dark border-brand-dark` 改 `bg-brand-darker border-brand-darker`。L3 編號徽章顏色從 `#2A5598`（Header 同色）→ `#1B2E4C`（比 Header 更深一階）。',
+      '**Doc 同步**：(a) `docs/business-spec.md §13.9.1` 色彩 token 對照表加 `--brand-darker` row、`--brand-dark` 描述移除「L3 編號徽章」（已遷移）(b) `DesignGuidelinePanel.jsx` COLOR_TOKENS array 加 brand-darker 條目、`--brand-dark` 描述對應更新。',
+      '**動到的檔案（6 個）**：`src/components/InfoDropdown.jsx`（按鈕 className）/ `src/styles/tokens.css`（新增 --brand-darker token + 註解）/ `tailwind.config.js`（加 brand-darker reference）/ `src/components/ui/Chip.jsx`（id variant 改 brand-darker）/ `docs/business-spec.md`（§13.9.1 加 row）/ `src/components/DesignGuidelinePanel.jsx`（COLOR_TOKENS 加條目）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) 首頁 header 右上「說明 ▾」按鈕從填色變白邊半透明（跟 FlowEditor Header 8 顆按鈕視覺一致）(b) FlowCard L3 chip 顏色從 `#2A5598`（中藍）變 `#1B2E4C`（更深 navy）(c) 設計規範 modal 開啟、色彩 swatch 區看到 `--brand-darker` 條目跟 brand-dark 並列 (d) Excel 業務規則 modal 不受影響。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: '首頁右上加「說明 ▾」dropdown 收攏 3 個資訊面板 + 新增「設計規範」彈窗 + 「規則說明」改名「業務規則」',
     items: [
       '**緣由**：使用者「想把 design guideline 放到首頁右上、新增一個設計規範的彈窗」+「原規則說明改名業務規則」+「這三個按鈕不是第一眼需要知道的資訊、有什麼好方法可以收攏」。',

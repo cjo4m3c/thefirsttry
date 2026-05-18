@@ -24,12 +24,20 @@
   --brand:        #006EBC;   /* Primary CTA · ID 徽章 · focus ring */
   --brand-light:  #5EC7E8;   /* L4 任務 pill · hover 入口連線 · highlight */
   /*
-   * --brand-dark：App bar · Canvas head · 開始/結束事件 pill · L3 編號徽章。
+   * --brand-dark：App bar · Canvas head · 開始/結束事件 pill。
    * 2026-05-18 從 spec `#1B2E4C` 改回 `#2A5598`（使用者：「編輯頁面中的
    * header 用跟首頁一樣顏色」）— 既有 Dashboard header / HelpPanel / Wizard
    * / BackToTop 等多處仍寫死 `#2A5598`，把 token 對齊既有實際使用色更實際。
    */
   --brand-dark:   #2A5598;
+  /*
+   * --brand-darker：spec 原 brand-dark `#1B2E4C` 深 navy（更深一階）。
+   * 2026-05-18 加：使用者「首頁 L3 編號的 chip 請都改成用品牌深色 #1B2E4C」。
+   * 用於需要比 brand-dark 再深一階的識別徽章（目前唯一用途：Chip id variant
+   * = Dashboard L3 編號）。視覺層級：brand-dark = Header bg、brand-darker
+   * = identifier chip，chip 比 header 更深、突出 ID 強識別。
+   */
+  --brand-darker: #1B2E4C;
   --internal:     #0066CC;   /* 內部角色（固定，必須成對外部）*/
   --external:     #009900;   /* 外部角色（固定，必須成對內部）*/
 
