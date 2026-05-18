@@ -22,20 +22,26 @@ import { routeAll } from './pathfinding/router.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
-// v1.13 動態 lane 高度（解多平行線段擠壓）：
+// v1.13 動態 lane 高度（解多平行線段擠壓）/ v1.15 fine-tune (視覺距離 §10.5.1):
 //   智慧啟發式 — 對每條 raw edge 預判 corridor 機率，累加到每 lane 的 corridorLoad。
 //   負載超出預設 capacity 時，每多 1 row 流量擴 lane 高度 LANE_GROWTH_STEP，
 //   保持 grid 對齊（NODE_VOFFSET = LANE_H / 2 需 lane_h 是 2*GRID_CELL 倍數）。
 //   上限 MAX_LANE_H 防止單 lane 失控擴張（極端情境應靠拆 lane 解，不靠 lane 撐）。
-const BASE_CORRIDOR_CAPACITY = 4;          // 預設 lane 上下 corridor 各有 ~4 row 容量
-const LANE_GROWTH_STEP = 2 * GRID_CELL;    // 每多 1 row 流量擴 16px (保 2*GRID_CELL 倍數)
+//
+//   v1.15 fine-tune：原 v1.13 BASE_CAP=4 LANE_STEP=16 對「同 source N+ fork trunk」
+//   估錯（情境 3：3 fork 算 1.5 load < 4 cap → 不擴 → 線擠 label 蓋），降 CAP=1 +
+//   step 24（容 trunk + label 上下空間）+ 加 P_SAME_SOURCE_FORK 識別 N+ fork。
+const BASE_CORRIDOR_CAPACITY = 1;          // v1.15: 預設只給 1 條 trunk 容量（更敏感擴張）
+const LANE_GROWTH_STEP = 3 * GRID_CELL;    // v1.15: 每多 1 row 流量擴 24px (trunk + label 上下空間)
 const MAX_LANE_H = 30 * GRID_CELL;          // lane 高度上限 240px (BASE 144 + 96 = 12 cells 擴張空間)
 
-// edge 走 corridor 機率啟發式（v1.13）：純幾何，不寫業務 if-then。
-const P_BACKWARD = 1.0;        // backward edge 100% 走 corridor (避同 lane task 阻擋)
-const P_GAP_FORWARD = 0.5;     // 同 lane 跨多 col 的 forward (col diff > 1)，可能走 corridor 避中間 task
-const P_ADJACENT = 0.0;        // 相鄰 col forward (col diff = 1)，直連不佔 corridor
-const P_CROSS_LANE = 0.15;     // 跨 lane edge 對 src/tgt lane 各加 0.15（多為 1-bend 對角，輕度佔 corridor）
+// edge 走 corridor 機率啟發式：純幾何，不寫業務 if-then。
+const P_BACKWARD = 1.0;             // backward edge 100% 走 corridor (避同 lane task 阻擋)
+const P_GAP_FORWARD = 0.5;          // 同 lane 跨多 col 的 forward (col diff > 1)，可能走 corridor 避中間 task
+const P_ADJACENT = 0.0;             // 相鄰 col forward (col diff = 1)，直連不佔 corridor
+const P_CROSS_LANE = 0.15;          // 跨 lane edge 對 src/tgt lane 各加 0.15（多為 1-bend 對角，輕度佔 corridor）
+const P_SAME_SOURCE_FORK = 1.0;     // v1.15: 同 source N+ fork 每條 100% 佔 corridor (情境 3 fork trunk)
+const FORK_THRESHOLD = 2;            // outDegree ≥ 此值才算 fork (1 outgoing 不算)
 
 // 兩層 cache：
 //   1. WeakMap by flow object identity（無 hash 開銷，命中時直接回）
@@ -216,21 +222,43 @@ function doLayout(flow) {
 }
 
 /**
- * 預估每 lane 的 corridor 流量（v1.13）。
+ * 預估每 lane 的 corridor 流量（v1.13 + v1.15 fork pattern fine-tune）。
  *
  * 對每條 raw edge 啟發式預判走 corridor 機率，累加到 src / tgt 的 lane row。
- * 機率純依幾何（col/row 差），不寫業務 if-then 規則。
+ * 機率純依幾何（col/row 差 + outDegree），不寫業務 if-then 規則。
  *
- *   backward (同 lane, dx<0)     → 1.0
- *   同 lane gap forward (dx>1)   → 0.5
- *   同 lane adjacent (dx=1)      → 0.0  (直連不佔 corridor)
- *   cross-lane                   → src 0.15 + tgt 0.15
+ *   backward (同 lane, dx<0)               → 1.0
+ *   同 lane forward 從 fork source (out≥2) → 1.0 (v1.15: 每條 fork trunk 都佔)
+ *   同 lane gap forward (dx>1, non-fork)   → 0.5
+ *   同 lane adjacent (dx=1)                → 0.0  (直連不佔 corridor)
+ *   cross-lane                             → src 0.15 + tgt 0.15
  *
  * @returns {Map<number, number>} laneRow → 累計流量
  */
 function estimateLaneCorridorLoads(tasks, taskIds, colOf, taskRowOf) {
   const load = new Map();
   const add = (row, p) => { load.set(row, (load.get(row) || 0) + p); };
+
+  // v1.15: 預掃 outDegree 識別 fork source。task 的同 lane outgoing ≥ FORK_THRESHOLD 才算。
+  const sameLaneOutDegree = new Map();
+  tasks.forEach(task => {
+    const srcRow = taskRowOf[task.id];
+    if (srcRow == null) return;
+    const collectNext = [];
+    if (task.type === 'gateway' && task.conditions?.length) {
+      task.conditions.forEach(cond => cond.nextTaskId && collectNext.push(cond.nextTaskId));
+    } else if (task.type !== 'end' && task.type !== 'gateway') {
+      const nextIds = task.nextTaskIds?.length
+        ? task.nextTaskIds
+        : (task.nextTaskId ? [task.nextTaskId] : []);
+      nextIds.forEach(n => n && collectNext.push(n));
+    }
+    let cnt = 0;
+    collectNext.forEach(n => {
+      if (taskIds.has(n) && taskRowOf[n] === srcRow) cnt++;
+    });
+    if (cnt > 0) sameLaneOutDegree.set(task.id, cnt);
+  });
 
   const addEdge = (fromId, toId) => {
     if (!taskIds.has(toId)) return;
@@ -242,10 +270,11 @@ function estimateLaneCorridorLoads(tasks, taskIds, colOf, taskRowOf) {
 
     if (srcRow === tgtRow) {
       const dx = tgtCol - srcCol;
+      const isFork = (sameLaneOutDegree.get(fromId) || 0) >= FORK_THRESHOLD;
       let p;
       if (dx < 0) p = P_BACKWARD;
-      else if (dx === 1) p = P_ADJACENT;
-      else p = P_GAP_FORWARD;
+      else if (dx === 1) p = isFork ? P_SAME_SOURCE_FORK : P_ADJACENT;
+      else p = isFork ? P_SAME_SOURCE_FORK : P_GAP_FORWARD;
       add(srcRow, p);
     } else {
       add(srcRow, P_CROSS_LANE);
