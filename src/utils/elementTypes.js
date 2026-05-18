@@ -96,7 +96,10 @@ export const KIND_SHORT_LABEL = {
 //   - interaction: external-node slate
 // 使用 CSS variable 直接套（inline style）— 改 token 自動同步。
 export const KIND_BADGE = {
-  task:           { bg: 'var(--brand-light)',   text: 'var(--brand-dark)' },
+  // 2026-05-18 task 文字色從 spec 規定的 brand-dark（深字配淺底、唯一不同）改成
+  // 白字 — 使用者要求「跟其他小標籤拉齊」（其他 7 種都白字）。Spec 原意是 task
+  // 是最常用元件、用對比較柔和的深字 + 淺底；但全站視覺一致更重要。
+  task:           { bg: 'var(--brand-light)',   text: '#FFFFFF' },
   interaction:    { bg: 'var(--external-node)', text: '#FFFFFF' },
   'gateway-xor':  { bg: 'var(--warning)',       text: '#FFFFFF' },
   'gateway-and':  { bg: 'var(--success)',       text: '#FFFFFF' },

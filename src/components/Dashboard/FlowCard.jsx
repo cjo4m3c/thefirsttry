@@ -50,12 +50,13 @@ export function FlowCard({
         {flow.updatedAt && <span>更新：{fmtDateTime(flow.updatedAt)}</span>}
       </div>
 
-      {/* Roles preview — fixed 2-row height (≈ 2 × 22px chip + gap)
-          so cards align across the grid regardless of role count.
-          overflow-hidden keeps long lists from breaking the layout
-          (rare; usually 1-5 roles). */}
+      {/* Roles preview — 2-row 容量、cards 跨 grid row 對齊。
+          2026-05-18：maxHeight 3rem (48px) → 4rem (64px)、accommodate
+          PR-4 引入的 <Chip> 元件比原 inline <span> 多 1px border + 寬
+          px-2.5 padding 造成的 2-4px 高度差。minHeight 3rem 保持原本
+          1-row card 在 grid 中的 baseline。N > 2 排的角色仍被 cap 截。 */}
       <div className="flex flex-wrap gap-1 content-start overflow-hidden"
-        style={{ minHeight: '3rem', maxHeight: '3rem' }}>
+        style={{ minHeight: '3rem', maxHeight: '4rem' }}>
         {(flow.roles ?? []).map(r => (
           <Chip key={r.id} variant={r.type === 'external' ? 'external' : 'internal'} className="h-fit">
             {autoSpace(r.name)}

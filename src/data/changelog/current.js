@@ -6,6 +6,50 @@
 export default [
   {
     date: '2026-05-18',
+    title: 'FlowCard role chips 第二排切到 — maxHeight 3rem → 4rem',
+    items: [
+      '**緣由**：使用者「首頁卡片內，第二排的角色標籤被切到了」。PR-4 把 role chip 從 inline `<span>` 改 `<Chip>` 元件後、Chip 多 1px border + 寬 px-2.5 padding（原 px-2）→ 整體高度多 2-4px → 超過 FlowCard role-chip 容器 fixed `maxHeight: 3rem`（48px）→ 第二排底部被切。',
+      '**修法**：`src/components/Dashboard/FlowCard.jsx` role chips container `maxHeight: "3rem"` → `"4rem"`（48 → 64px）。accommodate Chip 新尺寸 + 留 safety margin。`minHeight: 3rem` 維持不變、確保 grid baseline 對齊。超過 2 排的 chip 仍 `overflow-hidden` 截掉（極少出現、業務上 1-5 個角色為常態）。',
+      '**動到的檔案（2 個）**：`src/components/Dashboard/FlowCard.jsx`（一個 style + 5 行歷史註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) 2 排 role chips（如「業務 / 財務 / 倉儲 / [外部角色]報關行 / [外部角色]物流商」）完整顯示、底部不再被切 (b) 1 排 chip 的卡片仍以 3rem 為高度 baseline、跟其他卡片對齊 (c) 卡片整體高度增加 16px。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: 'TaskCard「L4 任務」pill 文字改白字 — 跟其他 7 種類型拉齊',
+    items: [
+      '**緣由**：使用者「編輯器中每區塊左上角 L4 任務元件說明的請改為白色字、跟其他小標籤拉齊」。PR #220 KIND_BADGE 對齊 spec §11 時把 task pill 設為「brand-light 底 + brand-dark 深字」（spec 唯一不同的組合），其他 7 種類型都是白字。使用者偏好整站一致。',
+      '**修法**：`src/utils/elementTypes.js KIND_BADGE.task.text` 從 `var(--brand-dark)` → `#FFFFFF`。其他類型不動（本來就白字）。',
+      '**動到的檔案（2 個）**：`src/utils/elementTypes.js`（一行 + 註解說明 trade-off）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：TaskCard / ContextMenu 「L4 任務」pill 文字從深色 (brand-dark `#1B2E4C`) 變白色、跟「並行閘道 / 排他閘道 / L3 流程 / 外部互動 / 開始事件 / 結束事件」一致。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: '全站字體拉齊 — `--font-mono` 改 fallback 到 `--font-sans`',
+    items: [
+      '**緣由**：使用者「全站的中英文字體要拉齊，像是現在 L3 編號就用了不一樣的字體」。Spec 規定 mono 字型用於編號 / 數字 / 時間戳、但使用者偏好整站單一字體。',
+      '**修法**：`src/styles/tokens.css` `--font-mono` 從獨立 mono stack (`ui-monospace, SFMono-Regular, Menlo, ...`) 改成 `var(--font-sans)` — 自動 fallback 到 sans。一行修改、影響所有使用 `font-mono` / `var(--font-mono)` 的地方（不用逐個元件改）。',
+      '**受影響的元件**（全部自動拉齊到 sans）：(a) Dashboard FlowCard L3 chip（PR #220 Chip id variant）(b) TaskCard L4 number 顯示 (c) ContextMenu header L4 number (d) ChangelogPanel 日期欄 (e) CloneFlowModal L3 字串顯示 + input (f) DuplicateImportModal L3 number (g) HelpPanel 規則 / 副檔名標籤 (h) tokens.css `.t-mono` utility class。',
+      '**未來若想恢復 mono**：改回 `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` 即可、`var(--font-mono)` references 自動切回。',
+      '**動到的檔案（2 個）**：`src/styles/tokens.css`（一行 + 4 行歷史註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) L3 chip 數字現在用 Microsoft JhengHei sans、跟旁邊「{l3Name}」標題字體一致 (b) TaskCard L4 number 同 sans (c) 整站任何 `font-mono` class 都自動 fallback。',
+    ],
+  },
+  {
+    date: '2026-05-18',
+    title: 'Design system follow-up — Banners → Callout（Dashboard + FlowEditor 視覺一致）',
+    items: [
+      '**緣由**：PR #220 建立了 `<Callout>` base 元件但尚未套用既有 banner。本 PR 完成 Dashboard 3 個 banner（ImportError / ImportSuccess / ImportWarnings）+ FlowEditor importFixes/Notices banner 的 Callout 化、視覺與內部一致。',
+      '**Dashboard/Banners.jsx**：(a) `ImportErrorBanner` 從 inline red palette → `<Callout variant="danger">` (b) `ImportSuccessBanner` 從 inline sky palette → `<Callout variant="info">` (c) `ImportWarningsBanner` 外層 amber div → `<Callout variant="warning">`、保留 fixes/notices 雙 section + 展開 + 複製全部 complex body 不變。文字色從 `text-amber-900` → `text-warning-ink`（token 化）。',
+      '**FlowEditor/index.jsx**：importFixes/Notices banner 外層 amber div → `<Callout variant="warning">`。複雜雙 section body 保留。dismiss handler 不變。',
+      '**動到的檔案（3 個）**：`src/components/Dashboard/Banners.jsx`（3 個 banner → Callout）/ `src/components/FlowEditor/index.jsx`（import + banner 換 Callout）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) Dashboard 匯入失敗 → 紅色 callout（內容 `!` icon + 訊息 + ✕）(b) 匯入成功多 L3 → 藍色 callout（✓ icon + 訊息 + ✕）(c) 匯入有警告 → 琥珀 callout 雙 section（fixes 列表 + notices 列表 + 展開 + 複製按鈕）(d) FlowEditor 編輯流程 banner 琥珀 callout 同步（已 dismiss 不再顯示 — PR #216 stale state fix 持續生效）。',
+      '**剩餘 incremental migration**（仍未做、待後續或不做）：Header 上 8 顆 button → `<Button>`（需新增 `variant="dark-bar"` 給深色 header 用、新功能、暫不做避免特殊邏輯破壞）/ SaveModals + CloneFlowModal + DuplicateImportModal → `<Modal>`（每個 modal 用法 nuance、逐個 migration 較安全、留後續）/ Selected 兩端 task 同步亮 brand（shapes.jsx + index.jsx 配套）。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: 'Design system overhaul — PR-1~PR-6 一次到位（token + Button + Modal + Callout + Chip + 8 種節點分色 + Selected）',
     items: [
       '**緣由**：使用者提供 design_handoff_flowsprite 設計手冊（README + Design Guideline.html + tokens.css + components.css）。Audit 後拍板 6 個改動方向（**Canvas Violation 不做**、Chip 從 Modal+Callout PR 拆出獨立 PR）— 一次到位、單 PR 統籌。',

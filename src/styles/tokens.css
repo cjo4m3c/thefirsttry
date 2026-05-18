@@ -109,8 +109,16 @@
   --font-sans: 'Microsoft JhengHei', '微軟正黑體', 'PingFang TC',
                'Noto Sans TC', -apple-system, BlinkMacSystemFont,
                'Segoe UI', system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas,
-               'Liberation Mono', 'Courier New', monospace;
+  /*
+   * 2026-05-18：使用者「全站的中英文字體要拉齊」— 雖然 spec 規定數字 /
+   * 編號 / 時間戳用 JetBrains Mono、但使用者偏好整站單一字體（中文 /
+   * 英文 / 數字皆同）。`--font-mono` 改成跟 `--font-sans` 同 stack、
+   * 所有用 `font-mono` / `var(--font-mono)` 的地方自動 fallback 到 sans。
+   * 視覺效果：L3 編號 chip、TaskCard L4 number、ChangelogPanel 日期、
+   * CloneFlowModal L3 字串等都改用 sans 渲染。
+   * 若未來要恢復 mono、改回 `ui-monospace, SFMono-Regular, ...` stack。
+   */
+  --font-mono: var(--font-sans);
 
   /* ============================================================
      TYPOGRAPHY — 字級 7 階
