@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import ConnectionSection from '../ConnectionSection.jsx';
 import { ReorderButtons } from '../reorderButtons.jsx';
-import { CONN_ROW_BG } from '../../utils/taskDefs.js';
+// CONN_ROW_BG / INTERACTION_ROW_BG 已不再使用、卡片背景改用 KIND_CARD_STYLE
+// 依節點類型配色（spec §11、2026-05-18 PR-5）。
 import {
   ELEMENT_TYPES, detectElementKind, makeTypeChange, applyRoleChange,
   KIND_SHORT_LABEL, KIND_BADGE, KIND_BADGE_FALLBACK,
+  KIND_CARD_STYLE, KIND_CARD_STYLE_FALLBACK,
 } from '../../utils/elementTypes.js';
 import { formatConnection } from '../../model/connectionFormat.js';
 
@@ -13,8 +15,6 @@ import { formatConnection } from '../../model/connectionFormat.js';
 // (default light grey) — earlier they shared the same `sequence` row bg
 // and looked identical in the editor despite rendering differently on
 // the diagram. Gateways / start / end / l3activity keep their existing
-// connectionType-driven palette via CONN_ROW_BG.
-const INTERACTION_ROW_BG = '#F1F5F9';   // slate-100, mirrors diagram's `#A0A0A0` interaction fill in a lighter form
 
 // KIND_SHORT_LABEL / KIND_BADGE moved to utils/elementTypes.js (PR 2026-05-06)
 // — shared with ContextMenu header so the chip + colour stays in sync.
@@ -38,21 +38,22 @@ export default function TaskCard({ task, roles, allTasks, displayLabels, onUpdat
   canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
   const ct = task.connectionType || 'sequence';
   const num = displayLabels[task.id];
-  const rowBg = ct === 'sequence' && task.shapeType === 'interaction'
-    ? INTERACTION_ROW_BG
-    : CONN_ROW_BG[ct] || '#FAFAFA';
   const nameOptional = ct === 'start' || ct === 'end';
   const currentKind = detectElementKind(task);
   const kindLabel = KIND_SHORT_LABEL[currentKind] || '';
   const kindBadge = KIND_BADGE[currentKind] || KIND_BADGE_FALLBACK;
+  // 2026-05-18 對齊 spec §11：卡片背景 + 邊框依「節點類型」配色（5% mix 卡背 +
+  // 22% mix 邊框、外部 6% / 包容 25%）。取代原本依 connectionType 的 CONN_ROW_BG
+  // — 元件類型是 SOT、連線型態是衍生屬性，視覺應跟元件類型對齊。
+  const cardStyle = KIND_CARD_STYLE[currentKind] || KIND_CARD_STYLE_FALLBACK;
   const kindDescription = KIND_DESCRIPTION[currentKind] || '';
   const annotation = formatConnection(task, allTasks || [], displayLabels || {});
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div
-      className="rounded-lg border border-gray-200 select-none"
-      style={{ background: rowBg }}>
+      className="rounded-lg border select-none"
+      style={{ background: cardStyle.bg, borderColor: cardStyle.border }}>
 
       {/* All three rows share the same 5-column flex layout so columns
           align vertically:
