@@ -1,11 +1,11 @@
 /**
  * astar.js — A* orthogonal path finder with cost-based visual preferences.
  *
- * Cost function (v1.10) per-cell：
+ * Cost function (v1.12) per-cell：
  *   cost = 1                                                    // 基本移動
  *        + turnPenalty(turnCount)  if isTurn                    // dim 0: 累進 turn
  *        + max(0, PROXIMITY_BONUS - distFromObstacle) if !stub  // dim 1: corridor 中央
- *        + getOccupyPenalty(cell, dir, src, tgt)                // dim 2: smart 占用
+ *        + getOccupyPenalty(cell, dir, src, tgt, entrySide)     // dim 2: smart 占用 (S22 軸延伸)
  *        + centerDist*CENTER_WEIGHT  if !skipRadius && enabled  // dim 4: bend 拉中點
  *
  * dim 5 (Port Reservation) + dim 6 (Coherence) 在 router.js::pickBestPath 加。
@@ -107,6 +107,7 @@ class MinHeap {
  * @param {number} [opts.srcCy]  source task 中心 pixel y
  * @param {number} [opts.tgtCx]  target task 中心 pixel x
  * @param {number} [opts.tgtCy]  target task 中心 pixel y
+ * @param {string} [opts.entrySide]  S22 (v1.12)：target 進入側 'left'|'right'|'top'|'bottom'，給 occupy axis funnel 用
  * @returns {Array<{x,y,dir}>|null}
  */
 export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, opts = {}) {
@@ -198,10 +199,11 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
         proximityCost = Math.max(0, PROXIMITY_BONUS - dist);
       }
 
-      // ─ 維度 2：smart occupy（source/target/dir aware + distance-aware v1.3）─
+      // ─ 維度 2：smart occupy（source/target/dir aware + distance-aware v1.3 + v1.12 S22 軸延伸）─
       // 傳 start/goal cell 讓 grid 算「離 port 距離」，靠近 share、遠離 spread
+      // S22：傳 entrySide 讓 same-target 邊在 port 軸上 share-free，避免進 port 前 1-grid 階梯
       const occupyCost = grid.getOccupyPenalty
-        ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d, start, goal)
+        ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d, start, goal, opts.entrySide)
         : 0;
 
       // ─ 維度 4：center bias（turn cell 偏離 path 中點時加 cost）─

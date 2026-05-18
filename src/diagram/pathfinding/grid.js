@@ -16,11 +16,17 @@ import { GRID_CELL, LAYOUT } from '../constants.js';
 
 export const CELL_SIZE = GRID_CELL;
 
-// Distance-aware OCCUPY 參數（v1.3 + v1.11 S20 不對稱）：
+// Distance-aware OCCUPY 參數（v1.3 + v1.11 S20 不對稱 + v1.12 S22 軸延伸）：
 //   Fork 跟 merge 在語意上不對稱：
 //     - Fork (同 source 多 outgoing): 出來要散開，避免 labels 重疊
 //     - Merge (同 target 多 incoming): 進去要合流，避免接近 target 時各自轉折
 //   對稱套同一 SHARE_RADIUS 是設計缺陷，v1.11 S20 拆成兩個常數。
+//
+// v1.12 S22 進入軸 share-free 延伸：
+//   只靠 SHARE_RADIUS_TARGET=5 (Manhattan 圓) 不夠 — 同 target 邊在 radius 外
+//   被 SHARE_PENALTY=3 推開 1 grid，到 radius 內才合流，產生「進 port 前的小階梯」。
+//   修：對 same-target cell，若位於 port 進入軸（perpDist=0）→ 不限距離 share-free。
+//   讓所有 incoming 邊早早收斂到 port 軸，最後一段乾乾淨淨進 port。
 const SHARE_RADIUS_SOURCE = 2;  // fork: trunk 共享範圍小 → 早分叉
 const SHARE_RADIUS_TARGET = 5;  // merge: tail 共享範圍大 → 提早合流
 const SHARE_PENALTY = 3;
@@ -174,20 +180,22 @@ export class RoutingGrid {
     if (this.inBounds(x, y)) this.occupied.set(y * this.cols + x, meta);
   }
 
-  /** 取得 occupy 在指定方向下的 penalty（distance-aware v1.3）：
+  /** 取得 occupy 在指定方向下的 penalty（distance-aware v1.3 + v1.12 S22 軸延伸）：
    *
    * 同 source / 同 target 的 share 行為依「離 port 多遠」而定：
    *   - 距離 port ≤ SHARE_RADIUS：共享免費 (trunk/tail，視覺上看起來「從同一個 port 出入」)
    *   - 距離 port > SHARE_RADIUS：spread (SHARE_PENALTY，遠端強迫分流)
    *
-   * 解決 v1.2 殘留問題：
-   *   - 多 fork 共享過度 → labels 重疊：現在 trunk 共享，遠端 spread ✓
-   *   - 多 merge 全程 spread → 接近 target 反而 spread：現在 tail 合流，遠端 spread ✓
+   * v1.12 S22：merge 端額外加「軸延伸 share-free」—
+   *   位於 target port 進入軸（perpDist=0）的 cell 不限距離 share-free。
+   *   解「進 port 前 1-grid 階梯」：incoming 邊提早收斂到 port 軸，最後一段直達。
    *
    * 同方向重疊：高 penalty 80（避免平行重疊）
    * 垂直交叉：低 penalty 8（允許交叉）
+   *
+   * @param {string} [entrySide] — 'left'|'right'|'top'|'bottom'，S22 用來判斷 port 軸方向
    */
-  getOccupyPenalty(x, y, mySource, myTarget, myDir, startCell, goalCell) {
+  getOccupyPenalty(x, y, mySource, myTarget, myDir, startCell, goalCell, entrySide) {
     if (!this.inBounds(x, y)) return 0;
     const stored = this.occupied.get(y * this.cols + x);
     if (!stored) return 0;
@@ -203,6 +211,13 @@ export class RoutingGrid {
       if (goalCell) {
         const d = Math.abs(x - goalCell.x) + Math.abs(y - goalCell.y);
         if (d <= SHARE_RADIUS_TARGET) return 0;  // 靠近 target port，tail 合流 (merge 提早共享)
+        // S22 (v1.12)：軸延伸 share-free。incoming 邊收斂到 port 軸，避免 1-grid 階梯。
+        // 垂直 port (top/bottom)：軸是 x=goalCell.x；水平 port (left/right)：軸是 y=goalCell.y。
+        if (entrySide === 'top' || entrySide === 'bottom') {
+          if (x === goalCell.x) return 0;
+        } else if (entrySide === 'left' || entrySide === 'right') {
+          if (y === goalCell.y) return 0;
+        }
       }
       return SHARE_PENALTY;
     }
