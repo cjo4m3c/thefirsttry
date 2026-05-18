@@ -86,8 +86,15 @@ FlowSprite/
 └── src/
     ├── main.jsx                   # React entry
     ├── App.jsx                    # Route: Dashboard / Wizard / FlowEditor
-    ├── index.css                  # Tailwind + logo 動畫 + scrollbar
+    ├── index.css                  # @import tokens.css + Tailwind + logo 動畫 + scrollbar
+    ├── styles/
+    │   └── tokens.css             # Design tokens 單一來源（CSS variables：色 / 字 / 間距 / 圓角 / 陰影 / canvas state）— PR #220 對齊 design_handoff_flowsprite spec、改 hex 改這一個檔
     ├── components/
+    │   ├── ui/                    # Base 元件層（PR #220-221 建立、對齊 spec 設計手冊）
+    │   │   ├── Button.jsx         # variants: default / primary / ghost / danger × sizes: md / sm / xs
+    │   │   ├── Modal.jsx          # Modal + ModalBody + ModalFoot 三件組（ESC dismiss + backdrop click + body scroll lock）
+    │   │   ├── Callout.jsx        # 4 色語意提示（info / warning / danger / success + 可選 onDismiss）
+    │   │   └── Chip.jsx           # 標籤：default / internal / external / id / more
     │   ├── Dashboard.jsx          # 首頁清單、Excel 上傳、批量操作（單檔 26KB，仍在拆檔 backlog）
     │   ├── Wizard.jsx             # 新增 L3 的 2 步驟精靈（L3 資訊 → 角色），完成後進 FlowEditor
     │   ├── FlowEditor/            # 編輯 L3 主控（PR-3 拆 7 檔；index.jsx + Header / DrawerContent / TaskCard / SaveModals / useFlowActions / validateFlow）
