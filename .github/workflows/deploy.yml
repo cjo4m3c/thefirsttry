@@ -1,9 +1,10 @@
 name: Deploy to GitHub Pages
 
+# 停用：main-only 部署已整合進 deploy-test-astar.yml，
+# 觸發條件同時含 main + A* 分支，合併 deploy 兩個版本。
+# 若再次啟用需確認不會覆蓋 test-astar/ 子路徑。
+
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:

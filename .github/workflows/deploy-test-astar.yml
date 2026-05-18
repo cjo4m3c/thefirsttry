@@ -5,10 +5,14 @@ name: Deploy A* POC to GitHub Pages
 #   /FlowSprite/test-astar/  ← 戊 A* (自家 grid-based router，未來取代 main)
 #
 # 早期的 ELK 系列試驗（甲 V1 / 乙 Deep-A / 丙 Deep-B）已於 2026-05-13 砍除。
+#
+# 觸發條件：main 或 A* 分支任一 push 都重新 deploy 兩者合併版本。
+# deploy.yml (main-only) 已停用，避免覆蓋掉 test-astar/ 子路徑。
 
 on:
   push:
     branches:
+      - main
       - claude/test-link-open-source-kKqHk
   workflow_dispatch:
 
@@ -45,7 +49,7 @@ jobs:
       - name: Checkout A* branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: claude/test-link-open-source-kKqHk
           path: astar-source
 
       - name: Install A* dependencies
