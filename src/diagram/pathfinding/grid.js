@@ -40,13 +40,18 @@ const SHARE_PENALTY = 3;
 
 // v1.15 Halo (視覺距離 unified §10.5.1)：補上 dim 2 對稱 dim 1 推開範圍。
 // markPathOccupied 在每 path cell perpendicular 方向 ±HALO_RADIUS cells 標 halo。
-// 異 source/target same/opposite dir halo cells 按距離遞減 penalty，A* 偏 2-3 cells
-// 而非 1 cell 緊貼。同 source/target halo 不罰（share-free 不擴大則 fork/merge 退化）。
-//   penalty[d=1] = 30  (介於 OCCUPY_SAME_DIR=80 跟 OCCUPY_PERP=8 中間, 強 spread 但不阻擋)
-//   penalty[d=2] = 10  (遞減, 接近 perpendicular crossing)
+//   異 source/target same/opposite dir halo cells: 按距離遞減 penalty (30/10)
+//     A* 偏 2-3 cells 而非 1 cell 緊貼。
+//   v1.16 同 source/target halo: 改用低 penalty (5/2) 而非 0
+//     原 v1.15 設 0 為了不破壞 fork/merge share-free，但 fork trunks 之間因此只
+//     spread 1 cell 緊貼（情境 4-c）。改成低 penalty：share-free 圓內 + 軸延伸仍
+//     0（在 getOccupyPenalty 主路徑分支處理），只有 halo cells 收 5/2 penalty，
+//     讓 fork trunks 自然 spread 2+ cells 而不破壞 v1.12 S22/S23 軸延伸 share-free。
 export const HALO_RADIUS = 2;
-const HALO_PENALTY_NEAR = 30;  // d=1
-const HALO_PENALTY_FAR  = 10;  // d=2
+const HALO_PENALTY_NEAR = 30;       // d=1 異 src/tgt
+const HALO_PENALTY_FAR  = 10;       // d=2 異 src/tgt
+const HALO_PENALTY_SAME_NEAR = 5;   // v1.16: d=1 同 src/tgt (fork trunk spread)
+const HALO_PENALTY_SAME_FAR  = 2;   // v1.16: d=2 同 src/tgt
 
 // Port reservation 參數（v1.5 維度 5）：
 //   同 port 反向使用（IN+OUT 混用）違反 business-spec §5 規則 1。
@@ -252,12 +257,19 @@ export class RoutingGrid {
     if (!stored) return 0;
 
     // v1.15 Halo cell (視覺距離 unified §10.5.1)：補 dim 2 對稱 dim 1 推開範圍。
-    // 同 source/target halo → 0 (share-free 擴大不影響 fork/merge)
-    // 異 + same/opposite dir → 遞減 penalty (距離越近罰越多)
-    // 異 + perpendicular → 0 (允許交叉)
+    // v1.16 修：同 source/target halo 改用低 penalty (5/2) 而非 0 — fork trunks
+    // 互相 spread 2+ cells (情境 4-c)。share-free 軸延伸 + 圓內仍在主路徑分支
+    // 處理，halo 不影響該邏輯。
     if (stored.haloDist !== undefined) {
-      if (stored.sourceId === mySource || stored.targetId === myTarget) return 0;
-      if (stored.dir === myDir || stored.dir === oppositeDir(myDir)) {
+      const sameSrcTgt = (stored.sourceId === mySource || stored.targetId === myTarget);
+      const sameDir = (stored.dir === myDir || stored.dir === oppositeDir(myDir));
+      if (sameSrcTgt) {
+        // v1.16: 同 src/tgt halo 也罰但更輕 → fork/merge trunk 間距 2+ cells
+        if (!sameDir) return 0;  // perpendicular halo 仍允許
+        return stored.haloDist === 1 ? HALO_PENALTY_SAME_NEAR : HALO_PENALTY_SAME_FAR;
+      }
+      // 異 src/tgt halo
+      if (sameDir) {
         return stored.haloDist === 1 ? HALO_PENALTY_NEAR : HALO_PENALTY_FAR;
       }
       return 0;
