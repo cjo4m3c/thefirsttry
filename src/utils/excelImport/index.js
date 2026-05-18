@@ -104,10 +104,14 @@ export function parseExcelToFlow(arrayBuffer) {
 
   const flows = groups.map(group => buildFlow(group, auxColMap));
 
-  // PR-D12: per-flow importWarnings 用於 (a) Dashboard banner 集中顯示
-  // (b) FlowEditor 開啟流程時頂部 banner、可使用者主動 dismiss。
-  // 每個 flow 自己累積；最後 flatMap 成全域 warnings 給 Dashboard。
-  flows.forEach(flow => { flow.importWarnings = []; });
+  // 2026-05-13 拆兩個 array（使用者：「把實際有改的和純提醒區別開來」）：
+  //   - importFixes：A 自動補子流程 / B 自動調整 L4 / C 結束事件 _x 自動更新
+  //     （系統已替使用者改資料；headline + detail lines 全進此 bucket）
+  //   - importNotices：D 合併目標 incoming 不足 / E validation warnings /
+  //     F cross-row / G 閘道鏈 / H ❌ blocking（系統沒改、純提醒檢視）
+  // FlowEditor + Dashboard 兩處 banner 都讀這兩個 array，分區塊顯示計數。
+  // 舊資料 (importWarnings 單一 array) 由 storage/migrations.js migrateImportWarningsToFixes 一次性拆出。
+  flows.forEach(flow => { flow.importFixes = []; flow.importNotices = []; });
 
   // PR (2026-05-06): surface auto-added L3 activity elements (created when
   // a gateway branch said「調用子流程 X-Y-Z」 but no `_s` row existed).
@@ -123,12 +127,12 @@ export function parseExcelToFlow(arrayBuffer) {
     const headlineGlobal = `${pfx}已自動補上 ${adds.length} 個子流程元件（閘道分支寫了「調用子流程」但 Excel 沒對應的 _s 列，依規則自動建立）：`;
     const headlineFlow = `已自動補上 ${adds.length} 個子流程元件：`;
     autoSubWarnings.push(headlineGlobal);
-    flow.importWarnings.push(headlineFlow);
+    flow.importFixes.push(headlineFlow);
     adds.forEach(a => {
       const branchTag = a.branchLabel ? `「${a.branchLabel}」分支` : '分支';
       const line = `${a.sub}（調用 ${a.calledL3}）— 由閘道 ${a.gateway} 的${branchTag}建立`;
       autoSubWarnings.push(line);
-      flow.importWarnings.push(line);
+      flow.importFixes.push(line);
     });
   });
 
@@ -141,7 +145,7 @@ export function parseExcelToFlow(arrayBuffer) {
       const headlineGlobal = `${pfx}已自動調整 ${fixes.length} 個 L4 編號以符合規則：`;
       const headlineFlow = `已自動調整 ${fixes.length} 個 L4 編號以符合規格：`;
       normalizeWarnings.push(headlineGlobal);
-      flow.importWarnings.push(headlineFlow);
+      flow.importFixes.push(headlineFlow);
       fixes.forEach(f => {
         // PR-D12: include Excel row number so user can locate the offending
         // row in their source file (was `「name」 X → Y` only).
@@ -153,7 +157,7 @@ export function parseExcelToFlow(arrayBuffer) {
           ? `${rowTag}「${f.name}」 ${f.before} → ${f.after}`
           : `「${f.name}」 ${f.before} → ${f.after}`;
         normalizeWarnings.push(line);
-        flow.importWarnings.push(line);
+        flow.importFixes.push(line);
       });
     }
   });
@@ -176,7 +180,7 @@ export function parseExcelToFlow(arrayBuffer) {
     const lines = collectMergeIncomingWarnings(flow.tasks, flow.l3Number, l4Map);
     if (lines.length > 0) {
       mergeWarnings.push(...lines);
-      flow.importWarnings.push(...lines);
+      flow.importNotices.push(...lines);
     }
   });
 
@@ -206,7 +210,7 @@ export function parseExcelToFlow(arrayBuffer) {
     const warned  = filteredW.map(w => `${pfx}${w}`);
     validationLines.push(...blocked, ...warned);
     if (filteredB.length || filteredW.length) {
-      flow.importWarnings.push(...filteredB.map(b => `❌ ${b}`), ...filteredW);
+      flow.importNotices.push(...filteredB.map(b => `❌ ${b}`), ...filteredW);
     }
   });
 
@@ -217,11 +221,15 @@ export function parseExcelToFlow(arrayBuffer) {
     const xlRow = m ? parseInt(m[1], 10) : null;
     const l3 = xlRow ? l3OfRow[xlRow] : null;
     const target = l3 ? flows.find(f => f.l3Number === l3) : null;
-    if (target) target.importWarnings.push(line);
+    if (target) target.importNotices.push(line);
   });
 
   return {
     flows,
-    warnings: [...autoSubWarnings, ...normalizeWarnings, ...mergeWarnings, ...warnings, ...validationLines],
+    // 2026-05-13 split：Dashboard banner 分兩個 section 顯示。
+    // - fixes：系統實際改過的（自動補 / 自動調整）
+    // - notices：純提醒（merge / validation / cross-row / blocking）
+    fixes:   [...autoSubWarnings, ...normalizeWarnings],
+    notices: [...mergeWarnings, ...warnings, ...validationLines],
   };
 }
