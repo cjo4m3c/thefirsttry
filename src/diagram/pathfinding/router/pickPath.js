@@ -199,15 +199,51 @@ function computePath(grid, src, tgt, sides, sourceId, targetId) {
   const tgtPortPx = tgt[sides.entry];
   if (!srcPortPx || !tgtPortPx) return null;
 
-  // Start cell：source port 外一步（沿 exit 方向走出 task）
-  // Goal cell：target port 外一步（沿 entry 反方向走出 task）
+  // v1.15 STUB_LENGTH (視覺距離 unified §10.5.1)：startCell / goalCell 內縮 K cells
+  // 沿 exit / entry 軸，A* 搜索只跑中段；stub 段預定軌跡（直走 K cells）由 pxPath
+  // setup 接到 port。解情境 2「stub 1 grid 進 port、箭頭跟元件邊框重疊」。
+  //
+  // 為什麼 hard 內縮而非 cost penalty：v1.13 S24 用 soft penalty 罰 turn cell 在
+  // endpoint <3 → A* 找 3-turn 替代路徑繞過。Hard 移出搜尋範圍 A* 無從繞過。
+  //
+  // Fallback：短 path 兩端 stub 加總 ≤ manhattan 的 2/3，留 1/3 給中段彎折。
+  const STUB_LENGTH = 3;
+  const srcCell = grid.toCell(srcPortPx.x, srcPortPx.y);
+  const tgtCell = grid.toCell(tgtPortPx.x, tgtPortPx.y);
+  const portManhattanCells =
+    Math.abs(srcCell.x - tgtCell.x) + Math.abs(srcCell.y - tgtCell.y);
+  const effectiveStub = portManhattanCells < 2 * STUB_LENGTH
+    ? Math.max(1, Math.floor(portManhattanCells / 3))
+    : STUB_LENGTH;
+
+  // Start cell：source port 外 effectiveStub 步（沿 exit 方向走出 task）
+  // Goal cell：target port 外 effectiveStub 步（沿 entry 反方向走出 task）
   const sd = dirDelta(sides.exit);
-  const startCell = grid.toCell(srcPortPx.x + sd.dx * grid.cellSize, srcPortPx.y + sd.dy * grid.cellSize);
-  grid.unblock(startCell.x, startCell.y);
+  const startCell = grid.toCell(
+    srcPortPx.x + sd.dx * grid.cellSize * effectiveStub,
+    srcPortPx.y + sd.dy * grid.cellSize * effectiveStub
+  );
+  // Unblock all stub cells from port to startCell（沿 exit 軸的 K 個 cells）
+  for (let s = 1; s <= effectiveStub; s++) {
+    const c = grid.toCell(
+      srcPortPx.x + sd.dx * grid.cellSize * s,
+      srcPortPx.y + sd.dy * grid.cellSize * s
+    );
+    grid.unblock(c.x, c.y);
+  }
 
   const td = dirDelta(sides.entry);
-  const goalCell = grid.toCell(tgtPortPx.x + td.dx * grid.cellSize, tgtPortPx.y + td.dy * grid.cellSize);
-  grid.unblock(goalCell.x, goalCell.y);
+  const goalCell = grid.toCell(
+    tgtPortPx.x + td.dx * grid.cellSize * effectiveStub,
+    tgtPortPx.y + td.dy * grid.cellSize * effectiveStub
+  );
+  for (let s = 1; s <= effectiveStub; s++) {
+    const c = grid.toCell(
+      tgtPortPx.x + td.dx * grid.cellSize * s,
+      tgtPortPx.y + td.dy * grid.cellSize * s
+    );
+    grid.unblock(c.x, c.y);
+  }
 
   const startDir = sideToDir(sides.exit);
   // S19 (v1.10)：斜軸 candidate 關 Center Bias，讓 1-bend corner bend 不被誤罰
