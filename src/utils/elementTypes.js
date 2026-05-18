@@ -122,7 +122,9 @@ export const KIND_CARD_STYLE = {
   // 2026-05-18：task 卡背從 spec 規定的 card 白 → brand-light 12% mix
   // (`#EFF7FC` 淺 sky)。使用者偏好「task 也視覺辨識」、跟其他 7 類型有
   // mix 卡背一致（spec 原規定只 task / start / end 用白）。
-  task:           { bg: 'color-mix(in oklch, var(--brand-light) 12%, var(--card))',         border: 'color-mix(in oklch, var(--brand-light) 22%, var(--card))' },
+  // task border 30% mix (`#C8E2EE`) — 比預設 22% mix 略深、提升「task 卡」
+  // 跟周遭視覺辨識度（使用者 2026-05-18 指定）。
+  task:           { bg: 'color-mix(in oklch, var(--brand-light) 12%, var(--card))',         border: 'color-mix(in oklch, var(--brand-light) 30%, var(--card))' },
   interaction:    { bg: 'color-mix(in oklch, var(--external-node) 6%, var(--card))',        border: 'color-mix(in oklch, var(--external-node) 22%, var(--card))' },
   'gateway-xor':  { bg: 'color-mix(in oklch, var(--warning) 5%, var(--card))',              border: 'color-mix(in oklch, var(--warning) 22%, var(--card))' },
   'gateway-and':  { bg: 'color-mix(in oklch, var(--success) 5%, var(--card))',              border: 'color-mix(in oklch, var(--success) 22%, var(--card))' },

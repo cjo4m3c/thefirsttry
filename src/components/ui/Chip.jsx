@@ -23,7 +23,10 @@ const VARIANTS = {
   default:  'bg-card border-line text-ink',
   internal: 'bg-internal border-internal text-white',
   external: 'bg-external border-external text-white',
-  id:       'bg-brand border-brand text-white tracking-wider',
+  // 2026-05-18：id chip 從 bg-brand `#006EBC` 改 bg-brand-dark `#2A5598`
+  // — 使用者：「首頁 L3 編號改用品牌深色輔色」。視覺上深一階、跟 Header
+  // / Canvas head 同色階對齊。
+  id:       'bg-brand-dark border-brand-dark text-white tracking-wider',
   more:     'bg-paper-2 border-line text-ink-soft',
 };
 
