@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-18',
+    title: '全站字體拉齊 — `--font-mono` 改 fallback 到 `--font-sans`',
+    items: [
+      '**緣由**：使用者「全站的中英文字體要拉齊，像是現在 L3 編號就用了不一樣的字體」。Spec 規定 mono 字型用於編號 / 數字 / 時間戳、但使用者偏好整站單一字體。',
+      '**修法**：`src/styles/tokens.css` `--font-mono` 從獨立 mono stack (`ui-monospace, SFMono-Regular, Menlo, ...`) 改成 `var(--font-sans)` — 自動 fallback 到 sans。一行修改、影響所有使用 `font-mono` / `var(--font-mono)` 的地方（不用逐個元件改）。',
+      '**受影響的元件**（全部自動拉齊到 sans）：(a) Dashboard FlowCard L3 chip（PR #220 Chip id variant）(b) TaskCard L4 number 顯示 (c) ContextMenu header L4 number (d) ChangelogPanel 日期欄 (e) CloneFlowModal L3 字串顯示 + input (f) DuplicateImportModal L3 number (g) HelpPanel 規則 / 副檔名標籤 (h) tokens.css `.t-mono` utility class。',
+      '**未來若想恢復 mono**：改回 `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` 即可、`var(--font-mono)` references 自動切回。',
+      '**動到的檔案（2 個）**：`src/styles/tokens.css`（一行 + 4 行歷史註解）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) L3 chip 數字現在用 Microsoft JhengHei sans、跟旁邊「{l3Name}」標題字體一致 (b) TaskCard L4 number 同 sans (c) 整站任何 `font-mono` class 都自動 fallback。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: 'Design system follow-up — Banners → Callout（Dashboard + FlowEditor 視覺一致）',
     items: [
       '**緣由**：PR #220 建立了 `<Callout>` base 元件但尚未套用既有 banner。本 PR 完成 Dashboard 3 個 banner（ImportError / ImportSuccess / ImportWarnings）+ FlowEditor importFixes/Notices banner 的 Callout 化、視覺與內部一致。',
