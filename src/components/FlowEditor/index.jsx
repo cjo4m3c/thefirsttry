@@ -180,9 +180,9 @@ export default function FlowEditor({ flow, onBack, onSave }) {
 
   // PR-D12: dismiss import-warnings banner. Persists immediately (bypasses
   // validateFlow / hasChanges) so a single click clears the banner without
-  // requiring a save action. Only this field is touched.
+  // requiring a save action. 2026-05-13：清 importFixes + importNotices 兩個 array。
   function handleDismissImportWarnings() {
-    const updated = { ...liveFlow, importWarnings: [] };
+    const updated = { ...liveFlow, importFixes: [], importNotices: [] };
     setLiveFlow(updated);
     saveFlow(updated);
   }
@@ -216,26 +216,51 @@ export default function FlowEditor({ flow, onBack, onSave }) {
             cross-check messages saved on this flow at import time. User
             clicks ✕ to permanently dismiss (saves the cleared array to
             localStorage so reopening the flow doesn't re-show). */}
-        {Array.isArray(liveFlow.importWarnings) && liveFlow.importWarnings.length > 0 && (
-          <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-300 text-sm text-amber-800">
-            <div className="flex items-start gap-2 mb-1.5">
-              <span className="flex-shrink-0 font-bold">⚠</span>
-              <span className="font-medium flex-1">
-                匯入時自動調整了 {liveFlow.importWarnings.length} 筆內容（不影響使用，建議檢視 Excel 原始檔對照）
-              </span>
-              <button
-                onClick={handleDismissImportWarnings}
-                className="ml-auto text-amber-500 hover:text-amber-700 font-bold flex-shrink-0"
-                title="不再顯示此提醒"
-              >✕</button>
+        {/* 2026-05-13 拆兩段顯示：fixes（已自動改）vs notices（純提醒）。
+            標題雙計數、各自一個 ul section；空 array section 不顯示；
+            兩個都空才整個 banner 不渲染。一鍵 ✕ 同時 dismiss 兩段。 */}
+        {(() => {
+          const fixes = Array.isArray(liveFlow.importFixes) ? liveFlow.importFixes : [];
+          const notices = Array.isArray(liveFlow.importNotices) ? liveFlow.importNotices : [];
+          if (fixes.length === 0 && notices.length === 0) return null;
+          const parts = [];
+          if (fixes.length > 0) parts.push(`系統已自動調整 ${fixes.length} 筆內容`);
+          if (notices.length > 0) parts.push(`另有 ${notices.length} 筆建議檢視（未自動處理）`);
+          const headline = `匯入提醒：${parts.join('；')}（建議檢視 Excel 原始檔對照）`;
+          return (
+            <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-300 text-sm text-amber-800">
+              <div className="flex items-start gap-2 mb-1.5">
+                <span className="flex-shrink-0 font-bold">⚠</span>
+                <span className="font-medium flex-1">{headline}</span>
+                <button
+                  onClick={handleDismissImportWarnings}
+                  className="ml-auto text-amber-500 hover:text-amber-700 font-bold flex-shrink-0"
+                  title="不再顯示此提醒"
+                >✕</button>
+              </div>
+              {fixes.length > 0 && (
+                <div className="ml-5 mb-2">
+                  <div className="font-semibold text-amber-900 mb-0.5">已自動調整（{fixes.length}）</div>
+                  <ul className="ml-4 max-h-48 overflow-y-auto pr-1 space-y-0.5 list-disc">
+                    {fixes.map((w, i) => (
+                      <li key={i} className="whitespace-pre-wrap">{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {notices.length > 0 && (
+                <div className="ml-5">
+                  <div className="font-semibold text-amber-900 mb-0.5">建議檢視（{notices.length}）</div>
+                  <ul className="ml-4 max-h-48 overflow-y-auto pr-1 space-y-0.5 list-disc">
+                    {notices.map((w, i) => (
+                      <li key={i} className="whitespace-pre-wrap">{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-            <ul className="ml-5 max-h-64 overflow-y-auto pr-1 space-y-0.5 list-disc">
-              {liveFlow.importWarnings.map((w, i) => (
-                <li key={i} className="whitespace-pre-wrap">{w}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Diagram — always visible. ref exposes exportPng/Drawio/Excel
             imperatively so the Header download dropdown can trigger them. */}

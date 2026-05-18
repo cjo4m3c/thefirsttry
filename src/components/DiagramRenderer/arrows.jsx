@@ -14,10 +14,18 @@ const HOVER_OUT_STROKE = '#2A5598'; // primary deep blue — where this element 
 const HOVER_IN_STROKE  = '#7AB5DD'; // light blue        — what FEEDS INTO this element
 
 export function ArrowMarkers() {
+  // Default / dashed / violation markers 8×6 → 12×9（+50%、PR #213）— L4
+  // number pill (opacity 0.6 白底) 蓋住 tip 時、加大可視範圍提升辨識度。
+  // refX/refY 同比例放大保持 apex 對齊連線端點。
+  //
+  // Hover 變體（ah-hover / ah-hover-out / ah-hover-in）2026-05-13 起改回
+  // 原本 8×6 — 使用者：「hover 過的箭頭不要跟著變大、維持原本就好」。
+  // 理由：hover state 的線 stroke 已從 1.4 加粗到 2.5、若 marker 又放大
+  // 整體變得過於厚重。預設箭頭保留 12×9 提升靜態辨識度，hover 仍精緻。
   return (
     <defs>
-      <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-        <polygon points="0 0, 8 3, 0 6" fill={COLORS.ARROW_COLOR} />
+      <marker id="ah" markerWidth="12" markerHeight="9" refX="12" refY="4.5" orient="auto">
+        <polygon points="0 0, 12 4.5, 0 9" fill={COLORS.ARROW_COLOR} />
       </marker>
       <marker id="ah-hover" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill={HOVER_STROKE} />
@@ -28,11 +36,11 @@ export function ArrowMarkers() {
       <marker id="ah-hover-in" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill={HOVER_IN_STROKE} />
       </marker>
-      <marker id="ah-dashed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-        <polygon points="0 0, 8 3, 0 6" fill={COLORS.ARROW_COLOR} />
+      <marker id="ah-dashed" markerWidth="12" markerHeight="9" refX="12" refY="4.5" orient="auto">
+        <polygon points="0 0, 12 4.5, 0 9" fill={COLORS.ARROW_COLOR} />
       </marker>
-      <marker id="ah-violation" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-        <polygon points="0 0, 8 3, 0 6" fill={VIOLATION_STROKE} />
+      <marker id="ah-violation" markerWidth="12" markerHeight="9" refX="12" refY="4.5" orient="auto">
+        <polygon points="0 0, 12 4.5, 0 9" fill={VIOLATION_STROKE} />
       </marker>
     </defs>
   );

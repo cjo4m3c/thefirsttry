@@ -3,6 +3,7 @@ import { toPng } from 'html-to-image';
 import { computeLayout, routeArrow } from '../../diagram/layout.js';
 import { detectOverrideViolations } from '../../diagram/violations.js';
 import { getLaneShapeViolations } from '../../model/flowSelectors.js';
+import { autoSpace } from '../../utils/autoSpace.js';
 import { LAYOUT, COLORS } from '../../diagram/constants.js';
 import { exportDrawio } from '../../utils/drawioExport.js';
 import { exportFlowToExcel } from '../../utils/excelExport.js';
@@ -294,7 +295,7 @@ const DiagramRenderer = forwardRef(function DiagramRenderer({ flow, autoExportPn
           <text x={svgWidth / 2} y={TITLE_H / 2} textAnchor="middle" dominantBaseline="middle"
             fill={COLORS.TITLE_TEXT} fontSize={22} fontWeight="bold"
             fontFamily="Microsoft JhengHei, PingFang TC, sans-serif">
-            {flow.l3Number}　{flow.l3Name}　—　業務活動泳道圖
+            {flow.l3Number}　{autoSpace(flow.l3Name)}　—　業務活動泳道圖
           </text>
 
           {/* Lane backgrounds + bottom borders. Role-header rect + name +

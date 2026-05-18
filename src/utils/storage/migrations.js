@@ -7,6 +7,7 @@
  * Order matters when chained: see `migrateFlow` in `../storage.js`.
  */
 import { ensureMeta } from '../auxFieldDefs.js';
+import { computeDisplayLabels } from '../../model/flowSelectors.js';
 
 export function normalizeNumber(raw) {
   return raw == null ? raw : String(raw).replace(/\./g, '-');
@@ -227,6 +228,62 @@ export function migrateInteractionSuffix(tasks) {
 }
 
 /**
+ * 2026-05-13: end-event `_x{K}` suffix alignment (spec lift to match the
+ * external BPMN connection rule + Excel formula). Two legacy shapes get
+ * rewritten so persisted l4Number matches what `computeDisplayLabels`
+ * renders:
+ *   (a) Multi-end flow with all ends still on plain `-99` — rewrite to
+ *       `-99_x1` / `-99_x2` / … in task-array order.
+ *   (b) Multi-end flow with gap or mis-ordered `_x` indices (e.g. `_x3`
+ *       but only 2 ends) — renumber consecutively from 1.
+ *   (c) Single-end flow with stale `-99_x1` — rewrite back to `-99`.
+ *
+ * Returns `{ tasks, fixes }`. Caller (storage.migrateFlow) emits a
+ * user-visible importWarning when fixes is non-empty and persists the
+ * rewritten flow back to localStorage so the warning fires once, not on
+ * every load.
+ *
+ * Idempotent — re-running on already-correct data returns `fixes: []`
+ * and same-ref tasks.
+ */
+export function migrateEndSuffix(tasks, l3Number) {
+  if (!Array.isArray(tasks) || !l3Number) return { tasks, fixes: [] };
+  const isEndTask = t => {
+    if (!t) return false;
+    const ct = t.connectionType || 'sequence';
+    return t.type === 'end' || ct === 'end' || ct === 'breakpoint';
+  };
+  const hasAnyEnd = tasks.some(isEndTask);
+  if (!hasAnyEnd) return { tasks, fixes: [] };
+
+  // Strip end l4Numbers so computeDisplayLabels regenerates by position.
+  // Non-end tasks keep their stored l4Number — those have their own
+  // suffix migrations and we don't want to disturb them.
+  const stripped = tasks.map(t => {
+    if (!isEndTask(t)) return t;
+    if (!t.l4Number) return t;
+    const { l4Number, ...rest } = t;
+    return rest;
+  });
+  const expected = computeDisplayLabels(stripped, l3Number);
+
+  const fixes = [];
+  const next = tasks.map(t => {
+    if (!isEndTask(t)) return t;
+    const exp = expected[t.id];
+    if (!exp) return t;
+    if (t.l4Number === exp) return t;
+    fixes.push({
+      before: t.l4Number || '(無編號)',
+      after: exp,
+      name: t.name || '（未命名）',
+    });
+    return { ...t, l4Number: exp };
+  });
+  return fixes.length ? { tasks: next, fixes } : { tasks, fixes: [] };
+}
+
+/**
  * PR-D10 (2026-05-05): align task.type to L4 suffix when they disagree.
  * L4 suffix is the SOT for element type. Catches legacy localStorage data
  * where a manually-edited task.type drifted from its number (e.g. user
@@ -256,11 +313,72 @@ export function migrateTypeFromL4Suffix(tasks) {
       changed = true;
       return { ...t, type: 'start', connectionType: 'start' };
     }
-    if (/-99$/.test(l4)) {
+    if (/-99(_x\d+)?$/.test(l4)) {  // -99 或 -99_x{K}（PR #210 多 end）
       changed = true;
       return { ...t, type: 'end', connectionType: 'end' };
     }
     return t;
   });
   return changed ? next : tasks;
+}
+
+/**
+ * 2026-05-13：把舊版單一 `flow.importWarnings` array 拆成兩個語義不同的
+ * array：
+ *   - `importFixes`：系統自動改過資料的提醒（已自動補上 / 已自動調整 /
+ *     🔧 結束事件編號已自動更新）
+ *   - `importNotices`：純提醒、系統沒改（validation / 合併 incoming /
+ *     cross-row / ❌ blocking）
+ *
+ * Idempotent：flow 已有 `importFixes` 或 `importNotices` 任一欄位 →
+ * 視為已遷移過、直接回傳現值（避免被 `migrateEndSuffix` 重新 push 進
+ * importFixes 後又被誤拆）。
+ *
+ * Heuristic（best effort，舊資料一次性轉換）：
+ *   - 開頭 `已自動補上` / `已自動調整` → fix headline + 後續 lines 跟著 fix
+ *   - 開頭 `🔧` → 單行 fix（不消化後續）
+ *   - 其他（`❌ ` / `[L3 ...]` / `任務 X 未連接...` / merge 提醒等）→ notice
+ *
+ * 由 `storage.migrateFlow` 呼叫；產生的 importFixes / importNotices 寫回
+ * flow 物件（取代舊 importWarnings）。
+ */
+export function migrateImportWarningsToFixes(flow) {
+  if (!flow) return { importFixes: [], importNotices: [] };
+  const hasNew = Array.isArray(flow.importFixes) || Array.isArray(flow.importNotices);
+  if (hasNew) {
+    return {
+      importFixes: Array.isArray(flow.importFixes) ? flow.importFixes : [],
+      importNotices: Array.isArray(flow.importNotices) ? flow.importNotices : [],
+    };
+  }
+  const legacy = Array.isArray(flow.importWarnings) ? flow.importWarnings : [];
+  if (legacy.length === 0) return { importFixes: [], importNotices: [] };
+
+  const fixes = [];
+  const notices = [];
+  let bucket = null;  // 'fix' | null：fix headline 後續 lines 跟著進 fix
+  for (const line of legacy) {
+    if (typeof line !== 'string') { notices.push(String(line)); continue; }
+    if (/^已自動補上/.test(line) || /^已自動調整/.test(line)) {
+      bucket = 'fix';
+      fixes.push(line);
+      continue;
+    }
+    if (/^🔧/.test(line)) {
+      bucket = null;
+      fixes.push(line);
+      continue;
+    }
+    // 視為新 notice 開頭（重置 bucket）的 patterns：blocking / cross-row / merge / validation
+    if (/^❌/.test(line) || /^\[L3 /.test(line) || /^第 \d+ 列/.test(line)
+        || /^任務|^角色|^外部角色|^連線/.test(line)) {
+      bucket = null;
+      notices.push(line);
+      continue;
+    }
+    // 沒匹配到任何 standalone pattern → 視為 detail continuation
+    if (bucket === 'fix') fixes.push(line);
+    else notices.push(line);
+  }
+  return { importFixes: fixes, importNotices: notices };
 }

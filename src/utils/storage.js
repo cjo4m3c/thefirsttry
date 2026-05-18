@@ -4,9 +4,11 @@ import {
   migrateGatewaySuffix,
   migrateSubprocessSuffix,
   migrateInteractionSuffix,
+  migrateEndSuffix,
   migrateMergeConnectionType,
   migrateTaskMeta,
   migrateTypeFromL4Suffix,
+  migrateImportWarningsToFixes,
   cleanStaleOverrides,
 } from './storage/migrations.js';
 
@@ -21,6 +23,12 @@ function migrateFlow(flow) {
   tasks = migrateGatewaySuffix(tasks);
   tasks = migrateSubprocessSuffix(tasks);
   tasks = migrateInteractionSuffix(tasks);
+  // 2026-05-13: end events get `_x{K}` when multi-end exists (spec
+  // alignment with external BPMN / Excel rule). Auto-rewrite legacy
+  // multi-end on `-99` only, and gap-fix mis-numbered `_x` runs. The
+  // fix list goes into importWarnings via loadFlows below.
+  const endFix = migrateEndSuffix(tasks, flow.l3Number);
+  tasks = endFix.tasks;
   tasks = migrateMergeConnectionType(tasks);
   tasks = migrateTaskMeta(tasks);
   tasks = cleanStaleOverrides(tasks);
@@ -33,14 +41,40 @@ function migrateFlow(flow) {
   // PR-D4: ensure `[外部角色]` prefix on legacy external roles missing it.
   // Idempotent — same-ref when already prefixed.
   const roles = applyExternalPrefixToRoles(flow.roles || []);
-  return { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks, roles };
+  // 2026-05-13: 把舊版單一 importWarnings array 拆成 importFixes + importNotices。
+  // Idempotent — 已拆過的 flow（有 importFixes/importNotices 任一）跳過。
+  const { importFixes, importNotices } = migrateImportWarningsToFixes(flow);
+  const out = { ...flow, l3Number: normalizeNumber(flow.l3Number), tasks, roles, importFixes, importNotices };
+  if ('importWarnings' in out) delete out.importWarnings;  // 舊欄位不再使用
+  // Stash end-suffix fixes on the flow; loadFlows turns them into an
+  // importWarning entry and persists the rewritten data so the notice
+  // fires once. Underscore-prefixed key so it can't collide with real
+  // flow fields and gets stripped before persist.
+  if (endFix.fixes.length > 0) out._endMigrationFixes = endFix.fixes;
+  return out;
 }
 
 export function loadFlows() {
   try {
     const raw = localStorage.getItem(FLOWS_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(migrateFlow) : [];
+    if (!Array.isArray(parsed)) return [];
+    const flows = parsed.map(migrateFlow);
+    let mutated = false;
+    flows.forEach(f => {
+      if (!f._endMigrationFixes) return;
+      const diffs = f._endMigrationFixes
+        .map(x => `${x.before} → ${x.after}`).join('、');
+      const msg = `🔧 結束事件編號已自動更新（多結束事件對齊 BPMN 規則）：${diffs}`;
+      // 2026-05-13：寫進 importFixes（這是 fix、不是純提醒）。
+      f.importFixes = [...(Array.isArray(f.importFixes) ? f.importFixes : []), msg];
+      delete f._endMigrationFixes;
+      mutated = true;
+    });
+    if (mutated) {
+      try { localStorage.setItem(FLOWS_KEY, JSON.stringify(flows)); } catch { /* quota / disabled */ }
+    }
+    return flows;
   } catch {
     return [];
   }
@@ -54,7 +88,9 @@ export function saveFlow(flow) {
   if (idx >= 0) {
     flows[idx] = updated;
   } else {
-    flows.push({ ...updated, createdAt: now });
+    // 尊重 caller 帶的 createdAt（例：overwrite 匯入會保留舊 createdAt）；
+    // 真正新建（沒帶 createdAt）才用 now。
+    flows.push({ ...updated, createdAt: flow.createdAt || now });
   }
   localStorage.setItem(FLOWS_KEY, JSON.stringify(flows));
 }
@@ -87,7 +123,7 @@ export function generateId() {
  * Reset (per spec):
  *   - l3Number / l3Name → caller-supplied
  *   - pinned → false
- *   - importWarnings / flowAnnotation → cleared (源 Excel 匯入歷史，不該跟著複本走)
+ *   - importFixes / importNotices / flowAnnotation → cleared (源 Excel 匯入歷史，不該跟著複本走)
  *   - createdAt / updatedAt → left undefined (saveFlow sets them)
  *   - tasks[].l4Number → stripped (computeDisplayLabels regenerates from new L3)
  *
@@ -155,7 +191,8 @@ export function cloneFlow(source, { newL3Number, newL3Name }) {
     roles: newRoles,
     tasks: newTasks,
     pinned: false,
-    importWarnings: [],
+    importFixes: [],
+    importNotices: [],
   };
 }
 

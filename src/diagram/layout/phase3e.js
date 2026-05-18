@@ -43,7 +43,10 @@ export function runPhase3e(ctx) {
           entrySide: ov.entrySide ?? base.entrySide,
         });
       });
-    } else if (task.type !== 'end' && task.type !== 'start') {
+    } else if (task.type !== 'end') {
+      // start 也走這條路徑（之前漏了 — start 有 outgoing、可以被 user 拖端點
+      // 改 port，但 phase3e 排除 start 導致 override 寫進 storage 卻不被 apply、
+      // 視覺上「拉不動」。end 沒有 outgoing → 沒 override、留 defensive check）。
       const nextIds = task.nextTaskIds?.length
         ? task.nextTaskIds
         : (task.nextTaskId ? [task.nextTaskId] : []);

@@ -38,9 +38,9 @@ export function detectGatewayFromName(l4Name) {
  * For 'task', the caller derives shapeType separately based on `_e` suffix.
  */
 export function detectKindFromL4(l4Num) {
-  if (/-0$/.test(l4Num))      return 'start';
-  if (/-99$/.test(l4Num))     return 'end';
-  if (/_g\d*$/.test(l4Num))   return 'gateway';
-  if (/_s\d*$/.test(l4Num))   return 'l3activity';
+  if (/-0$/.test(l4Num))            return 'start';
+  if (/-99(_x\d+)?$/.test(l4Num))   return 'end';  // -99 或 -99_x{K}（PR #210 多 end）
+  if (/_g\d*$/.test(l4Num))         return 'gateway';
+  if (/_s\d*$/.test(l4Num))         return 'l3activity';
   return 'task';   // plain or `_e\d*` suffix — both regular tasks (shapeType differs)
 }

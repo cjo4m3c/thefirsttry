@@ -9,7 +9,10 @@ import { generateId } from './storage.js';
 //   L3:                  d-d-d                   (3 segments)
 //   L4 base:             d-d-d-d                 (4 segments)
 //   L4 start event:      d-d-d-0                 (suffix must be 0)
-//   L4 end event:        d-d-d-99                (suffix must be 99)
+//   L4 end event:        d-d-d-99                (suffix must be 99; single end)
+//                        d-d-d-99_x1 / _x2 / ... (multi end: 2026-05-13 spec
+//                          alignment with external BPMN / Excel rule; single
+//                          end stays plain `-99`).
 //   L4 gateway:          d-d-d-d_g               (single gateway after a task)
 //                        d-d-d-d_g1 / _g2 / ...  (consecutive gateways)
 //                        All gateway types (XOR / AND / OR) use this notation.
@@ -26,9 +29,10 @@ import { generateId } from './storage.js';
 // Dot separators are NOT accepted in new data; legacy localStorage data gets
 // dot→dash migration via storage.normalizeNumber.
 export const L3_NUMBER_PATTERN     = /^\d+-\d+-\d+$/;
-export const L4_NUMBER_PATTERN     = /^\d+-\d+-\d+-\d+(_g\d*|_s\d*|_e\d*)?$/;
+export const L4_NUMBER_PATTERN     = /^\d+-\d+-\d+-\d+(_g\d*|_s\d*|_e\d*)?$|^\d+-\d+-\d+-99(_x\d+)?$/;
 export const L4_START_PATTERN      = /^\d+-\d+-\d+-0$/;
-export const L4_END_PATTERN        = /^\d+-\d+-\d+-99$/;
+export const L4_END_PATTERN        = /^\d+-\d+-\d+-99(_x\d+)?$/;
+export const L4_END_X_PATTERN      = /^\d+-\d+-\d+-99_x\d+$/;
 export const L4_GATEWAY_PATTERN    = /^\d+-\d+-\d+-\d+_g\d*$/;
 export const L4_SUBPROCESS_PATTERN = /^\d+-\d+-\d+-\d+_s\d*$/;
 // `_e` suffix marks "外部關係人互動" (external interaction) tasks — like

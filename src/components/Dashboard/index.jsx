@@ -30,7 +30,9 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
   const [sortKey, setSortKey] = useState('number-asc');
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
-  const [importWarnings, setImportWarnings] = useState([]);
+  // 2026-05-13 拆兩段（fixes / notices）— 替代舊單一 importWarnings state。
+  const [importFixes, setImportFixes] = useState([]);
+  const [importNotices, setImportNotices] = useState([]);
   const [warningsExpanded, setWarningsExpanded] = useState(false);
   const [pendingPngFlow, setPendingPngFlow] = useState(null);
   const [logoReaction, setLogoReaction] = useState(null); // 'flash' | 'dim' | null
@@ -108,11 +110,13 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
     setSelectedIds(new Set());
   }
 
-  function finalizeImport(importedFlows, warnings, mode) {
+  // 2026-05-13：upload 後拆兩段（fixes / notices）寫入兩個 state。
+  function finalizeImport(importedFlows, fixes, notices, mode) {
     if (importedFlows.length > 1) {
       setImportSuccess(`成功匯入 ${importedFlows.length} 個 L3 活動：${importedFlows.map(f => f.l3Number).join('、')}`);
     }
-    if (warnings && warnings.length > 0) setImportWarnings(warnings);
+    if (fixes && fixes.length > 0) setImportFixes(fixes);
+    if (notices && notices.length > 0) setImportNotices(notices);
     setLogoReaction('flash');
     onImportExcel(importedFlows, mode);
   }
@@ -121,7 +125,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
     const pending = pendingImport;
     setPendingImport(null);
     if (!pending || mode === 'cancel') return;
-    finalizeImport(pending.importedFlows, pending.warnings, mode);
+    finalizeImport(pending.importedFlows, pending.fixes, pending.notices, mode);
   }
 
   function handleCloneResolve(result) {
@@ -137,12 +141,13 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
     e.target.value = '';
     setImportError('');
     setImportSuccess('');
-    setImportWarnings([]);
+    setImportFixes([]);
+    setImportNotices([]);
 
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const { flows: importedFlows, warnings } = parseExcelToFlow(ev.target.result);
+        const { flows: importedFlows, fixes, notices } = parseExcelToFlow(ev.target.result);
 
         // Detect duplicate L3 numbers + count how many existing activities
         // share each one. If any duplicates exist, defer to the modal so
@@ -158,10 +163,10 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
           .filter(d => d.count > 0);
 
         if (dupes.length > 0) {
-          setPendingImport({ importedFlows, warnings: warnings || [], dupes });
+          setPendingImport({ importedFlows, fixes: fixes || [], notices: notices || [], dupes });
           return;
         }
-        finalizeImport(importedFlows, warnings || [], 'keep');
+        finalizeImport(importedFlows, fixes || [], notices || [], 'keep');
       } catch (err) {
         setImportError(err.message ?? '解析 Excel 時發生未知錯誤');
       }
@@ -235,10 +240,11 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
         <ImportErrorBanner error={importError} onDismiss={() => setImportError('')} />
         <ImportSuccessBanner message={importSuccess} onDismiss={() => setImportSuccess('')} />
         <ImportWarningsBanner
-          warnings={importWarnings}
+          fixes={importFixes}
+          notices={importNotices}
           expanded={warningsExpanded}
           onToggleExpand={() => setWarningsExpanded(v => !v)}
-          onDismiss={() => { setImportWarnings([]); setWarningsExpanded(false); }} />
+          onDismiss={() => { setImportFixes([]); setImportNotices([]); setWarningsExpanded(false); }} />
 
         <BulkToolbar
           selectedCount={selectedIds.size}

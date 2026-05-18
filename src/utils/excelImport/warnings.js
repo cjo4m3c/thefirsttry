@@ -39,7 +39,7 @@ export function collectCrossCheckWarnings(allRows) {
 
     const hasGTag    = /_g\d*$/.test(l4);
     const isStartL4  = /-0$/.test(l4);
-    const isEndL4    = /-99$/.test(l4);
+    const isEndL4    = /-99(_x\d+)?$/.test(l4);  // -99 或 -99_x{K}（PR #210 多 end）
     const gtFromText = detectGatewayFromText(flowText);
     const gtFromName = detectGatewayFromName(l4Name);
     const labelOf = (g) => g === 'and' ? '並行閘道' : g === 'or' ? '包容閘道' : '排他閘道';
