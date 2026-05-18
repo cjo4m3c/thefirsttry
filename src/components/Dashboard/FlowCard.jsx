@@ -5,10 +5,10 @@
  */
 import { exportDrawio } from '../../utils/drawioExport.js';
 import { exportFlowToExcel } from '../../utils/excelExport.js';
-import { COLORS } from '../../diagram/constants.js';
 import { fmtDateTime } from './sortFlows.js';
 import { autoSpace } from '../../utils/autoSpace.js';
 import { Button } from '../ui/Button.jsx';
+import { Chip } from '../ui/Chip.jsx';
 
 export function FlowCard({
   flow, isSelected, onToggleSelect, onTogglePin,
@@ -33,10 +33,7 @@ export function FlowCard({
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>
         </button>
-        <span className="px-2 py-0.5 rounded text-xs font-bold text-white flex-shrink-0"
-          style={{ background: 'var(--brand)', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>
-          {flow.l3Number}
-        </span>
+        <Chip variant="id" className="flex-shrink-0 font-bold">{flow.l3Number}</Chip>
         <span className="font-semibold text-ink leading-tight line-clamp-2">{autoSpace(flow.l3Name)}</span>
       </div>
 
@@ -60,11 +57,9 @@ export function FlowCard({
       <div className="flex flex-wrap gap-1 content-start overflow-hidden"
         style={{ minHeight: '3rem', maxHeight: '3rem' }}>
         {(flow.roles ?? []).map(r => (
-          <span key={r.id}
-            className="px-2 py-0.5 rounded-full text-xs text-white h-fit"
-            style={{ background: r.type === 'external' ? COLORS.EXTERNAL_BG : COLORS.INTERNAL_BG }}>
+          <Chip key={r.id} variant={r.type === 'external' ? 'external' : 'internal'} className="h-fit">
             {autoSpace(r.name)}
-          </span>
+          </Chip>
         ))}
       </div>
 
