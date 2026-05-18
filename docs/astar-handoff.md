@@ -78,7 +78,7 @@ adjustedCost = A* result.cost
 | 2 Smart Occupy | 多 fork/merge 共享 port、中段 spread | SHARE_RADIUS=2, SHARE_PENALTY=3, OCCUPY_SAME_DIR=80, OCCUPY_PERP=8 |
 | 4 Center Bias (v1.8 動態) | 2-bend 路徑 bend 在中點；長 path 1-bend corner 不誤罰 | CENTER_WEIGHT=1.5, SKIP_RADIUS clamp(pathLen/4, [4, 10]) |
 | 5 Port Reservation (v1.5) | 同 port 不可混 IN+OUT (business-spec §5 規則 1) | PORT_VIOLATION_PENALTY=500 |
-| 6 Coherence (v1.6 + v1.8 anchor pre-compute) | 多 incoming/outgoing 收斂一致 side；anchor by geometry 跟 multi-pass 順序解耦 | COHERENCE_PENALTY=20 |
+| 6 Coherence (v1.6 + v1.8 anchor pre-compute + v1.9 majority threshold) | 多 incoming/outgoing 收斂一致 side；anchor 嚴格 majority 才設，弱 penalty 不壓自然路徑 | COHERENCE_PENALTY=12 |
 
 詳細邏輯見 `docs/astar-routing-spec.md` §3。
 
@@ -229,7 +229,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-16 | 6ec6346 | A* round 9: 維度 5 Port Reservation（解 B-7 條件 1 / business-spec §5 規則 1） | v1.5 |
 | 2026-05-16 | 6feacf9 | A* round 10: 維度 6 Coherence（多 incoming/outgoing 收斂一致 side） | v1.6 |
 | 2026-05-16 | caa9b37 | A* round 11: 斜軸 pair 開放（對角象限每個加 2 個自然順向 1-bend 候選） | v1.7 |
-| 2026-05-17 | TBD | A* round 12 (Phase A): S1 anchor by geometry + S2 sort 穩定化 + S3 動態 SKIP_RADIUS | v1.8 |
+| 2026-05-17 | ddc475e | A* round 12 (Phase A): S1 anchor by geometry + S2 sort 穩定化 + S3 動態 SKIP_RADIUS | v1.8 |
+| 2026-05-17 | TBD | A* round 13 (Phase A.1): S6 anchor majority/COHERENCE 弱化 + S7 拖曳 pin 對側 + S8 proximity stub skip | v1.9 |
 
 ---
 

@@ -27,12 +27,12 @@ const SHARE_PENALTY = 3;
 //   不是 hard block 而是大 cost 讓 A* 自然避開（仍可選做 fallback）。
 const PORT_VIOLATION_PENALTY = 500;
 
-// Coherence 參數（v1.6 維度 6）：
+// Coherence 參數（v1.6 維度 6；v1.9 弱化）：
 //   多 incoming 進同 target / 多 outgoing 出同 source 偏好收斂一致 side。
-//   First-wins：第一條 edge 用的 side 記錄為 anchor，後續同 task 同方向
-//   若選不一致 side 加 COHERENCE_PENALTY。20 跟 TURN_PENALTY(15) 同量級，
-//   能贏 1-bend 差距但不會壓過明顯阻擋。
-const COHERENCE_PENALTY = 20;
+//   anchor 由 v1.8 predictAnchors 預測 / first-wins 補填。
+//   v1.9 從 20 降到 12：仍 > TURN_PENALTY(15) 不到，避免壓過自然 1-bend 路徑，
+//   但同 cost 平手時仍偏好 anchor side。
+const COHERENCE_PENALTY = 12;
 
 export class RoutingGrid {
   constructor(positions, svgWidth, svgHeight) {

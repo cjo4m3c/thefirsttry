@@ -153,10 +153,19 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
 
       const isTurn = (cur.parent !== null && d !== cur.dir);
 
+      // cell 距 start/goal 的曼哈頓距離 (給 stub skip + center bias 共用)
+      const distFromStart = Math.abs(nx - start.x) + Math.abs(ny - start.y);
+      const distFromGoal  = Math.abs(nx - goal.x)  + Math.abs(ny - goal.y);
+
       // ─ 維度 1：障礙物距離（PROXIMITY_BONUS - distance）─
       // 離障礙物越近 cost 越高，push path 走 corridor 中央
+      // S8 (v1.9): stub 區域 (≤ 2 cells from start/goal) skip proximity。
+      //   alignPortSegments 已強制 stub 沿 exit/entry 軸方向，proximity 推開 stub cells
+      //   沒視覺好處 — stub 本來就會貼 source/target 邊框；反而會讓 A* 第一/最後段
+      //   繞行製造小 bend (5-1-4-3→5-1-4-10 出發處彎折案例)。
       const dist = grid.proximityDist ? grid.proximityDist(nx, ny) : PROXIMITY_BONUS;
-      const proximityCost = Math.max(0, PROXIMITY_BONUS - dist);
+      const inStub = distFromStart <= 2 || distFromGoal <= 2;
+      const proximityCost = inStub ? 0 : Math.max(0, PROXIMITY_BONUS - dist);
 
       // ─ 維度 2：smart occupy（source/target/dir aware + distance-aware v1.3）─
       // 傳 start/goal cell 讓 grid 算「離 port 距離」，靠近 share、遠離 spread
@@ -164,16 +173,10 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
         ? grid.getOccupyPenalty(nx, ny, sourceId, targetId, d, start, goal)
         : 0;
 
-      // ─ 維度 3：center bias（turn cell 偏離 path 中點時加 cost）─
-      // 只對「中段」轉彎點加 cost：
-      //   - 中段轉彎：用 centerCost 區分多個 2-bend 變體，A* 自動選 bend 在中點
-      //   - 距離 start/goal 在 CENTER_SKIP_RADIUS cells 以內的轉彎：不算
-      //     （這些是 port stub 必要轉彎，penalize 它們會讓 A* 把 turn 移到中間
-      //      變成 zigzag，反向破壞視覺）
+      // ─ 維度 4：center bias（turn cell 偏離 path 中點時加 cost）─
+      // 只對「中段」轉彎點加 cost (距 start/goal > 動態 skipRadius)
       let centerCost = 0;
       if (isTurn && hasCenter) {
-        const distFromStart = Math.abs(nx - start.x) + Math.abs(ny - start.y);
-        const distFromGoal  = Math.abs(nx - goal.x)  + Math.abs(ny - goal.y);
         if (distFromStart > centerSkipRadius && distFromGoal > centerSkipRadius) {
           const cellPxX = nx * cellSize;
           const cellPxY = ny * cellSize;

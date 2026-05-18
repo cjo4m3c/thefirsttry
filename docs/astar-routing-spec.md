@@ -542,7 +542,9 @@ else:  // 幾乎同 col
 | `SHARE_RADIUS` | `grid.js` | 2 | 同 source/target 在離 port 此值內 share，超出 spread (v1.3) |
 | `SHARE_PENALTY` | `grid.js` | 3 | 超出 SHARE_RADIUS 後同 source/target 的單 cell 扣分 |
 | `PORT_VIOLATION_PENALTY` | `grid.js` | 500 | 同 port 反向使用（規則 1 違規）的 cost penalty (v1.5) |
-| `COHERENCE_PENALTY` | `grid.js` | 20 | 同 task 同方向 anchor side 已設時選不一致 side 的 cost (v1.6) |
+| `COHERENCE_PENALTY` | `grid.js` | 12 | 同 task 同方向 anchor side 已設時選不一致 side 的 cost (v1.6 / v1.9 弱化 20→12) |
+| `PROXIMITY_STUB_RADIUS` | `astar.js` | 2 | 距 start/goal ≤ 此值的 cells skip proximity (v1.9 S8, alignPortSegments 已強制 stub 沿軸方向，無需 push) |
+| `ANCHOR_MAJORITY` | `router.js` | > 0.5 | predictAnchors 嚴格 majority 才設 anchor (v1.9 S6, 票數分散時不預測回退 first-wins) |
 | `MAX_ITER` | `astar.js` | 50000 | A* 搜尋上限 |
 | `pickSides dx threshold` | `router.js` | 30 | 同 col 判定閾值（< 30 算同 col）|
 
@@ -633,6 +635,7 @@ else:  // 幾乎同 col
 | 2026-05-16 | v1.5 | **維度 5 Port Reservation**：grid 加 `portReservations` map 記錄每 task 每 port 的 IN/OUT 使用計數，`pickBestPath` 評估每個 candidate 時加 `PORT_VIOLATION_PENALTY(500)` if 反向已被用。解 business-spec §5 規則 1「同 port 不可混 IN+OUT」。同 port 多 IN（merge）/ 多 OUT（fork）仍允許。 | 6ec6346 |
 | 2026-05-16 | v1.6 | **維度 6 Coherence**：grid 加 `coherence` map (first-wins anchor)，`reservePort` 順便鎖 anchor side。`pickBestPath` 加 `COHERENCE_PENALTY(20)` if 後續 edge 選不一致 side。解多 incoming 進同 target / 多 outgoing 出同 source 視覺一致性。 | 6feacf9 |
 | 2026-05-16 | v1.7 | **斜軸 pair 開放**：對角象限每個加 2 個自然順向斜軸 pair (R→T, B→L 等)，A* 比 cost。1-bend 屠殺同軸 2-bend → 暢通對角邊更短。副作用由維度 5 (PORT_VIOLATION) + 6 (COHERENCE) 受控。每 edge A* runs 3-4 → 3-6，效能 +50% (30 tasks 約 270-540ms)。 | caa9b37 |
-| 2026-05-17 | v1.8 | **Phase A 三合一**：(a) S1 Anchor by Geometry pre-compute — routeAll 開頭預測每 task 的 in/out anchor side (多數投票)，coherence 跟 multi-pass 順序解耦，編輯一條 edge 不再打亂其他 edge 視覺 (解圖二跳變)。(b) S2 Sort 結構性穩定化 — sort key 加 sourceId/targetId 字典序 tie-break，同 layout 永遠跑出同 result。(c) S3 Center Bias 動態 SKIP_RADIUS — CENTER_SKIP_RADIUS 從固定 4 改成 clamp(pathLen/4, [4, 10])，長 path 的 1-bend corner bend 不被誤罰 (解圖一 5-1-4-3/5-1-4-6 → 5-1-4-10 多餘彎折)，2-bend U/S 仍保留 bend 拉中點。 | TBD |
+| 2026-05-17 | v1.8 | **Phase A 三合一**：(a) S1 Anchor by Geometry pre-compute — routeAll 開頭預測每 task 的 in/out anchor side (多數投票)，coherence 跟 multi-pass 順序解耦，編輯一條 edge 不再打亂其他 edge 視覺 (解圖二跳變)。(b) S2 Sort 結構性穩定化 — sort key 加 sourceId/targetId 字典序 tie-break，同 layout 永遠跑出同 result。(c) S3 Center Bias 動態 SKIP_RADIUS — CENTER_SKIP_RADIUS 從固定 4 改成 clamp(pathLen/4, [4, 10])，長 path 的 1-bend corner bend 不被誤罰 (解圖一 5-1-4-3/5-1-4-6 → 5-1-4-10 多餘彎折)，2-bend U/S 仍保留 bend 拉中點。 | ddc475e |
+| 2026-05-17 | v1.9 | **Phase A.1 三合一精修**：(a) S6 Anchor majority threshold + COHERENCE 弱化 — predictAnchors 加嚴格 majority(>50%) 才設 anchor (票數分散回退 first-wins)，COHERENCE_PENALTY 20→12，避免錯誤 anchor 強迫自然 1-bend 路徑繞行 (解 5-1-4-5/6 多彎、包容閘道→5-1-4-5 R→L 繞遠)。(b) S7 拖曳 pin 對側 — useDragEndpoint::endDrag 把 partial override 改 full (pin 對側為當前 route 結果)，拖一端不影響另一端視覺。(c) S8 Proximity stub skip — astar.js 距 start/goal ≤ 2 cells 的 cells skip proximity，alignPortSegments 已強制 stub 沿軸方向，proximity 推開 stub 無視覺好處反而製造出發處小 bend (解 5-1-4-3→5-1-4-10 出發處彎折)。 | TBD |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。

@@ -89,13 +89,16 @@ export function useDragEndpoint({ svgRef, flow, positions, connections, editable
     }
 
     // Priority 2 — PR G: snap to nearest port of the original anchor task.
+    // S7 (v1.9)：pin 對側為當前 route 結果，變 full override。
+    // 解使用者期待「拖一個端點只動那個端點，另一端不跟著動」— 避免重 route 時
+    // 另一端因 anchor/occupancy 變化而跳變視覺。
     if (dragInfo.proposedSide && onUpdateOverride) {
       const currentSide = dragInfo.endpoint === 'source' ? conn.exitSide : conn.entrySide;
       if (dragInfo.proposedSide !== currentSide) {
-        const partial = dragInfo.endpoint === 'source'
-          ? { exitSide: dragInfo.proposedSide }
-          : { entrySide: dragInfo.proposedSide };
-        onUpdateOverride(conn.fromId, conn.overrideKey, partial);
+        const full = dragInfo.endpoint === 'source'
+          ? { exitSide: dragInfo.proposedSide, entrySide: conn.entrySide }
+          : { exitSide: conn.exitSide,         entrySide: dragInfo.proposedSide };
+        onUpdateOverride(conn.fromId, conn.overrideKey, full);
       }
     }
     setDragInfo(null);

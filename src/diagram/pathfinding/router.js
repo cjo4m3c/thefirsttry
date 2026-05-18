@@ -162,11 +162,16 @@ function predictAnchors(grid, rawConns, positions) {
     ensure(conn.toId).in[vote(src.cx - tgt.cx, src.cy - tgt.cy)]++;
   }
   const pickMaxSide = (counts) => {
-    let best = null, bestCount = 0;
+    let best = null, bestCount = 0, total = 0;
     for (const side of ['right', 'bottom', 'left', 'top']) {
+      total += counts[side];
       if (counts[side] > bestCount) { bestCount = counts[side]; best = side; }
     }
-    return bestCount > 0 ? best : null;
+    // S6 (v1.9)：嚴格 majority (> 50%) 才設 anchor。
+    // 票數分散時不預測，回退 first-wins (route 時自然決定)，避免錯誤鎖死導致
+    // 自然路徑被 coherence 強迫繞行 (圖五包容閘道→5-1-4-5 R→L 繞遠案例)。
+    if (total >= 2 && bestCount / total > 0.5) return best;
+    return null;
   };
   for (const taskId in votes) {
     const inAnchor  = pickMaxSide(votes[taskId].in);
