@@ -8,7 +8,7 @@
  * 為了讓 A* 能從 task port 出/入，先把 port 對應的 cell unblock。
  */
 
-import { RoutingGrid } from '../grid.js';
+import { RoutingGrid, HALO_RADIUS } from '../grid.js';
 import { predictAnchors } from './anchorPredict.js';
 import { pickBestPath, pickSides } from './pickPath.js';
 import { fallbackOrthoPath } from './pathPostProc.js';
@@ -96,6 +96,9 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
  * 注意：cleanOrtho 已合併共線中間點，所以 pathPx 通常只是 bend points。
  * 這裡要 interpolate 把每段之間的每個 cell 都展開標記，否則 multi-pass
  * 看不到「水平/垂直段內部的 occupied cells」→ 後續同 target 路徑無法 spread。
+ *
+ * v1.15：除了標主路徑 cells，也在 perpendicular 方向 ±HALO_RADIUS 標 halo cells，
+ * 給 getOccupyPenalty 算遞減 penalty（視覺距離 unified §10.5.1）。
  */
 function markPathOccupied(grid, pathPx, sourceId, targetId) {
   const cs = grid.cellSize;
@@ -103,6 +106,7 @@ function markPathOccupied(grid, pathPx, sourceId, targetId) {
     const [x1, y1] = pathPx[i];
     const [x2, y2] = pathPx[i + 1];
     const dir = inferDir(x1, y1, x2, y2);
+    const isHorizontal = dir === 'east' || dir === 'west';
     // Walk every cell from (x1,y1) to (x2,y2). Assumes axis-aligned (cleanOrtho 已 enforce)
     const dx = Math.sign(x2 - x1);
     const dy = Math.sign(y2 - y1);
@@ -112,6 +116,17 @@ function markPathOccupied(grid, pathPx, sourceId, targetId) {
       const py = y1 + dy * s * cs;
       const c = grid.toCell(px, py);
       grid.markOccupied(c.x, c.y, { sourceId, targetId, dir });
+
+      // v1.15: 在 perpendicular 方向 ±HALO_RADIUS cells 標 halo
+      // - horizontal path → halo 在 north/south (cy ± h)
+      // - vertical path   → halo 在 east/west  (cx ± h)
+      for (let h = 1; h <= HALO_RADIUS; h++) {
+        for (const sign of [-1, 1]) {
+          const hx = isHorizontal ? c.x : c.x + sign * h;
+          const hy = isHorizontal ? c.y + sign * h : c.y;
+          grid.markHalo(hx, hy, { sourceId, targetId, dir, haloDist: h });
+        }
+      }
     }
   }
 }
