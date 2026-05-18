@@ -6,6 +6,18 @@
 export default [
   {
     date: '2026-05-18',
+    title: 'Design system follow-up — Banners → Callout（Dashboard + FlowEditor 視覺一致）',
+    items: [
+      '**緣由**：PR #220 建立了 `<Callout>` base 元件但尚未套用既有 banner。本 PR 完成 Dashboard 3 個 banner（ImportError / ImportSuccess / ImportWarnings）+ FlowEditor importFixes/Notices banner 的 Callout 化、視覺與內部一致。',
+      '**Dashboard/Banners.jsx**：(a) `ImportErrorBanner` 從 inline red palette → `<Callout variant="danger">` (b) `ImportSuccessBanner` 從 inline sky palette → `<Callout variant="info">` (c) `ImportWarningsBanner` 外層 amber div → `<Callout variant="warning">`、保留 fixes/notices 雙 section + 展開 + 複製全部 complex body 不變。文字色從 `text-amber-900` → `text-warning-ink`（token 化）。',
+      '**FlowEditor/index.jsx**：importFixes/Notices banner 外層 amber div → `<Callout variant="warning">`。複雜雙 section body 保留。dismiss handler 不變。',
+      '**動到的檔案（3 個）**：`src/components/Dashboard/Banners.jsx`（3 個 banner → Callout）/ `src/components/FlowEditor/index.jsx`（import + banner 換 Callout）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) Dashboard 匯入失敗 → 紅色 callout（內容 `!` icon + 訊息 + ✕）(b) 匯入成功多 L3 → 藍色 callout（✓ icon + 訊息 + ✕）(c) 匯入有警告 → 琥珀 callout 雙 section（fixes 列表 + notices 列表 + 展開 + 複製按鈕）(d) FlowEditor 編輯流程 banner 琥珀 callout 同步（已 dismiss 不再顯示 — PR #216 stale state fix 持續生效）。',
+      '**剩餘 incremental migration**（仍未做、待後續或不做）：Header 上 8 顆 button → `<Button>`（需新增 `variant="dark-bar"` 給深色 header 用、新功能、暫不做避免特殊邏輯破壞）/ SaveModals + CloneFlowModal + DuplicateImportModal → `<Modal>`（每個 modal 用法 nuance、逐個 migration 較安全、留後續）/ Selected 兩端 task 同步亮 brand（shapes.jsx + index.jsx 配套）。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: 'Design system overhaul — PR-1~PR-6 一次到位（token + Button + Modal + Callout + Chip + 8 種節點分色 + Selected）',
     items: [
       '**緣由**：使用者提供 design_handoff_flowsprite 設計手冊（README + Design Guideline.html + tokens.css + components.css）。Audit 後拍板 6 個改動方向（**Canvas Violation 不做**、Chip 從 Modal+Callout PR 拆出獨立 PR）— 一次到位、單 PR 統籌。',
