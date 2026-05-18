@@ -41,26 +41,34 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
   // 候選 port 組合（依 dx/dy 選合理子集，避免跑 16 種）
   const candidates = generateCandidates(src, tgt, override);
 
-  let best = null;
+  // v1.16 dim 5 範圍擴大：Rule 1 從 soft penalty 升級成 hard preference。
+  // 2-pass 選擇 — 先在無 PORT_VIOLATION candidates 中挑，找不到才退回違規版。
+  // 解問題 2：飽和情境 (4+ edges 同 task) 所有 candidate 都違規時，A* 退化成
+  // 「挑違規小的」沒避免 rule 1。新邏輯：任何不違規的選項贏過違規的 (cost 不論)。
+  let bestClean = null;
+  let bestDirty = null;
   for (const sides of candidates) {
     const result = computePath(grid, src, tgt, sides, sourceId, targetId);
     if (!result) continue;
-    // R2 (v1.5) 維度 5：port reservation conflict cost
-    // 若 src.exit 或 tgt.entry 已被反向用 (規則 1 違規)，加 PORT_VIOLATION_PENALTY
     const portPenalty =
         grid.getPortConflictPenalty(sourceId, sides.exit,  'out')
       + grid.getPortConflictPenalty(targetId, sides.entry, 'in');
-    // R3 (v1.6) 維度 6：coherence mismatch penalty
-    // 同 task 同方向已有 anchor side 時，選不一致 side 加 COHERENCE_PENALTY
     const cohPenalty =
         grid.getCoherenceMismatchPenalty(sourceId, sides.exit,  'out')
       + grid.getCoherenceMismatchPenalty(targetId, sides.entry, 'in');
-    const adjustedCost = result.cost + portPenalty + cohPenalty;
-    if (!best || adjustedCost < best.cost) {
-      best = { path: result.path, sides, cost: adjustedCost };
+    const baseCost = result.cost + cohPenalty;  // 不含 port violation
+    if (portPenalty === 0) {
+      if (!bestClean || baseCost < bestClean.cost) {
+        bestClean = { path: result.path, sides, cost: baseCost };
+      }
+    } else {
+      const totalDirty = baseCost + portPenalty;
+      if (!bestDirty || totalDirty < bestDirty.cost) {
+        bestDirty = { path: result.path, sides, cost: totalDirty };
+      }
     }
   }
-  return best;
+  return bestClean ?? bestDirty;
 }
 
 export function generateCandidates(src, tgt, override) {
