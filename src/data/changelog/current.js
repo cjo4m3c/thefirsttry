@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-18',
+    title: 'Design tokens 微調 — brand-dark 改 #2A5598、L3 chip 用深輔色、task 邊框 30% mix + business-spec.md 加 §13.9 design system',
+    items: [
+      '**緣由**：使用者四件事：(1) TaskCard task 邊框 `#C8E2EE`（brand-light 30% mix）(2) design guideline 寫進業務規則文件 (3) 編輯頁 header 跟首頁同色 (4) 首頁 L3 編號用品牌深色輔色。',
+      '**`--brand-dark` 從 `#1B2E4C` → `#2A5598`**：使用者「編輯頁面中的 header 用跟首頁一樣顏色」。Dashboard / HelpPanel / Wizard / BackToTop 多處仍寫死 `#2A5598`、把 token 對齊既有實際使用色比反向更新所有 inline hex 更實際。Spec 的 `#1B2E4C` 偏深 navy 跟現有 UI 視覺不協調、使用者偏好較亮的 `#2A5598`。連帶影響：FlowEditor Header / KIND_BADGE start/end pill / L3 chip 都自動切換為 `#2A5598`。',
+      '**FlowCard L3 chip 改用 `--brand-dark`**：使用者「首頁 L3 編號改用品牌深色輔色」。`Chip.jsx` id variant: `bg-brand border-brand` → `bg-brand-dark border-brand-dark`。視覺上深一階、跟 Header / Canvas head 同色階對齊。',
+      '**TaskCard task 邊框 30% mix**：`elementTypes.js KIND_CARD_STYLE.task.border` 從 22% mix → 30% mix（`#C8E2EE`）。比預設略深、提升「task 卡」跟周遭視覺辨識度。其他類型（並行 / 排他 / 包容 / L3 / 外部互動）維持 22% mix 邊框、唯獨 task 30%（per 使用者指定）。',
+      '**`docs/business-spec.md` 加 §13.9 Design System tokens**：完整把 design guideline 寫進業務規則文件。涵蓋 (a) §13.9.1 色彩 token 對照表（13 個 token）(b) §13.9.2 8 種節點 pill + 卡背配色（對應 §3 元件類型、SOT 在 elementTypes.js）(c) §13.9.3 字級 / 間距 / 圓角 / 陰影 (d) §13.9.4 Base 元件層 Button / Modal / Callout / Chip API。未來改設計規範改本章。',
+      '**動到的檔案（5 個）**：`src/styles/tokens.css`（`--brand-dark` hex 改 + 註解）/ `src/utils/elementTypes.js`（task 邊框 22→30% mix）/ `src/components/ui/Chip.jsx`（id variant bg-brand → bg-brand-dark）/ `docs/business-spec.md`（§13.9 新章節）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證點：(a) Dashboard header 跟 FlowEditor Header 同色（皆 `#2A5598`）(b) FlowCard L3 chip 深一階（從 `#006EBC` brand 變 `#2A5598` brand-dark）(c) TaskCard task 卡邊框略深 (d) start/end 事件 pill 同步變色 (e) ChangelogPanel / HelpPanel 開啟可看 §13.9 design system 摘要（透過 helpPanelData 可能需後續同步）。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: '設計規範文件補齊 + changelog 日期 audit + TaskCard task pill 加深',
     items: [
       '**緣由**：使用者三件事一次處理：(1) 確認設計規範相關 doc 都更新 (2) changelog 日期跟 PR 拉齊、預防未來再 drift (3) TaskCard task pill 底色加深 + 卡背 12% mix。',

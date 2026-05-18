@@ -650,6 +650,60 @@ PNG / drawio / Excel **同色 `#2A5598`**（hover `#1E4677`），順序保持 PN
 
 **目標瀏覽器**：Chrome / Edge（同 Chromium 引擎），`position: sticky` 完全依規範運作。Safari / Firefox 未列為優先支援。
 
+### 13.9 Design System tokens（2026-05-18 PR #220 / #222 / #223 建立）
+
+對齊 `design_handoff_flowsprite` 設計手冊。**單一來源**：`src/styles/tokens.css`（CSS variables）；改 hex 改這一個檔；SVG `fill` / `stroke` attribute 不認 CSS variable、用 hex literal 但須跟 token 同步。
+
+#### 13.9.1 色彩 token 對照
+
+| Token | hex | 用途 |
+|---|---|---|
+| `--brand` | `#006EBC` | Primary CTA / focus ring |
+| `--brand-dark` | `#2A5598` | App bar / Canvas head / 開始/結束事件 pill / L3 編號徽章 |
+| `--brand-light` | `#5EC7E8` | hover 入口連線 / highlight |
+| `--brand-light-deep` | `#1A9EC5` | L4 任務 pill 底（brand-light 加深版）|
+| `--internal` | `#0066CC` | 內部角色 chip（**必須成對外部**）|
+| `--external` | `#009900` | 外部角色 chip（**必須成對內部**）|
+| `--warning` | `#D97706` | 排他閘道 pill / warning callout |
+| `--success` | `#009900` | 並行閘道 pill / success callout |
+| `--danger` | `#DC2626` | blocking / danger callout |
+| `--inclusive` | `#0D9488` | 包容閘道 pill（teal） |
+| `--subflow` | `#7C3AED` | L3 子流程 pill（purple） |
+| `--external-node` | `#475569` | 外部互動 pill（slate） |
+| `--paper` / `--card` / `--ink` / `--ink-soft` / `--ink-faint` / `--line` / `--line-dim` | 中性 7 層 | 頁面 / 卡 / 文字 / 邊框 |
+
+#### 13.9.2 8 種節點 pill + 卡背配色（對應 §3 元件類型）
+
+| 類型 | Pill bg | Pill text | 卡背 | 卡邊框 |
+|---|---|---|---|---|
+| 開始事件 start | `--brand-dark` | 白 | `--card` 白 | `--line` |
+| 結束事件 end | `--brand-dark` | 白 | `--card` 白 | `--line` |
+| L4 任務 task | `--brand-light-deep` `#1A9EC5` | 白 | `brand-light 12% mix` `#EFF7FC` | `brand-light 30% mix` `#C8E2EE` |
+| 並行閘道 gateway-and | `--success` | 白 | `success 5% mix` | `success 22% mix` |
+| 排他閘道 gateway-xor | `--warning` | 白 | `warning 5% mix` | `warning 22% mix` |
+| 包容閘道 gateway-or | `--inclusive` | 白 | `inclusive 5% mix` | `inclusive 25% mix` |
+| L3 子流程 l3activity | `--subflow` | 白 | `subflow 5% mix` | `subflow 22% mix` |
+| 外部互動 interaction | `--external-node` | 白 | `external-node 6% mix` | `external-node 22% mix` |
+
+SOT：`src/utils/elementTypes.js KIND_BADGE` + `KIND_CARD_STYLE`。改配色改這裡。
+
+#### 13.9.3 字級 / 間距 / 圓角 / 陰影
+
+- **字級** 7 階：`--fs-display:32` / `--fs-h1:22` / `--fs-h2:17` / `--fs-h3:15` / `--fs-body:13` / `--fs-label:12` / `--fs-caption:11`（最小 11px、不允許更小）
+- **間距** 4px 基底 9 階：`--space-1:4` ~ `--space-12:48`
+- **圓角** 5 階：`xs:4` / `sm:5` / `md:6` / `lg:8` / `pill:999`
+- **陰影** 2 階：`--shadow-sm` / `--shadow-md`（不要發明第 3 階）
+- **字型**：`--font-sans = --font-mono`（2026-05-18 拉齊、使用者偏好）
+
+#### 13.9.4 Base 元件層
+
+`src/components/ui/`：Button / Modal / Callout / Chip。**新增 UI 優先用這幾個**、不要再 inline class。
+
+- `<Button variant="default|primary|ghost|danger" size="md|sm|xs">`
+- `<Modal isOpen onClose title subtitle>` + `<ModalBody>` + `<ModalFoot>`
+- `<Callout variant="info|warning|danger|success" title onDismiss>`
+- `<Chip variant="default|internal|external|id|more">`
+
 ---
 
 ## 文件維護規則
