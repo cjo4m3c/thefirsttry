@@ -45,33 +45,25 @@ function Content({ value, className = '' }) {
   return <div className={className}>{value}</div>;
 }
 
-export default function HelpPanel() {
-  const [open, setOpen] = useState(false);
-
+// 2026-05-18 改 controlled — 由 InfoDropdown 控制 open state、把 trigger
+// button 抽出去（一顆 dropdown 包 3 個 modal）。原本內建按鈕已移除。
+export default function HelpPanel({ isOpen = false, onClose = () => {} }) {
+  // 用 isOpen 參數取代內部 state；舊 useState(open) 移除避免 dead code。
+  // useState 仍 import（其他 helper 元件用）。
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="px-3 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-        style={{ background: '#3470B5' }}
-        onMouseEnter={e => e.currentTarget.style.background = '#5B8AC9'}
-        onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}
-        title="查看規則說明">
-        規則說明
-      </button>
-
-      {open && (
+      {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.45)' }}
-          onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
+          onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
-                <h2 className="text-lg font-bold text-gray-800">規則說明 / Rules Reference</h2>
+                <h2 className="text-lg font-bold text-gray-800">業務規則 / Business Rules</h2>
                 <p className="text-xs text-gray-400 mt-0.5">本頁說明與系統實際規則同步，如有更新將一併修訂</p>
               </div>
-              <button onClick={() => setOpen(false)}
+              <button onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none px-2">
                 ×
               </button>
@@ -220,7 +212,7 @@ export default function HelpPanel() {
 
             {/* Footer */}
             <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
-              <button onClick={() => setOpen(false)}
+              <button onClick={onClose}
                 className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
                 style={{ background: '#2A5598' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}

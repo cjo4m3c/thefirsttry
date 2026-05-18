@@ -659,7 +659,8 @@ PNG / drawio / Excel **同色 `#2A5598`**（hover `#1E4677`），順序保持 PN
 | Token | hex | 用途 |
 |---|---|---|
 | `--brand` | `#006EBC` | Primary CTA / focus ring |
-| `--brand-dark` | `#2A5598` | App bar / Canvas head / 開始/結束事件 pill / L3 編號徽章 |
+| `--brand-dark` | `#2A5598` | App bar / Canvas head / 開始/結束事件 pill |
+| `--brand-darker` | `#1B2E4C` | L3 編號徽章（Chip id variant、比 brand-dark 更深一階突出 ID）|
 | `--brand-light` | `#5EC7E8` | hover 入口連線 / highlight |
 | `--brand-light-deep` | `#1A9EC5` | L4 任務 pill 底（brand-light 加深版）|
 | `--internal` | `#0066CC` | 內部角色 chip（**必須成對外部**）|
