@@ -7,6 +7,7 @@ import {
 import { AUX_FIELDS } from '../utils/auxFieldDefs.js';
 import { getLaneShapeViolations } from '../model/flowSelectors.js';
 import { useColumnWidths } from './FlowTable/useColumnWidths.js';
+import { autoSpace } from '../utils/autoSpace.js';
 
 // EXCEL_HEADERS = 10 core (0~9) + 20 auxiliary (10~29). When the user
 // hasn't expanded aux columns we slice the header loop at the boundary
@@ -173,7 +174,7 @@ function ReadCell({ value, muted = false, wide = false, sticky = null, danger = 
       style={cellStickyStyle(sticky)}
       title={title}
     >
-      {value}
+      {autoSpace(value)}
     </td>
   );
 }

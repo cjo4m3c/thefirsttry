@@ -7,6 +7,7 @@ import { exportDrawio } from '../../utils/drawioExport.js';
 import { exportFlowToExcel } from '../../utils/excelExport.js';
 import { COLORS } from '../../diagram/constants.js';
 import { fmtDateTime } from './sortFlows.js';
+import { autoSpace } from '../../utils/autoSpace.js';
 
 // Shared style for all non-destructive card actions (編輯 / 複製 / 下載 ×3).
 // 刪除 keeps its red palette to stay visually distinct. Per user 2026-05-11:
@@ -40,7 +41,7 @@ export function FlowCard({
           style={{ background: '#2A5598' }}>
           {flow.l3Number}
         </span>
-        <span className="font-semibold text-gray-800 leading-tight line-clamp-2">{flow.l3Name}</span>
+        <span className="font-semibold text-gray-800 leading-tight line-clamp-2">{autoSpace(flow.l3Name)}</span>
       </div>
 
       {/* Stats */}
@@ -66,7 +67,7 @@ export function FlowCard({
           <span key={r.id}
             className="px-2 py-0.5 rounded-full text-xs text-white h-fit"
             style={{ background: r.type === 'external' ? COLORS.EXTERNAL_BG : COLORS.INTERNAL_BG }}>
-            {r.name}
+            {autoSpace(r.name)}
           </span>
         ))}
       </div>
