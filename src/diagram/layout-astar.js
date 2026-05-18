@@ -22,7 +22,7 @@ import { routeAll } from './pathfinding/router.js';
 
 const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 
-// v1.13 動態 lane 高度（解多平行線段擠壓）/ v1.15 fine-tune (視覺距離 §10.5.1):
+// v1.13 動態 lane 高度（解多平行線段擠壓）/ v1.15 fine-tune / v1.16 修 grid bug:
 //   智慧啟發式 — 對每條 raw edge 預判 corridor 機率，累加到每 lane 的 corridorLoad。
 //   負載超出預設 capacity 時，每多 1 row 流量擴 lane 高度 LANE_GROWTH_STEP，
 //   保持 grid 對齊（NODE_VOFFSET = LANE_H / 2 需 lane_h 是 2*GRID_CELL 倍數）。
@@ -30,9 +30,12 @@ const { LANE_HEADER_W, COL_W, LANE_H: BASE_LANE_H, TITLE_H } = LAYOUT;
 //
 //   v1.15 fine-tune：原 v1.13 BASE_CAP=4 LANE_STEP=16 對「同 source N+ fork trunk」
 //   估錯（情境 3：3 fork 算 1.5 load < 4 cap → 不擴 → 線擠 label 蓋），降 CAP=1 +
-//   step 24（容 trunk + label 上下空間）+ 加 P_SAME_SOURCE_FORK 識別 N+ fork。
+//   加 P_SAME_SOURCE_FORK 識別 N+ fork。
+//   v1.16 bug fix：v1.15 LANE_STEP 設成 3*GRID_CELL=24 破壞 grid 對齊 (144+24=168,
+//   168/16=10.5 → NODE_VOFFSET 非整 cell)。改回 2*GRID_CELL=16，但 BASE_CAP 維持 1
+//   讓擴張仍敏感。
 const BASE_CORRIDOR_CAPACITY = 1;          // v1.15: 預設只給 1 條 trunk 容量（更敏感擴張）
-const LANE_GROWTH_STEP = 3 * GRID_CELL;    // v1.15: 每多 1 row 流量擴 24px (trunk + label 上下空間)
+const LANE_GROWTH_STEP = 2 * GRID_CELL;    // v1.16 (bug fix): 16px (2*GRID_CELL 倍數保 grid 對齊)
 const MAX_LANE_H = 30 * GRID_CELL;          // lane 高度上限 240px (BASE 144 + 96 = 12 cells 擴張空間)
 
 // edge 走 corridor 機率啟發式：純幾何，不寫業務 if-then。
