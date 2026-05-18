@@ -96,10 +96,11 @@ export const KIND_SHORT_LABEL = {
 //   - interaction: external-node slate
 // 使用 CSS variable 直接套（inline style）— 改 token 自動同步。
 export const KIND_BADGE = {
-  // 2026-05-18 task 文字色從 spec 規定的 brand-dark（深字配淺底、唯一不同）改成
-  // 白字 — 使用者要求「跟其他小標籤拉齊」（其他 7 種都白字）。Spec 原意是 task
-  // 是最常用元件、用對比較柔和的深字 + 淺底；但全站視覺一致更重要。
-  task:           { bg: 'var(--brand-light)',   text: '#FFFFFF' },
+  // 2026-05-18：使用者指定 task pill 用「brand-light 加深版」#1A9EC5
+  // （tokens.css `--brand-light-deep`）配白字、提升白字對比度。原 spec 規定
+  // brand-light + brand-dark 深字、改後也比 PR-5 第一版的 brand-light + 白字
+  // 對比更佳。
+  task:           { bg: 'var(--brand-light-deep)', text: '#FFFFFF' },
   interaction:    { bg: 'var(--external-node)', text: '#FFFFFF' },
   'gateway-xor':  { bg: 'var(--warning)',       text: '#FFFFFF' },
   'gateway-and':  { bg: 'var(--success)',       text: '#FFFFFF' },
@@ -118,7 +119,10 @@ export const KIND_BADGE_FALLBACK = { bg: 'var(--paper-2)', text: 'var(--ink-soft
 // `color-mix(in oklch, ... %, var(--card))` 是 CSS 原生語法、
 // 不需要 SVG attribute、可直接用在 React style prop。
 export const KIND_CARD_STYLE = {
-  task:           { bg: 'var(--card)',                                                      border: 'var(--line)' },
+  // 2026-05-18：task 卡背從 spec 規定的 card 白 → brand-light 12% mix
+  // (`#EFF7FC` 淺 sky)。使用者偏好「task 也視覺辨識」、跟其他 7 類型有
+  // mix 卡背一致（spec 原規定只 task / start / end 用白）。
+  task:           { bg: 'color-mix(in oklch, var(--brand-light) 12%, var(--card))',         border: 'color-mix(in oklch, var(--brand-light) 22%, var(--card))' },
   interaction:    { bg: 'color-mix(in oklch, var(--external-node) 6%, var(--card))',        border: 'color-mix(in oklch, var(--external-node) 22%, var(--card))' },
   'gateway-xor':  { bg: 'color-mix(in oklch, var(--warning) 5%, var(--card))',              border: 'color-mix(in oklch, var(--warning) 22%, var(--card))' },
   'gateway-and':  { bg: 'color-mix(in oklch, var(--success) 5%, var(--card))',              border: 'color-mix(in oklch, var(--success) 22%, var(--card))' },

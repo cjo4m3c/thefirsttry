@@ -30,6 +30,10 @@
   /* 衍生輔助 */
   --brand-soft:        #CFE6F5;
   --brand-light-soft:  #E0F4FB;
+  /* 2026-05-18：使用者要求的「brand-light 加深版」— 用於 TaskCard task pill
+     底（spec 規定 task 用 brand-light + 深字、使用者偏好深底 + 白字、加深
+     到 #1A9EC5 提升對比）。命名 `-deep` 跟 -soft 對稱。 */
+  --brand-light-deep:  #1A9EC5;
   --internal-soft:     #D4E3F7;
   --external-soft:     #D4F0D4;
 

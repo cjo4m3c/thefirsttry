@@ -13,6 +13,7 @@ export default {
         brand: 'var(--brand)',
         'brand-dark': 'var(--brand-dark)',
         'brand-light': 'var(--brand-light)',
+        'brand-light-deep': 'var(--brand-light-deep)',
         'brand-soft': 'var(--brand-soft)',
         'brand-light-soft': 'var(--brand-light-soft)',
         internal: 'var(--internal)',

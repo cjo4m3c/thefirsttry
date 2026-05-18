@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-18',
+    title: '設計規範文件補齊 + changelog 日期 audit + TaskCard task pill 加深',
+    items: [
+      '**緣由**：使用者三件事一次處理：(1) 確認設計規範相關 doc 都更新 (2) changelog 日期跟 PR 拉齊、預防未來再 drift (3) TaskCard task pill 底色加深 + 卡背 12% mix。',
+      '**Doc 補齊**：(a) `HANDOVER.md` 加 `src/styles/tokens.css` + `src/components/ui/` 目錄項（Button / Modal / Callout / Chip 4 個 base 元件）— PR #220-221 建立、之前 doc 沒提。(b) `CLAUDE.md` 頂部 pointer 區加 tokens.css 跟 ui/ 兩條 — 給未來 Claude session 知道改 hex 改 tokens.css、新增 UI 優先用 base 元件。',
+      '**Changelog 日期 audit + 修正 5 條 drift**：對齊 PR `merged_at` UTC 日期（per CLAUDE.md §4 規則）— PR #218（匯入提醒拆兩段）`2026-05-13 → 2026-05-18` / PR #217（多 end 誤判）`2026-05-13 → 2026-05-17` / PR #216（handleCancel refresh）`2026-05-13 → 2026-05-15` / PR #215（overwrite createdAt）`2026-05-13 → 2026-05-15` / PR #211（start drag）`2026-05-12 → 2026-05-13`。**Root cause**：之前一個 session 跨多天、寫 entry 用 currentDate 系統提示（local 時區）而非 PR merged_at（UTC）。`/ship-feature` step 6.5 audit 只 check 最頂條目、批次寫不會 catch 舊條目。',
+      '**預防 logic**：`CLAUDE.md §4` 加「批次補正 audit」規則 — 動 current.js 改非頂條目時、跑 `get_pull_request merged_at` 比對該 entry 對應 PR。寫 entry 時先標明對應 PR 號方便回溯比對。',
+      '**TaskCard task pill 配色加深**（使用者指定）：(a) `tokens.css` 新增 `--brand-light-deep: #1A9EC5`（brand-light 加深版）(b) `elementTypes.js KIND_BADGE.task.bg`: `var(--brand-light)` `#5EC7E8` → `var(--brand-light-deep)` `#1A9EC5`、白字配深底對比提升 (c) `KIND_CARD_STYLE.task`: 卡背從 `var(--card)` 白 → `color-mix(in oklch, var(--brand-light) 12%, var(--card))`（≈ `#EFF7FC` 淺 sky）、邊框同色 22% mix。task 不再是「卡背白」唯一例外、跟其他 7 種類型有 mix 卡背一致。(d) `tailwind.config.js theme.extend.colors` 加 `brand-light-deep` token reference。',
+      '**動到的檔案（6 個）**：`HANDOVER.md`（加 styles / ui 目錄項）/ `CLAUDE.md`（pointer 區加 tokens.css + ui/、§4 加批次 audit + §8 step 6 / §7 trim 控制檔案 size 在 12KB 硬上限）/ `src/styles/tokens.css`（新增 `--brand-light-deep`）/ `tailwind.config.js`（加 brand-light-deep）/ `src/utils/elementTypes.js`（task pill + card 兩處 + 註解）/ `src/data/changelog/current.js`（5 條 drift 修正 + 本條）。',
+      '**驗證**：`npm run build` 通過、`wc -c CLAUDE.md` = 12262 bytes < 12288 hard cap ✓。手動驗證：(a) TaskCard 「L4 任務」pill 從淺 sky 變更深 sky `#1A9EC5` + 白字 (b) task 卡背從白 → 淺 sky `#EFF7FC` (c) ContextMenu kind chip 同步變色（自動跟 KIND_BADGE）(d) Update Log 對應條目日期變正確。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: 'FlowCard role chips 第二排切到 — maxHeight 3rem → 4rem',
     items: [
       '**緣由**：使用者「首頁卡片內，第二排的角色標籤被切到了」。PR-4 把 role chip 從 inline `<span>` 改 `<Chip>` 元件後、Chip 多 1px border + 寬 px-2.5 padding（原 px-2）→ 整體高度多 2-4px → 超過 FlowCard role-chip 容器 fixed `maxHeight: 3rem`（48px）→ 第二排底部被切。',
@@ -78,7 +91,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-13',
+    date: '2026-05-18',
     title: '匯入提醒拆成「已自動調整」+「建議檢視」兩段顯示 — Dashboard + FlowEditor 兩 banner 共用',
     items: [
       '**緣由**：使用者「現在匯入提醒中、會把有修改的和提醒事項都綜合再一起計算 — 例如顯示『匯入時自動調整了 22 筆內容』但實際上只有其中 4 筆有修改、其他都是沒改動的提醒」。要求兩種訊息視覺區別、計數分開。',
@@ -92,7 +105,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-13',
+    date: '2026-05-17',
     title: 'fix: 多 end 事件 (`-99_x{K}`) 在 Excel 匯入 + 載入 migration 被誤判為 task',
     items: [
       '**緣由**：使用者「上傳兩個結束事件的資料時，結束事件被自動改成了任務」+ 要求全面 audit 上傳 / 圖面 / 表單 / 編輯器 / 儲存五個路徑與 PR #210 多 end `-99_x{K}` 規則一致性。',
@@ -104,7 +117,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-13',
+    date: '2026-05-15',
     title: 'fix: 「← 返回」refresh App.flows — 修 dismiss 過的 import warning 重複出現',
     items: [
       '**緣由**：使用者「我發現這個提示資訊每次點開編輯畫面都會出現」— `🔧 結束事件編號已自動更新（多結束事件對齊 BPMN 規則）：5-1-5-99 → 1-1-2-99` 即使按 ✕ dismiss 後、重新進編輯器又出現。',
@@ -117,7 +130,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-13',
+    date: '2026-05-15',
     title: 'fix: overwrite 匯入保留原始 createdAt — 只更新 updatedAt',
     items: [
       '**緣由**：使用者「上傳一個已經有該 L3 的新流程、覆蓋的話產出日期和編輯日期會是新的還是舊的？」追蹤後發現：overwrite 模式下、舊 flow 整筆 `deleteFlow`、匯入的 flow 帶新 id 進 `saveFlow` → 走 `else` branch → `createdAt: now`。**原本的建立日期完全遺失**、Dashboard 卡片「建立：YYYY/MM/DD」會被洗成上傳日期。',
@@ -160,7 +173,7 @@ export default [
     ],
   },
   {
-    date: '2026-05-12',
+    date: '2026-05-13',
     title: 'fix: 開始事件連線兩端點都拉不動 — phase3e 漏處理 start',
     items: [
       '**緣由**：使用者「我發現連到開始事件元件的線段不能自主拖曳選擇要連線的出發端點，及連過去其他元件的結束端點」。從 start 出發的連線、任一端點拖了沒效。',
