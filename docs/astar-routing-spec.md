@@ -90,15 +90,26 @@ routeAll
 
 ## 3. Cost Function（核心）
 
-### 3.1 完整公式
+### 3.1 完整公式（v1.12）
 
 ```js
+// astar.js per-cell cost
 cost(cell, dir, parent) =
-    1                                          // 基本移動
-  + (dir !== parent.dir ? TURN_PENALTY : 0)    // 維度 0: 轉彎
-  + max(0, PROXIMITY_BONUS - distMap[cell])    // 維度 1: 障礙物距離
-  + getOccupyPenalty(cell, dir, src, tgt)      // 維度 2: 智慧占用
-  + i * 0.01                                   // 微小 tie-break (i = dirOrder index)
+    1                                                                    // 基本移動
+  + (isTurn ? turnPenalty(turnCount) : 0)                                // 維度 0: 累進 turn (v1.10 S15)
+  + proximityCost(distMap[cell], distFromEndpoint)                       // 維度 1: 障礙物距離 (v1.9 S8 + v1.11 S4)
+  + getOccupyPenalty(cell, dir, src, tgt,                                // 維度 2: 智慧占用
+                     startCell, goalCell, entrySide, exitSide)           //   (v1.11 S20 不對稱 + v1.12 S22/S23 軸延伸)
+  + (isTurn && farFromSkipRadius && centerBiasEnabled                    // 維度 4: 中心偏好 (v1.8 動態 + v1.10 S19 斜軸關)
+       ? centerDist * CENTER_WEIGHT : 0)
+  + i * 0.01                                                              // tie-break (i = dirOrder index)
+
+// pickPath.js::pickBestPath 算完 A* 後加：
+adjustedCost = a*.cost
+  + getPortConflictPenalty(src, exit, 'out')                             // 維度 5: port reservation (v1.5)
+  + getPortConflictPenalty(tgt, entry, 'in')
+  + getCoherenceMismatchPenalty(src, exit, 'out')                        // 維度 6: coherence (v1.6 + v1.10 動態)
+  + getCoherenceMismatchPenalty(tgt, entry, 'in')                        //   factor = 2*(1-anchorStrength)
 ```
 
 ### 3.2 維度 0：Turn Penalty (v1.10 S15 累進)
@@ -176,42 +187,91 @@ proximityCost = max(0, PROXIMITY_BONUS - distMap[cell])
 - 線貼 task 邊框 → 自然走遠離邊框的 cells（中央）
 - Bend 偏在 source/target 邊 → bend cell 周圍 proximity 影響 → 自然往中央 bend
 
-### 3.4 維度 2：Smart Occupancy (v1.3 distance-aware + v1.11 S20 不對稱)
+### 3.4 維度 2：Smart Occupancy (v1.3 + v1.11 S20 不對稱 + v1.12 S22/S23 軸延伸)
 
-**目的**：多 pass 處理時，前面的 path 影響後面 path 的 cost，但要「智慧區分」哪些情境該分流、哪些該共享。
+**目的**：多 pass 處理時，前面的 path 影響後面 path 的 cost。同 source/target 邊要「視情境共享 trunk/tail」、不同 source/target 邊要「分流避平行重疊」。
 
 ```js
-getOccupyPenalty(cell, dir, myId, myTargetId):
-  stored = occupiedMeta[cell]
-  if (!stored) return 0
-  if (stored.sourceId === myId)       return 0    // 同 source 共享前段
-  if (stored.targetId === myTargetId) return 0    // 同 target 共享後段
-  if (stored.dir === dir)             return 80   // 同向重疊：高 penalty
-  if (stored.dir === opposite(dir))   return 80   // 反向也算重疊
-  else                                return 8    // 垂直交叉：低 penalty
+// grid.js::getOccupyPenalty(cell, dir, mySource, myTarget, startCell, goalCell, entrySide, exitSide)
+stored = occupiedMeta[cell]
+if (!stored) return 0
+
+// === 同 source (fork) ===
+if (stored.sourceId === mySource):
+  d = manhattan(cell, startCell)
+  if (d <= SHARE_RADIUS_SOURCE=2)             return 0   // 圓形 share-free zone (trunk)
+  // v1.12 S23：軸延伸 share-free（對稱 v1.12 S22）
+  if (exitSide ∈ {top, bottom} && cell.x === startCell.x)  return 0  // 垂直 port，整條 x 軸
+  if (exitSide ∈ {left, right} && cell.y === startCell.y)  return 0  // 水平 port，整條 y 軸
+  return SHARE_PENALTY=3   // 偏離軸 + 圓外，spread
+
+// === 同 target (merge) ===
+if (stored.targetId === myTarget):
+  d = manhattan(cell, goalCell)
+  if (d <= SHARE_RADIUS_TARGET=5)             return 0   // 圓形 share-free zone (tail)
+  // v1.12 S22：軸延伸 share-free
+  if (entrySide ∈ {top, bottom} && cell.x === goalCell.x)  return 0  // 垂直 port，整條 x 軸
+  if (entrySide ∈ {left, right} && cell.y === goalCell.y)  return 0  // 水平 port，整條 y 軸
+  return SHARE_PENALTY=3   // 偏離軸 + 圓外，spread
+
+// === 異 source/target ===
+if (stored.dir === dir || stored.dir === opposite(dir))   return 80   // 同向重疊
+return 8   // 垂直交叉允許
 ```
 
 | 參數 | 預設值 | 意義 |
 |---|---|---|
-| `OCCUPY_SAME_SOURCE_OR_TARGET` | 0 | 同源 / 同目標共享，免費 |
-| `OCCUPY_SAME_DIRECTION` | 80 | 同向（或反向）重疊：強烈懲罰 |
-| `OCCUPY_PERPENDICULAR` | 8 | 垂直交叉：略懲罰但允許 |
+| `SHARE_RADIUS_SOURCE` | 2 | Fork 圓形 share-free 範圍小 → 早分叉 (v1.11 S20) |
+| `SHARE_RADIUS_TARGET` | 5 | Merge 圓形 share-free 範圍大 → 提早合流 (v1.11 S20) |
+| `SHARE_PENALTY` | 3 | 軸外、圓外的同 source/target cell cost |
+| `OCCUPY_SAME_DIR` | 80 | 異 source/target 同向重疊（避平行）|
+| `OCCUPY_PERP` | 8 | 異 source/target 垂直交叉（允許）|
+
+**幾何直覺（v1.12 S22/S23 後）**：
+
+```
+            target task
+         ┌─────────┐
+         │         │
+   ──────●─────────┤    ← S22: y=goalY 整條軸 share-free
+         │         │      (水平 entry port)
+         └─────────┘
+         goalCell↓
+              ····      ← Manhattan radius 5 圓形 share-free
+         ┌────────┐
+         │ (圓內) │
+         └────────┘
+
+   ──────── source axis (S23) ────────
+         │
+         │             ← x=startCell.x 整條軸 share-free
+         │              (垂直 exit port)
+       startCell
+         │
+   ┌─────●─────┐
+   │  source   │
+   │   task    │
+   └───────────┘
+```
 
 **解決哪些情境**：
-- 同 source 多 fork：前段共享 trunk、後段自然分叉
-- 多 incoming 進同 target：後段合流到 target.port
-- 平行路徑重疊：A* 自動分開到不同 row/col
-- 垂直交叉：允許（penalty 低，視覺可接受）
+- 同 source 多 fork：trunk 共享（圓內 + 軸線上），中段自然分叉到不同 target
+- 多 incoming 進同 target：tail 合流（圓內 + 軸線上），共用 port 軸接近 → 共用箭頭位置
+- 平行路徑（不同 source/target）：自動分開到不同 row/col
+- 垂直交叉（不同 source/target）：允許（penalty 低）
+- **v1.12 修正**：S22 解「進 port 前 1-grid 階梯」、S23 解「出發後 1-grid 階梯」
 
-### 3.3.1 markPathOccupied 完整展開
+**Trade-off**：S23 後 fork 邊堆疊在 source 軸 trunk，labels 可能重疊。視覺優先「整齊出發 / 共用箭頭」。
 
-**注意**：`router.js::markPathOccupied()` 必須對每段 path 的「每個 cell」展開標記，不能只標 bend point。
+#### 3.4.1 markPathOccupied 完整展開
+
+**注意**：`router/routeAll.js::markPathOccupied()` 必須對每段 path 的「每個 cell」展開標記，不能只標 bend point。
 
 `cleanOrtho` 會合併共線中間點，所以 `pathPx` 通常只是 bend points。若只標 bend points，後續同 target 路徑看不到「水平/垂直段內部的 occupied cells」→ 同 target 無法 spread（同 cells 仍 0 penalty）。
 
 實作：iterate 每對相鄰 bend points 之間的 cell，逐一 markOccupied。
 
-### 3.4 維度 4：Center Bias (v1.1 + v1.2 + v1.8 動態 SKIP_RADIUS + v1.10 S19 斜軸關閉)
+### 3.5 維度 4：Center Bias (v1.1 + v1.2 + v1.8 動態 SKIP_RADIUS + v1.10 S19 斜軸關閉)
 
 **v1.10 S19 重要適用範圍**：對「斜軸 pair」candidate（exit/entry 不同軸的 8 種：R→T, B→L, R→B, T→L, L→T, B→R, L→B, T→R），A* 跑 candidate 時**完全關閉** Center Bias。
 
@@ -262,7 +322,7 @@ if (isTurn && hasCenter):
 - 2-bend U/S：bend 在中段、離 endpoint > skipRadius → 仍受 Center Bias → bend 拉中點 ✓
 - **1-bend 對角斜軸長 path：corner bend 落在 skipRadius 內 → 不被罰 → 1-bend 仍最低 cost ✓**
 
-### 3.5 維度 5：Port Reservation (v1.5)
+### 3.6 維度 5：Port Reservation (v1.5)
 
 **目的**：解 business-spec §5 規則 1「同 port 不可混 IN+OUT」。
 
@@ -293,7 +353,7 @@ getPortConflictPenalty(taskId, side, direction):
 
 **Multi-pass 順序影響**：reservation state 依排序累加。目前 sort 是 `source.col asc → target.col asc`，先 route 的 edge 先 reserve port。若順序不合理可後續調 sort。
 
-### 3.6 維度 6：Same-target / Same-source Coherence (v1.6 + v1.8 anchor by geometry + v1.10 S16 動態權重)
+### 3.7 維度 6：Same-target / Same-source Coherence (v1.6 + v1.8 anchor by geometry + v1.10 S16 動態權重)
 
 **v1.10 S16 動態 COHERENCE_PENALTY**：依 anchor strength（投票多數比例）縮放：
 
@@ -353,7 +413,7 @@ getCoherenceMismatchPenalty(taskId, side, direction):
 - Anchor 由 geometry 預測；只有 0 票的 task 不設 anchor（罕見）
 - 跟 port reservation 不衝突：reservation 是 hard 避反向，coherence 是 soft 偏向同 side
 
-### 3.7 Tie-break
+### 3.8 Tie-break
 
 ```js
 const dirOrder = [
@@ -369,7 +429,7 @@ tieBias = i * 0.01;  // 0.00 / 0.01 / 0.02 / 0.03
 
 第一步不准回頭（`OPPOSITE[sourceExitDir]`）。
 
-### 3.8 為什麼這六個維度足夠
+### 3.9 為什麼這六個維度足夠
 
 任何「視覺好不好」的判斷都可拆解成：
 
@@ -605,9 +665,11 @@ else:  // 幾乎同 col
 | `CENTER_SKIP_RADIUS_MAX` | `astar.js` | 10 | 長 path 的 SKIP_RADIUS 上限 (v1.8 動態, skipRadius = clamp(pathLen/4)) |
 | `OCCUPY_SAME_DIR` | `grid.js` | 80 | 同向重疊扣分 |
 | `OCCUPY_PERP` | `grid.js` | 8 | 垂直交叉扣分 |
-| `SHARE_RADIUS_SOURCE` | `grid.js` | 2 | 同 source fork: trunk 共享範圍小，早分叉避 labels 重疊 (v1.3, v1.11 拆對稱) |
-| `SHARE_RADIUS_TARGET` | `grid.js` | 5 | 同 target merge: tail 共享範圍大，提早合流避視覺各自轉折 (v1.11 S20) |
-| `SHARE_PENALTY` | `grid.js` | 3 | 超出 SHARE_RADIUS 後同 source/target 的單 cell 扣分 |
+| `SHARE_RADIUS_SOURCE` | `grid.js` | 2 | 同 source fork: 圓形 trunk share-free 範圍 (v1.3, v1.11 S20 拆對稱) |
+| `SHARE_RADIUS_TARGET` | `grid.js` | 5 | 同 target merge: 圓形 tail share-free 範圍 (v1.11 S20) |
+| `SHARE_PENALTY` | `grid.js` | 3 | 偏離 port 軸 + 圓外的同 source/target cell cost |
+| **S22 軸延伸**（target） | `grid.js` | flag | entrySide ∈ {top,bottom} → x=goalCell.x 整條軸 share-free；{left,right} → y=goalCell.y。解進 port 前 1-grid 階梯 (v1.12) |
+| **S23 軸延伸**（source） | `grid.js` | flag | exitSide ∈ {top,bottom} → x=startCell.x 整條軸 share-free；{left,right} → y=startCell.y。解出發後 1-grid 階梯 (v1.12) |
 | `ENDPOINT_BONUS` | `astar.js` | 6 | end-zone (3-5 cells from endpoint) proximity 推開門檻 (v1.11 S4) |
 | `ENDPOINT_RADIUS` | `astar.js` | 5 | end-zone 範圍 (v1.11 S4) |
 | `PORT_VIOLATION_PENALTY` | `grid.js` | 500 | 同 port 反向使用（規則 1 違規）的 cost penalty (v1.5) |
@@ -672,11 +734,11 @@ else:  // 幾乎同 col
 | 跨 lane 直接連線 | 2-turn S 或 1-turn L 形 |
 | 跨 lane 中間有 task 阻擋（A→D 情境）| 在阻擋元件兩側 corridor 之一走，bend 點靠中央 |
 | Backward edge（target.col < source.col）| 走 top corridor 繞回 |
-| Gateway parallel fork（多條 outgoing）| 共享前段、自然分叉到不同 target |
+| Gateway parallel fork（多條 outgoing）| **v1.12 S23**：fork 邊整齊堆疊 source 軸 trunk，到該轉處才分叉 — 不可出現「出發後 1-grid 階梯」|
 | Gateway exclusive fork | 同上 |
-| Merge（多 incoming 進同 target）| 後段合流到 target port |
+| Merge（多 incoming 進同 target）| **v1.12 S22**：incoming 邊整齊收斂到 target 軸 tail，共用箭頭位置 — 不可出現「進 port 前 1-grid 階梯」|
 | 兩條獨立 path 交叉 | 允許交叉（penalty 低）|
-| 兩條平行 path 重疊 | 自動分開到不同 row/col |
+| 兩條平行 path 重疊（異 source/target）| 自動分開到不同 row/col |
 
 ---
 
@@ -707,6 +769,7 @@ else:  // 幾乎同 col
 | 2026-05-17 | v1.8 | **Phase A 三合一**：(a) S1 Anchor by Geometry pre-compute — routeAll 開頭預測每 task 的 in/out anchor side (多數投票)，coherence 跟 multi-pass 順序解耦，編輯一條 edge 不再打亂其他 edge 視覺 (解圖二跳變)。(b) S2 Sort 結構性穩定化 — sort key 加 sourceId/targetId 字典序 tie-break，同 layout 永遠跑出同 result。(c) S3 Center Bias 動態 SKIP_RADIUS — CENTER_SKIP_RADIUS 從固定 4 改成 clamp(pathLen/4, [4, 10])，長 path 的 1-bend corner bend 不被誤罰 (解圖一 5-1-4-3/5-1-4-6 → 5-1-4-10 多餘彎折)，2-bend U/S 仍保留 bend 拉中點。 | ddc475e |
 | 2026-05-17 | v1.9 | **Phase A.1 三合一精修**：(a) S6 Anchor majority threshold + COHERENCE 弱化 — predictAnchors 加嚴格 majority(>50%) 才設 anchor (票數分散回退 first-wins)，COHERENCE_PENALTY 20→12，避免錯誤 anchor 強迫自然 1-bend 路徑繞行 (解 5-1-4-5/6 多彎、包容閘道→5-1-4-5 R→L 繞遠)。(b) S7 拖曳 pin 對側 — useDragEndpoint::endDrag 把 partial override 改 full (pin 對側為當前 route 結果)，拖一端不影響另一端視覺。(c) S8 Proximity stub skip — astar.js 距 start/goal ≤ 2 cells 的 cells skip proximity，alignPortSegments 已強制 stub 沿軸方向，proximity 推開 stub 無視覺好處反而製造出發處小 bend (解 5-1-4-3→5-1-4-10 出發處彎折)。 | 2a44010 |
 | 2026-05-17 | v1.10 | **Phase A.2 三合一 cost function 終極收尾**：(a) S15 TURN_PENALTY 累進 — 從固定 15 改成函式 (1st-2nd: 15, 3rd: 25, 4th+: 30)，A* node 維護 turnCount。長 path 的 3-bend 繞行不再「比 2-bend 直達便宜」(根因 A)。(b) S16 動態 COHERENCE_PENALTY — predictAnchors 投票記錄 strength (bestCount/total)，getCoherenceMismatchPenalty 用 factor=2*(1-strength) 縮放：壓倒性 majority (1.0) → 不罰、邊際 (0.5) → 全罰，解 end event 集中型 anchor 壓倒少數異類 edge (根因 B)。(c) S19 斜軸 pair candidate 關閉 Center Bias — generateCandidates 對 8 種斜軸 pair (R→T 等) 標 isAxisDiagonal: true，findPath 傳 centerBiasEnabled=false。斜軸 1-bend 的 corner bend 不再被 Center Bias 反向破壞 → A* 自然選 1-bend (根因 C)，full/partial override 斜軸也同樣享受。 | 2a25ad0 |
-| 2026-05-17 | v1.11 | **Phase A.3 兩合一精修**：(a) S20 不對稱 SHARE_RADIUS — fork (source) 跟 merge (target) 的 share 範圍分開設常數: SHARE_RADIUS_SOURCE=2 (出來早分叉)、SHARE_RADIUS_TARGET=5 (進去提早合流)。解問題 1：5-1-4-6/5-1-4-7 → 5-1-4-10 同 target 多 incoming 在接近 target 時不再各自轉折，5 cells 內共享 cost 0 自然合流。(b) S4 Endpoint Clearance — Proximity 加三段邊界：STUB (≤2) cost=0、END-ZONE (3-5) bonus=6 加強推開、中段 (6+) bonus=4 標準。解問題 2：backward edge 進入 target 時箭頭不再被擠在邊角，end-zone 範圍 cells 距 task 邊框 ≥ 6 才不罰。 | TBD |
+| 2026-05-17 | v1.11 | **Phase A.3 兩合一精修**：(a) S20 不對稱 SHARE_RADIUS — fork (source) 跟 merge (target) 的 share 範圍分開設常數: SHARE_RADIUS_SOURCE=2 (出來早分叉)、SHARE_RADIUS_TARGET=5 (進去提早合流)。解問題 1：5-1-4-6/5-1-4-7 → 5-1-4-10 同 target 多 incoming 在接近 target 時不再各自轉折，5 cells 內共享 cost 0 自然合流。(b) S4 Endpoint Clearance — Proximity 加三段邊界：STUB (≤2) cost=0、END-ZONE (3-5) bonus=6 加強推開、中段 (6+) bonus=4 標準。解問題 2：backward edge 進入 target 時箭頭不再被擠在邊角，end-zone 範圍 cells 距 task 邊框 ≥ 6 才不罰。 | 1e72aa9 |
+| 2026-05-18 | v1.12 | **Phase B 雙軸延伸 share-free**：(a) S22 target 軸延伸 — 同 target cell 位於 entry port 進入軸 (perpDist=0) 不限距離 share-free。解「進 port 前 1-grid 階梯」：多 incoming 邊提早收斂到 port 軸，最後一段乾淨直達，共用箭頭位置。傳遞鏈：pickPath → findPath opts.entrySide → grid.getOccupyPenalty。(b) S23 source 軸延伸（對稱 S22）— 同 source cell 位於 exit port 出發軸 (perpDist=0) 不限距離 share-free。解「出發後 1-grid 階梯」：fork 邊堆疊在 source 軸 trunk，到該轉才分叉。Trade-off：fork trunk 上 label 可能重疊，「整齊出發」視覺優先。getOccupyPenalty 加 entrySide/exitSide 參數，astar.js findPath opts 對應加。 | 154a7ef + 768aa85 |
 
 未來每次 cost function / grid / multi-pass 邏輯變更都要在此記錄。

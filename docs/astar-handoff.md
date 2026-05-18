@@ -8,7 +8,7 @@
 
 ## 1. 一句話現狀
 
-A* router 已實作 4 維 cost function，所有改進記錄在 `docs/astar-routing-spec.md` v1.3。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。連線視覺已在多個情境改善但仍有 corner case 待 tune。
+A* router 已實作 **6 維 cost function (v1.12)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase B 完成「雙軸延伸 share-free」(S22/S23)，merge/fork 視覺顯著改善（共用箭頭、整齊出發）。剩餘 corner case 在 §6。
 
 ---
 
@@ -53,23 +53,24 @@ docs/
 
 ---
 
-## 4. Cost Function 當前狀態（v1.11）
+## 4. Cost Function 當前狀態（v1.12）
 
 ```js
 // routeAll 開頭 (v1.8 S1 + v1.10 S16 strength)
 predictAnchors(grid, rawConns, positions)
-  // 投票 + majority threshold + 記錄 strength
+  // 投票 + majority threshold + 記錄 strength (給 dim 6 動態 factor)
 
-// astar.js per-cell cost
+// astar.js per-cell cost (v1.12)
 cost(cell, dir) =
     1                                                              // 移動
   + (turn ? turnPenalty(turnCount) : 0)                            // dim 0: 累進 turn (v1.10 S15)
-  + max(0, PROXIMITY_BONUS(4) - distMap[cell])  if !inStub          // dim 1: 障礙物距離 (v1.9 stub skip)
-  + occupyPenalty(cell, dir, src, tgt, start, goal)                // dim 2: 智慧占用
+  + max(0, PROXIMITY_BONUS(4) - distMap[cell])  if !inStub          // dim 1: 障礙物距離 (v1.9 + v1.11 S4)
+  + occupyPenalty(cell, dir, src, tgt,                             // dim 2: 智慧占用
+                  start, goal, entrySide, exitSide)                //   (v1.11 S20 不對稱 + v1.12 S22/S23 軸延伸)
   + (isTurn && farFromRadius && centerBiasEnabled                  // dim 4: 中心偏好
        ? centerDist*CENTER_WEIGHT(1.5) : 0)                        //   v1.10 S19: 斜軸 pair 關閉
 
-// router.js::pickBestPath 算完 A* path 後加上：
+// router/pickPath.js::pickBestPath 算完 A* path 後加上：
 adjustedCost = A* result.cost
   + getPortConflictPenalty(srcId, exitSide,  'out')                // dim 5: port reservation
   + getPortConflictPenalty(tgtId, entrySide, 'in')
@@ -83,7 +84,7 @@ adjustedCost = A* result.cost
 |---|---|---|
 | 0 Turn (v1.10 累進) | 少 bend，3+ bend 急升 cost | base=15 (1st-2nd), 25 (3rd), 30 (4th+) |
 | 1 Proximity (v1.9 stub + v1.11 S4 end-zone) | STUB(≤2)=0, END-ZONE(3-5)=6, 中段(6+)=4 | PROXIMITY_BONUS=4, ENDPOINT_BONUS=6 |
-| 2 Smart Occupy (v1.11 S20 不對稱) | Fork 早分叉、Merge 提早合流 | SHARE_RADIUS_SOURCE=2, SHARE_RADIUS_TARGET=5, SHARE_PENALTY=3 |
+| 2 Smart Occupy (v1.11 S20 + **v1.12 S22/S23 軸延伸**) | Fork 軸 trunk 整齊出發、Merge 軸 tail 共用箭頭；圓+軸雙重 share-free | SHARE_RADIUS_SOURCE=2, SHARE_RADIUS_TARGET=5, SHARE_PENALTY=3 |
 | 4 Center Bias (v1.8 動態 SKIP + v1.10 斜軸關閉) | 2-bend U/S bend 在中點；斜軸 1-bend 不誤罰 | CENTER_WEIGHT=1.5, SKIP=clamp(pathLen/4, [4,10]) |
 | 5 Port Reservation (v1.5) | 規則 1 (IN+OUT 不混用) | PORT_VIOLATION_PENALTY=500 |
 | 6 Coherence (v1.6 + v1.8 + v1.9 + v1.10 動態權重) | 多 incoming/outgoing 收斂；強 majority 不罰、弱 majority 全罰 | COHERENCE_PENALTY=12, factor=2*(1-strength) |
@@ -97,12 +98,14 @@ adjustedCost = A* result.cost
 ✅ 同 lane 相鄰直線（2-bend straight）
 ✅ 同 lane 中間有障礙 → bottom→bottom 走 corridor（multi-port trial）
 ✅ 跨 lane 2-bend S-shape（bend 在中點）
-✅ 多 fork 從同 source 共享 port 出發、中段分流
-✅ 多 merge 進同 target 中段分流、靠 port 合流
+✅ **多 fork 從同 source 整齊出發**（v1.12 S23 軸延伸 trunk，無 1-grid 階梯）
+✅ **多 merge 進同 target 共用箭頭**（v1.12 S22 軸延伸 tail，無進 port 前 1-grid 階梯）
 ✅ Drag override（完整 + partial 都尊重，partial 自動配對幾何 entry）
-✅ Distance map proximity push 走 corridor 中央
+✅ Distance map proximity push 走 corridor 中央 + endpoint clearance 推開（v1.11 S4）
 ✅ Cell 邊界對齊 grid（所有座標 % 8 = 0）
 ✅ 結構 hash cache（React 重 render 友善）
+✅ 斜軸 1-bend 不被誤罰繞行（v1.10 S19）
+✅ 集中型 anchor (5/5 majority) 不壓倒少數異類 edge（v1.10 S16 dynamic coherence）
 
 ---
 
@@ -110,20 +113,17 @@ adjustedCost = A* result.cost
 
 ### 🔴 高優先級
 
-#### 6.1 多 fork 內部「微 zigzag」
-某些 fork 路徑在 source 附近會出現 2-3 cells 的小垂直跳動。
+#### 6.1 短 path「彎折離元件太近」(Issue B from 2026-05-18)
+**症狀**：當 path 全長 < 10 cells 時，center bias 的 SKIP_RADIUS (clamp(pathLen/4, [4,10]) 下限 4) 蓋掉中段，bend 無 center pressure 拉中。實際 bend 落點靠近 endpoint，stub 段太短 → 箭頭視覺上跟線段重疊。
 
-**已觀察**：gw→t9 path `(192,184)→(192,192)→(208,192)→(208,184)→(768,184)` —— 在離開 source 短距離內有「下→東→上」的小 detour。
+**已觀察**：圖三 右線進 1-1-2-5 — 線往南 1 grid 後就東轉，到極接近 1-1-2-5 才南轉指入。
 
-**原因猜測**：
-- A* 的 `sourceExitDir='south'`（bottom 出）讓首步走南
-- 第二步轉東 cost 高（TURN+15）
-- 經過幾步後再北回 corridor 中央
-- Center bias 的 CENTER_SKIP_RADIUS 太小，這些 turn 不被視為 stub turn，反而被 penalize 推到中間
+**S23 (v1.12) 部分緩解**：source 軸 trunk 共享後，path 不再被 OCCUPY 鎖到元件旁，center bias 有更大空間。若仍殘留：
 
-**修法方向**：
-- 試 `CENTER_SKIP_RADIUS` 4→6
-- 或讓「near start cell 的 turn cost」更高（鼓勵第一步就轉到 target 方向）
+**修法方向（S24 候選）**：
+- 加新維度「stub 最小長度」— 最後一段（進 port 前）< K cells 時加 penalty
+- 或加「endpoint clearance bend」— bend 落在距 endpoint < 3 cells 加 cost
+- 不可選：把 SKIP_RADIUS 下限拉到 0（會把 stub turn 算進 center → 解 v1.2 已修的問題）
 
 ### 🟡 中優先級
 
@@ -241,17 +241,70 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-17 | 2a44010 | A* round 13 (Phase A.1): S6 anchor majority/COHERENCE 弱化 + S7 拖曳 pin 對側 + S8 proximity stub skip | v1.9 |
 | 2026-05-17 | 474c338 | F1 router.js split — shim + router/ 5 subfiles (size cap) | v1.9 |
 | 2026-05-17 | 2a25ad0 | A* round 14 (Phase A.2): S15 TURN 累進 + S16 動態 COHERENCE + S19 斜軸關 Center Bias | v1.10 |
-| 2026-05-17 | TBD | A* round 15 (Phase A.3): S20 不對稱 SHARE_RADIUS + S4 Endpoint Clearance | v1.11 |
+| 2026-05-17 | 1e72aa9 | A* round 15 (Phase A.3): S20 不對稱 SHARE_RADIUS + S4 Endpoint Clearance | v1.11 |
+| 2026-05-18 | 154a7ef | A* round 16 (Phase B): **S22 target 軸延伸 share-free** — 解 merge 進 port 前 1-grid 階梯 | v1.12 |
+| 2026-05-18 | 768aa85 | A* round 17 (Phase B): **S23 source 軸延伸 share-free**（對稱 S22）— 解 fork 出發後 1-grid 階梯 | v1.12 |
 
 ---
 
 ## 11. 給下一個對話的最後叮嚀
 
-- 使用者的「相同根因，不同症狀」洞察力很強。如果同時收到多個視覺問題，**先找共同 cost 維度根因**，再決定改 1 個還是 N 個地方
-- 使用者寫文字偶有錯字（「勿」=「戊」、「做標」=「座標」），上下文判斷即可
-- 使用者用「圖一/圖二/圖三/圖四」指代當輪截圖，**仔細看 image 順序與 user 描述對應**
-- 使用者把「ideal 範例」（圖三）跟「current bad」（圖一）放在一起 → **比對兩者差異**找優化方向
+### 接手後第一件事
+
+讀完 §1-§10 後，**先跑下列「最近一輪覆蓋」smoke check**確認當前部署符合預期：
+
+| Smoke case | 預期視覺 | 對應修法 |
+|---|---|---|
+| 多 fork 出 parallel gateway 下方 | 整齊堆疊在 gateway 下方 trunk，到該轉處才分叉，**無出發後 1-grid 階梯** | v1.12 S23 |
+| 多 incoming 進 end event / merge target | 共用同一個箭頭位置，**最後一段直線進 port 無 1-grid 階梯** | v1.12 S22 |
+| 跨多 lane 對角 task → end event 1-bend | 1-bend corner 不繞行 | v1.10 S19 |
+| 5/5 majority anchor 含少數 T→B 異類邊 | 少數邊自由走自然路徑（不被強拉到 anchor side） | v1.10 S16 |
+
+若任一 case 退化（regression），先確認當前 deploy 是 latest commit (`/test-astar/` 顯示版本)，再回頭看 commit history 找 break point。
+
+### 跟使用者協作的慣例
+
+- **「相同根因不同症狀」**：使用者觀察力極敏銳。同時收到多個視覺問題時**先找共同 cost 維度根因**，再決定 1 fix 或 N fix
+- **錯字判讀**：「勿」=「戊」、「做標」=「座標」，上下文判斷即可
+- **截圖指代**：使用者用「圖一/圖二」指代當輪截圖，仔細看 image 順序與描述對應；常把「ideal 範例」跟「current bad」放一起讓你比對
+- **「請執行」前等情境列舉**：複雜需求時，使用者偏好「先列 5-8 個具體使用情境 + 決策點」，**收齊使用者拍板才動手**（CLAUDE.md §12 規定）
 - **每輪 push 後等使用者實測**，不要連續修無確認
-- **保持紅線**：cost-based、no if-then、no library、grid-aligned。任何違反都會被使用者抓到並回拒
+
+### 修法決策樹
+
+收到視覺優化需求時按此順序判斷：
+
+1. **能否調既有維度權重解？** → 改常數（e.g., COHERENCE_PENALTY 20→12）
+2. **能否縮小既有維度適用範圍？** → 加 skip 條件（e.g., S8 stub skip proximity、S19 斜軸關 Center Bias）
+3. **能否擴大既有維度適用範圍？** → 加軸延伸 / radius 動態（e.g., S22/S23 軸延伸、S3 動態 SKIP_RADIUS）
+4. **能否拆對稱常數？** → e.g., S20 不對稱 SHARE_RADIUS（source vs target）
+5. **以上都不行才加新維度** → 在 spec §3 加新章節 + 更新 cost function 公式
+
+**禁忌**：在 router.js / astar.js / pickPath.js 寫 `if (task.type === 'gateway' && ...) { specialCase }` 之類業務規則分支。
+
+### 對稱性檢查（v1.12 後新增）
+
+任何修同 source / 同 target 行為的改動，**自問**：source 側跟 target 側對稱嗎？是否該同時做？
+
+- v1.11 S20：拆 SHARE_RADIUS_SOURCE vs SHARE_RADIUS_TARGET（語意不對稱，故拆）
+- v1.12 S22/S23：軸延伸 share-free — target 先做（S22），source 對稱補（S23），都需要
+- 反例：dim 6 Coherence 動態權重（S16）只動 `'in'`/`'out'` 共用邏輯，無 source/target 對稱問題
+
+### 文件同步檢查單（**每輪 PR 前必跑**）
+
+- [ ] `docs/astar-routing-spec.md` §3 對應維度章節更新
+- [ ] `docs/astar-routing-spec.md` §8 參數表新增/修改
+- [ ] `docs/astar-routing-spec.md` §11 測試情境若有新覆蓋情境補上
+- [ ] `docs/astar-routing-spec.md` §13 變更歷史加一行（含 commit SHA）
+- [ ] `docs/astar-handoff.md` §1 一句話現狀更新
+- [ ] `docs/astar-handoff.md` §4 cost function 公式 + 維度表更新
+- [ ] `docs/astar-handoff.md` §5 已覆蓋情境補上
+- [ ] `docs/astar-handoff.md` §6 已知未解清單：若 fix 涵蓋某項 → 移除；若引入新已知 corner → 新增
+- [ ] `docs/astar-handoff.md` §10 變更紀錄加一行
+- [ ] commit msg 引用對應 S 編號（e.g., S22/S23）+ 紅線複查條目
+
+### 保持紅線
+
+cost-based、no if-then、no library、grid-aligned。任何違反都會被使用者抓到並回拒。
 
 祝接手順利！
