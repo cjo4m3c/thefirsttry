@@ -6,6 +6,16 @@
 export default [
   {
     date: '2026-05-18',
+    title: 'TaskCard「L4 任務」pill 文字改白字 — 跟其他 7 種類型拉齊',
+    items: [
+      '**緣由**：使用者「編輯器中每區塊左上角 L4 任務元件說明的請改為白色字、跟其他小標籤拉齊」。PR #220 KIND_BADGE 對齊 spec §11 時把 task pill 設為「brand-light 底 + brand-dark 深字」（spec 唯一不同的組合），其他 7 種類型都是白字。使用者偏好整站一致。',
+      '**修法**：`src/utils/elementTypes.js KIND_BADGE.task.text` 從 `var(--brand-dark)` → `#FFFFFF`。其他類型不動（本來就白字）。',
+      '**動到的檔案（2 個）**：`src/utils/elementTypes.js`（一行 + 註解說明 trade-off）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：TaskCard / ContextMenu 「L4 任務」pill 文字從深色 (brand-dark `#1B2E4C`) 變白色、跟「並行閘道 / 排他閘道 / L3 流程 / 外部互動 / 開始事件 / 結束事件」一致。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: '全站字體拉齊 — `--font-mono` 改 fallback 到 `--font-sans`',
     items: [
       '**緣由**：使用者「全站的中英文字體要拉齊，像是現在 L3 編號就用了不一樣的字體」。Spec 規定 mono 字型用於編號 / 數字 / 時間戳、但使用者偏好整站單一字體。',
