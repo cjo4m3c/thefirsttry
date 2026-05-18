@@ -30,6 +30,7 @@ export function wrapText(text, maxChars, maxTotal) {
   const tokens = text.match(/[　-〿぀-ゟ゠-ヿ一-鿿＀-￯]|[A-Za-z0-9]+|\S/g) || [];
   const tokWidth = t => [...t].reduce((s, c) => s + (cjkRe.test(c) ? 2 : 1), 0);
   const isLatin = c => /[A-Za-z0-9]/.test(c);
+  const isCjk   = c => cjkRe.test(c);
   const maxWidth = maxChars * 2;
   const totalCap = maxTotal != null ? maxTotal * 2 : Infinity;
   const lines = [];
@@ -39,7 +40,16 @@ export function wrapText(text, maxChars, maxTotal) {
     if (totalW + tw > totalCap) { truncated = true; break; }
     if (!cur) { cur = tok; curW = tw; }
     else {
-      const needsSpace = isLatin(cur[cur.length - 1]) && isLatin(tok[0]);
+      // 2026-05-18 中英混排自動間距：除原本 Latin ↔ Latin 之間需要 join
+      // space 外，CJK ↔ Latin 邊界也插入一個半形空格、提升閱讀舒適度。
+      // 此邏輯整合到 wrapText 內、不另外跑 autoSpace pre-process（後者
+      // 加的空格會被 tokenize regex 丟掉）。caller 不需 pre-process。
+      const lastChar = cur[cur.length - 1];
+      const firstChar = tok[0];
+      const needsSpace =
+           (isLatin(lastChar) && isLatin(firstChar))   // Latin ↔ Latin（既有）
+        || (isCjk(lastChar)   && isLatin(firstChar))   // CJK → Latin
+        || (isLatin(lastChar) && isCjk(firstChar));    // Latin → CJK
       const addW = tw + (needsSpace ? 1 : 0);
       if (curW + addW <= maxWidth) { cur += (needsSpace ? ' ' : '') + tok; curW += addW; }
       else { lines.push(cur); cur = tok; curW = tw; }

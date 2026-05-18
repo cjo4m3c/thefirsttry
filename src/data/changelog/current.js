@@ -5,6 +5,19 @@
  */
 export default [
   {
+    date: '2026-05-18',
+    title: '中英混排自動間距（display-only）— 流程圖 / FlowTable / Dashboard 統一插空格',
+    items: [
+      '**緣由**：使用者「我在 Excel 中輸入正常的文字後、你讓使用者在頁面上可以看到有調整過間距的舒服閱讀版、特別是流程圖上、流程圖元件內的文字、線段上的文字是必要的」。',
+      '**設計**：display-only 處理、不動 raw data（Excel / drawio / localStorage 一律保持原文）。helper `autoSpace(text)` 在 CJK ↔ ASCII 英數字相鄰處插入半形空格（2 條 regex：CJK→英數 / 英數→CJK），已有空格不重複插入。**不引入 pangu lib**（FlowSprite 只需 2 條 rule、+10KB bundle 不划算）。',
+      '**核心改動**：(a) 新增 `src/utils/autoSpace.js` helper（~50 行含 JSDoc） + `src/utils/autoSpace.test.js`（14 個 unit tests，用 Node 18+ 內建 `node:test`、零 dep）。(b) `src/components/DiagramRenderer/text.jsx` `wrapText` 在現有「Latin↔Latin join space」邏輯加入「CJK→Latin」/「Latin→CJK」分支 — 整合到 token 拼接、不被 tokenize regex 吃掉。SvgLabel / EventLabel / arrows.jsx ConnectionArrow label / StickyHeader 角色名稱都自動受益（這些都走 wrapText）。(c) `src/components/FlowTable.jsx` ReadCell value 套 `autoSpace`（覆蓋任務名稱 / 任務關聯說明等 read-only 欄位）。(d) `src/components/Dashboard/FlowCard.jsx` `l3Name` 標題 + role chips 套 `autoSpace`。(e) `src/components/DiagramRenderer/index.jsx` 流程圖頂部標題 `l3Name` 套 `autoSpace`。',
+      '**不套用的地方**（避免游標跳動 / 維持資料完整性）：所有 `<input>` / `<textarea>`（TaskCard / FlowTable EditCell / ContextMenu / Wizard / Header / Drawer L3 inputs）、L4Number pill（純 ASCII 結構字串）、Excel 匯出（raw）、drawio 匯出（raw、由 draw.io 自行渲染）、localStorage 儲存（raw、與 Excel 一致、搜尋 / 比對不受影響）。',
+      '**結構性字串安全**：`1-1-1-1_g` 等 L4 編號為純 ASCII、autoSpace 無變化；`[排他閘道] 確認需求` 已有空格、無變化；`序列流向 5-1-1-2` 自動生成已含空格、無變化；`[排他閘道]確認` `]` 非英數字、不觸發。',
+      '**動到的檔案（5 個 + 2 新檔）**：`src/utils/autoSpace.js`（新）/ `src/utils/autoSpace.test.js`（新）/ `src/components/DiagramRenderer/text.jsx` / `src/components/DiagramRenderer/index.jsx` / `src/components/FlowTable.jsx` / `src/components/Dashboard/FlowCard.jsx` / `src/data/changelog/current.js`。',
+      '**驗證**：(a) `npm run build` 通過 (b) `node --test src/utils/autoSpace.test.js` → 14/14 pass，涵蓋純中文 / 純英文 / 中英邊界 / 已有空格 idempotency / L4 編號不動 / falsy / 非 string / bracket prefix 等情境 (c) 手動：開啟有 `確認GitHub` 類任務名稱的流程 → 流程圖顯示「確認 GitHub」、編輯器 input 維持 raw「確認GitHub」。',
+    ],
+  },
+  {
     date: '2026-05-13',
     title: '匯入提醒拆成「已自動調整」+「建議檢視」兩段顯示 — Dashboard + FlowEditor 兩 banner 共用',
     items: [
