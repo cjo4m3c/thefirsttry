@@ -516,7 +516,11 @@ laneHeights[row] = clamp(BASE_LANE_H + overflow * LANE_GROWTH_STEP,
 | 參數 | 預設值 | 意義 |
 |---|---|---|
 | `BASE_CORRIDOR_CAPACITY` | 4 | 預設每 lane 上下 corridor 各有 ~4 row 容量 |
-| `LANE_GROWTH_STEP` | `3 * GRID_CELL = 24px` (v1.15) | 每多 1 row 流量擴 24px（trunk + label 上下空間，保 grid 對齊）|
+| `LANE_GROWTH_STEP` | `2 * GRID_CELL = 16px` (v1.16 修 bug, 原 v1.15 設 24 破壞對齊) | 每多 1 row 流量擴的 lane 高度（必須 2*GRID_CELL 倍數）|
+| **`BOUNDARY_LANE_MULTIPLIER`** | `2` (v1.16) | lane 0 / 末端 lane 額外擴張係數，補 markBoundaries header/footer buffer 占用 |
+| **`HEADER_BUFFER_CELLS`** | `2` (v1.16) | `grid.js::markBoundaries` title bar 下方 buffer 行數 (path 不可走) |
+| **`FOOTER_BUFFER_CELLS`** | `2` (v1.16) | `grid.js::markBoundaries` padding bottom 上方 buffer 行數 |
+| **`HALO_PENALTY_SAME_NEAR / FAR`** | `5 / 2` (v1.16) | 同 source/target halo cell penalty (vs 異 src/tgt 30/10)，fork trunk spread 用 |
 | `MAX_LANE_H` | `30 * GRID_CELL = 240px` | lane 高度上限（極端流程應靠拆 lane 解，不靠 lane 撐） |
 | `P_BACKWARD` | 1.0 | 同 lane backward edge 走 corridor 機率 |
 | `P_GAP_FORWARD` | 0.5 | 同 lane 跨多 col forward 走 corridor 機率（非 fork）|
@@ -854,7 +858,9 @@ v1.13 S24 嘗試用 cost dim 補 stub 黑洞 → 失敗（cost penalty 太局部
 | Task 邊緣 | dim 1 distance map (既有) | astar.js + grid.proximityDist | PROXIMITY_BONUS=4 |
 | Routed path | **dim 2 halo (v1.15 新)** | grid.markHalo + getOccupyPenalty halo branch | HALO_RADIUS=2, HALO_PENALTY=[30,10] |
 | Port 軸 stub | **STUB_LENGTH (v1.15 新, search-space)** | pickPath.js::computePath startCell/goalCell 內縮 | STUB_LENGTH=3, fallback when pathLen<6 |
-| Lane 邊界 | 動態 lane 高度 (v1.13b + v1.15 fine-tune) | layout-astar.js | BASE_CAP=1, STEP=24, P_SAME_SOURCE_FORK=1.0 |
+| Lane 邊界（內部）| 動態 lane 高度 (v1.13b + v1.15 + v1.16 fix) | layout-astar.js | BASE_CAP=1, STEP=16 (v1.16 修 grid bug), P_SAME_SOURCE_FORK=1.0 |
+| **Lane 邊界（sticky header / padding）v1.16** | markBoundaries buffer + boundary lane multiplier | grid.js + layout-astar.js | HEADER_BUFFER_CELLS=2, FOOTER_BUFFER_CELLS=2, BOUNDARY_LANE_MULTIPLIER=2 |
+| **Halo same-source/target spread v1.16** | dim 2 halo 低 penalty | grid.js | HALO_PENALTY_SAME_NEAR=5, HALO_PENALTY_SAME_FAR=2 |
 
 **Framework 原則**：
 1. 新「視覺距離」需求**先在此框架內**找對應工具
@@ -864,10 +870,29 @@ v1.13 S24 嘗試用 cost dim 補 stub 黑洞 → 失敗（cost penalty 太局部
 5. STUB_LENGTH 用 hard 內縮 startCell/goalCell（不是 soft cost），避免 A\* 找替代
 
 **未來「距離不夠」類需求都按本框架調參數**：
-- 線跟線太近 → 調 HALO_RADIUS / HALO_PENALTY
+- 線跟線太近 → 調 HALO_RADIUS / HALO_PENALTY / HALO_PENALTY_SAME (v1.16)
 - 線跟 task 太近 → 調 PROXIMITY_BONUS / ENDPOINT_BONUS
 - 線跟 port 太近 → 調 STUB_LENGTH
 - 多 trunk 擠 lane → 調 BASE_CORRIDOR_CAPACITY / LANE_GROWTH_STEP / P_SAME_SOURCE_FORK
+- 線跟 sticky header / padding 重疊 → 調 HEADER_BUFFER_CELLS / FOOTER_BUFFER_CELLS / BOUNDARY_LANE_MULTIPLIER (v1.16)
+
+### 10.5.2 User Override Stability (v1.16 立)
+
+**設計觀察**：A\* 是 stateless across edits — 每次 layout 都從零跑 multi-pass。當使用者加新 edge 或拖既有 edge 時，**所有共用 endpoint 的其他 edges 的 routing 上下文都會變**（predictAnchors 投票變、reservePort first-wins 切換、coherence anchor 改、halo 占用變），導致這些 edges 視覺也跟著動 — 違反使用者期待「拖一邊只動一邊」。
+
+**修法**：使用者顯式定位過的 edge（包含 sibling 共用 endpoint 的）pin 為 full override，避免 multi-pass 重 route 動它們。
+
+| 觸發 | Pin 範圍 |
+|---|---|
+| 拖 target 到新 task | 同 newTargetId 其他 incoming edges |
+| 拖 source side | 同 fromId 其他 outgoing edges |
+| 拖 target side | 同 toId 其他 incoming edges |
+
+實作位置：`useDragEndpoint::endDrag` 加 `pinSiblings()` helper。每個 sibling 寫入 full override `{ exitSide, entrySide }` 為當前 routed 結果。
+
+**Trade-off**：sibling 被 pin 後變「黏」— 未來 task 位置變不會自動 refresh 走線，使用者需手動拖才能 unpin。這是穩定性 vs 自動最佳化的選擇，符合使用者「我拖一邊只動一邊」期待。
+
+**未來「拖一邊另一邊也動」/「加新 edge 影響舊 edge」類需求**都按本原則處理，不再加新 cost dim 或調 anchor 邏輯。
 
 ---
 
@@ -929,6 +954,7 @@ v1.13 S24 嘗試用 cost dim 補 stub 黑洞 → 失敗（cost penalty 太局部
 | 2026-05-18 | v1.12 | **Phase B 雙軸延伸 share-free**：(a) S22 target 軸延伸 — 同 target cell 位於 entry port 進入軸 (perpDist=0) 不限距離 share-free。解「進 port 前 1-grid 階梯」：多 incoming 邊提早收斂到 port 軸，最後一段乾淨直達，共用箭頭位置。傳遞鏈：pickPath → findPath opts.entrySide → grid.getOccupyPenalty。(b) S23 source 軸延伸（對稱 S22）— 同 source cell 位於 exit port 出發軸 (perpDist=0) 不限距離 share-free。解「出發後 1-grid 階梯」：fork 邊堆疊在 source 軸 trunk，到該轉才分叉。Trade-off：fork trunk 上 label 可能重疊，「整齊出發」視覺優先。getOccupyPenalty 加 entrySide/exitSide 參數，astar.js findPath opts 對應加。 | 154a7ef + 768aa85 |
 | 2026-05-18 | v1.13 | **Phase C 兩合一精修**：(a) **S24 維度 7 Bend Endpoint Clearance** — astar.js 加 `BEND_ENDPOINT_PENALTY(20)`，turn cell 在距 endpoint < 3 cells 時付。解短 backward edge B→B candidate 的 bend 落 d=1 處 → 進閘道 stub 被擠 → 箭頭跟元件邊框重疊。對症（只罰 turn cell，stub 直走不變）。spec §6.1 已解。(b) **動態 lane 高度** — layout-astar.js Phase 2 加啟發式：對每條 raw edge 預判 corridor 機率（backward 1.0 / gap forward 0.5 / adjacent 0 / cross-lane 0.15），累加到 lane row。超出預設 4 row 容量時，每多 1 row 流量擴 `2*GRID_CELL=16px`，上限 240px。LPMC 大流程 lane 從 144→192px 後 6 條 backward 分散不擠；純直連 lane 維持 144px 不浪費。 | 0de9d36 |
 | 2026-05-18 | v1.14 | **Phase D 永續性重構**：(a) **回退 v1.13 S24 dim 7** — 實測發現 penalty=20 在 endpoint <3 處反向誘導 A* 找 3-turn 替代路徑（cost N+49 < 被罰的 2-turn N+52），引入新 bug（短 path 進 endpoint 多 1 個小彎）。cost function 回 6 維。教訓：cost dim 罰得太局部會讓 A* 找替代繞過 penalty。(b) **candidate generation 重劃** — 同 row 跨 col 分 adjacent / non-adjacent：`|dx| ≤ ADJACENT_DX_LIMIT(288, 1.5×COL_W)` 仍走 R→L 主候選；`|dx| > 288` (gap forward) 或 backward 強制 T→T / B→B 走 corridor，解觀察 2「R→L 短直線視覺辨識度低」+ 順便解 Issue 1 根因「短 backward stub 擠」。屬 candidate set 職責，不污染 cost function。(c) **新增 §10.5 職責分層** — 永續性核心：新需求先判斷屬 cost dim / candidate set / multi-pass / layout 哪層，不跨層 over-fit。修法決策樹第 0 步前置此判斷。(d) **保留 v1.13b 動態 lane 高度** — 跟 candidate 重劃互補，T→T/B→B 走 corridor 更需要 lane 寬度。 | d339715 |
-| 2026-05-18 | v1.15 | **Phase E 視覺距離 unified framework**：補上 v1.0-v1.14 對「視覺間距」處理的結構不對稱（dim 1 對 task 邊距推 4 cells、dim 2 對 path 邊距 0 cells、stub 區 dim 全 skip 黑洞）。三個獨立工具同框架 (§10.5.1)：(a) **OCCUPY halo radius=2** — `grid.js` markHalo + getOccupyPenalty halo branch：path cell perpendicular ±2 cells 標 halo，異 source/target same/opposite dir 付 30/10 penalty。解情境 1/3「cross path 緊鄰 + fork trunk 擠」。same source/target halo 不罰（share-free 不退化）。(b) **STUB_LENGTH=3** — `router/pickPath.js::computePath` startCell/goalCell 內縮 K cells，A\* 不搜尋 stub 區。Hard 內縮非 soft penalty 避免 v1.13 S24 重蹈覆轍。短 path fallback (manhattan<6) 降到 max(1, floor(M/3))。解情境 2「stub 1 grid 進 port、箭頭重疊邊框」。(c) **lane 啟發式 fine-tune** — `layout-astar.js`：BASE_CAP 4→1（更敏感擴張）+ STEP 16→24（trunk + label 上下空間）+ 新加 P_SAME_SOURCE_FORK=1.0 識別同 source N+ fork pattern。解情境 3「4 fork trunk 擠 + label 蓋」(原 v1.13b load=2 不擴 → 現在 load=4 擴到 240px)。永續性檢查 ✓ 不違反紅線、不加新 cost dim、3 個工具獨立可調。 | (本 PR) |
+| 2026-05-18 | v1.15 | **Phase E 視覺距離 unified framework**：補上 v1.0-v1.14 對「視覺間距」處理的結構不對稱（dim 1 對 task 邊距推 4 cells、dim 2 對 path 邊距 0 cells、stub 區 dim 全 skip 黑洞）。三個獨立工具同框架 (§10.5.1)：(a) **OCCUPY halo radius=2** — `grid.js` markHalo + getOccupyPenalty halo branch：path cell perpendicular ±2 cells 標 halo，異 source/target same/opposite dir 付 30/10 penalty。解情境 1/3「cross path 緊鄰 + fork trunk 擠」。same source/target halo 不罰（share-free 不退化）。(b) **STUB_LENGTH=3** — `router/pickPath.js::computePath` startCell/goalCell 內縮 K cells，A\* 不搜尋 stub 區。Hard 內縮非 soft penalty 避免 v1.13 S24 重蹈覆轍。短 path fallback (manhattan<6) 降到 max(1, floor(M/3))。解情境 2「stub 1 grid 進 port、箭頭重疊邊框」。(c) **lane 啟發式 fine-tune** — `layout-astar.js`：BASE_CAP 4→1（更敏感擴張）+ STEP 16→24（trunk + label 上下空間）+ 新加 P_SAME_SOURCE_FORK=1.0 識別同 source N+ fork pattern。解情境 3「4 fork trunk 擠 + label 蓋」(原 v1.13b load=2 不擴 → 現在 load=4 擴到 240px)。永續性檢查 ✓ 不違反紅線、不加新 cost dim、3 個工具獨立可調。 | 0c977d8 path... |
+| 2026-05-18 | v1.16 | **Phase F 6 合一補齊**：解情境 4 (header 重疊) + 問題 1 (拖一邊另一邊動) + 問題 2 (rule 1 violation) + v1.15 grid alignment bug fix：(a) **bug fix: LANE_GROWTH_STEP 24→16** — v1.15 設成 3*GRID_CELL=24 破壞 NODE_VOFFSET=LANE_H/2 對齊紅線，回 2*GRID_CELL=16。(b) **§10.5.1 第 4 種距離: lane 邊界 (header/padding buffer)** — `grid.js::markBoundaries` 加 HEADER_BUFFER_CELLS=2 + FOOTER_BUFFER_CELLS=2，path 不能走在距 title bar / padding < 2 cells，label 不溢出邊界。(c) **Boundary lane multiplier** — `layout-astar.js`：lane 0 / 末端 lane 用 BOUNDARY_LANE_MULTIPLIER=2 額外擴張，補回 buffer 占用 + 提供 top/bottom corridor。(d) **Same-source halo 低 penalty** — `grid.js`：HALO_PENALTY_SAME_NEAR=5, HALO_PENALTY_SAME_FAR=2 (vs 異 src/tgt 30/10)，fork trunks 自然 spread 2+ cells 而非 1 grid 緊貼。Share-free 軸延伸 (S22/S23) 邏輯保留（主路徑分支處理，halo 分支不影響）。(e) **§10.5.2 User Override Stability** — `useDragEndpoint::endDrag` 加 `pinSiblings()`：拖 target/source 時 pin 共用 endpoint 的其他 edges 為當前 sides，避免 A* multi-pass 重 route 影響 sibling。解問題 1。(f) **Rule 1 hard preference** — `router/pickPath.js::pickBestPath` 改 2-pass：先在無 PORT_VIOLATION candidates 中挑最低，找不到才退回違規版。Rule 1 升為 hard preference 而非 soft penalty。解問題 2。 | (本 PR) |
 
 未來每次 cost function / grid / multi-pass / candidate set / layout 邏輯變更都要在此記錄。

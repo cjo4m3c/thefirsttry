@@ -8,7 +8,7 @@
 
 ## 1. 一句話現狀
 
-A* router 用 **6 維 cost function** + **candidate set design (v1.14)** + **動態 lane 高度 layout pre-pass (v1.13b + v1.15)** + **視覺距離 unified framework (v1.15 §10.5.1)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase E (v1.15) 補上 v1.0-v1.14 對「視覺距離」處理的結構不對稱：dim 2 加 halo radius=2 + STUB_LENGTH=3 + lane 啟發式 fork pattern 識別 — 三個獨立工具同 framework，解情境 1（cross 緊鄰）/ 2（stub 進 port）/ 3（fork trunk 擠 + label 蓋）。剩餘 corner case 在 §6。
+A* router 用 **6 維 cost function** + **candidate set design (v1.14)** + **動態 lane 高度 layout pre-pass (v1.13b + v1.15 + v1.16 修 grid bug)** + **視覺距離 unified framework (§10.5.1, v1.15+v1.16 4 種距離)** + **User Override Stability (§10.5.2, v1.16)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。最近 Phase F (v1.16) 6 合一補齊：grid bug fix + lane 邊界距離（header/padding buffer + boundary multi）+ same-source halo 低 penalty + sibling pin on drag + rule 1 hard preference。剩餘 corner case 在 §6。
 
 ---
 
@@ -276,7 +276,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-18 | 768aa85 | A* round 17 (Phase B): **S23 source 軸延伸 share-free**（對稱 S22）— 解 fork 出發後 1-grid 階梯 | v1.12 |
 | 2026-05-18 | 0de9d36 | A* round 18 (Phase C): **S24 維度 7 Bend Endpoint Clearance** + **動態 lane 高度啟發式** — 解短 backward edge stub 擠壓 + 多平行線同 lane label 互蓋 | v1.13 |
 | 2026-05-18 | d339715 | A* round 19 (Phase D): **永續性重構** — 回退 v1.13 S24 (誘導 A* 找替代路徑 bug) + candidate set 重劃同 row 跨多 col 強制 T→T/B→B + 新增 §10.5 職責分層原則 | v1.14 |
-| 2026-05-18 | (本 PR) | A* round 20 (Phase E): **視覺距離 unified framework** — 補上 v1.0-v1.14 對軟障礙處理的結構不對稱 (dim 1 task 邊距 vs dim 2 path 邊距 vs stub 區黑洞)。三個獨立工具同 framework (§10.5.1): (a) OCCUPY halo radius=2 (解 cross 緊鄰 + fork trunk 擠) (b) STUB_LENGTH=3 (解 stub 進 port 重疊) (c) lane 啟發式 fork pattern + BASE_CAP/STEP fine-tune (解 fork trunk + label 蓋) | v1.15 |
+| 2026-05-18 | 70ae11c | A* round 20 (Phase E): **視覺距離 unified framework** — 補上 v1.0-v1.14 對軟障礙處理的結構不對稱 (dim 1 task 邊距 vs dim 2 path 邊距 vs stub 區黑洞)。三個獨立工具同 framework (§10.5.1): (a) OCCUPY halo radius=2 (解 cross 緊鄰 + fork trunk 擠) (b) STUB_LENGTH=3 (解 stub 進 port 重疊) (c) lane 啟發式 fork pattern + BASE_CAP/STEP fine-tune (解 fork trunk + label 蓋) | v1.15 |
+| 2026-05-18 | (本 PR) | A* round 21 (Phase F): **6 合一補齊** — 解情境 4 (header 重疊) + 問題 1 (拖一邊另一邊動) + 問題 2 (rule 1 violation) + v1.15 grid bug: (a) LANE_GROWTH_STEP 24→16 修對齊 (b) markBoundaries 加 HEADER/FOOTER buffer 2 cells (c) lane 0/末 lane multiplier=2 (d) same-source halo 低 penalty 5/2 (e) sibling pin on drag (§10.5.2 立) (f) rule 1 hard preference 2-pass | v1.16 |
 
 ---
 
@@ -299,7 +300,10 @@ git push origin claude/test-link-open-source-kKqHk
 | **同 row forward adjacent (\|dx\| ≤ 288px)** | **走 R→L 直線（沒被誤推走 corridor）** | v1.14 ADJACENT_DX_LIMIT |
 | **Cross path 同 col 共用 vertical 段** | **後 route path 偏 2-3 cells 視覺清楚分離**（不再 1 grid 緊貼）| v1.15 OCCUPY halo |
 | **任何 edge stub 進 port** | **箭頭距元件邊框 3 cells 不重疊**（短 path<6 manhattan 降為 max(1, M/3)）| v1.15 STUB_LENGTH |
-| **同 source 4 fork trunk 同 lane** | **lane 擴到 192-240px，trunk 間 2 cells halo spread，label 不互蓋** | v1.15 lane fine-tune + halo |
+| **同 source 4 fork trunk 同 lane** | **lane 擴到 192-240px，trunk 間 2 cells halo spread (v1.16 same-src halo)，label 不互蓋** | v1.15 lane fine-tune + v1.16 halo |
+| **Lane 0 (頂端 lane) 多 trunk** | **lane 擴到 240px + 2 cells header buffer，label 不溢出 sticky header「泳道圖」** | v1.16 markBoundaries buffer + BOUNDARY_LANE_MULTIPLIER=2 |
+| **拖一邊 (target/source side) 後另一邊** | **sibling edges 自動 pin 為當前 sides，視覺不跟著動** | v1.16 §10.5.2 sibling pin |
+| **同 task 4+ edges 飽和情境** | **rule 1 hard preference: 任何不違規 candidate 贏過違規版** | v1.16 pickBestPath 2-pass |
 
 若任一 case 退化（regression），先確認當前 deploy 是 latest commit (`/test-astar/` 顯示版本)，再回頭看 commit history 找 break point。
 
