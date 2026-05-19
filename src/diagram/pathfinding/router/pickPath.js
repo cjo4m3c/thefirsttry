@@ -42,11 +42,15 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
   const candidates = generateCandidates(src, tgt, override);
 
   // v1.16 dim 5 範圍擴大：Rule 1 從 soft penalty 升級成 hard preference。
-  // 2-pass 選擇 — 先在無 PORT_VIOLATION candidates 中挑，找不到才退回違規版。
-  // 解問題 2：飽和情境 (4+ edges 同 task) 所有 candidate 都違規時，A* 退化成
-  // 「挑違規小的」沒避免 rule 1。新邏輯：任何不違規的選項贏過違規的 (cost 不論)。
-  let bestClean = null;
-  let bestDirty = null;
+  // v1.17：擴大為 3-pass 選擇支援 Tier-1 (視覺首選) vs Tier-2 (rule 1 fallback)。
+  //   pass 1 (Tier-1 clean): 視覺首選 + portPenalty=0 → 理想
+  //   pass 2 (Tier-2 clean): 視覺次優 (R→L for sameRow gap) + portPenalty=0
+  //                          飽和情境用 — 視覺退讓避免 rule 1 違規
+  //   pass 3 (any dirty):    最後 fallback — 所有 candidate 都違規時退讓
+  // 解問題 A+B：4+ edges 同 task port 飽和時，主動找 Tier-2 alternative。
+  let bestT1Clean = null;
+  let bestT2Clean = null;
+  let bestAnyDirty = null;
   for (const sides of candidates) {
     const result = computePath(grid, src, tgt, sides, sourceId, targetId);
     if (!result) continue;
@@ -57,18 +61,26 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
         grid.getCoherenceMismatchPenalty(sourceId, sides.exit,  'out')
       + grid.getCoherenceMismatchPenalty(targetId, sides.entry, 'in');
     const baseCost = result.cost + cohPenalty;  // 不含 port violation
+    const isT2 = sides.tier === 2;
     if (portPenalty === 0) {
-      if (!bestClean || baseCost < bestClean.cost) {
-        bestClean = { path: result.path, sides, cost: baseCost };
+      const bucket = isT2 ? 'T2Clean' : 'T1Clean';
+      if (bucket === 'T1Clean') {
+        if (!bestT1Clean || baseCost < bestT1Clean.cost) {
+          bestT1Clean = { path: result.path, sides, cost: baseCost };
+        }
+      } else {
+        if (!bestT2Clean || baseCost < bestT2Clean.cost) {
+          bestT2Clean = { path: result.path, sides, cost: baseCost };
+        }
       }
     } else {
       const totalDirty = baseCost + portPenalty;
-      if (!bestDirty || totalDirty < bestDirty.cost) {
-        bestDirty = { path: result.path, sides, cost: totalDirty };
+      if (!bestAnyDirty || totalDirty < bestAnyDirty.cost) {
+        bestAnyDirty = { path: result.path, sides, cost: totalDirty };
       }
     }
   }
-  return bestClean ?? bestDirty;
+  return bestT1Clean ?? bestT2Clean ?? bestAnyDirty;
 }
 
 export function generateCandidates(src, tgt, override) {
@@ -99,6 +111,16 @@ export function generateCandidates(src, tgt, override) {
     //     (此屬 candidate set 職責，不該寫到 cost dim，詳 spec §10.5)
     candidates.push({ exit: 'top',    entry: 'top'    });
     candidates.push({ exit: 'bottom', entry: 'bottom' });
+    // v1.17 Tier-2 fallback：當 T→T / B→B 都違規時，rule 1 hard preference 退到
+    // 違規版。改加 R→L / L→R 作 Tier-2 — 視覺次優 (R→L 直線過 task 視覺辨識度低，
+    // v1.14 原本就是要避這個) 但 rule 1 安全。pickBestPath 3-pass 確保 Tier-1
+    // clean > Tier-2 clean > 任何違規版。
+    // 屬 candidate set 範圍擴展 (§10.5 step 3)，純 dx 號決定方位。
+    if (dx > 0) {
+      candidates.push({ exit: 'right', entry: 'left',  tier: 2 });
+    } else {
+      candidates.push({ exit: 'left',  entry: 'right', tier: 2 });
+    }
   } else if (sameCol && !sameRow) {
     // 同 col 跨 row：加左右 corridor 繞行候選
     candidates.push({ exit: 'left',  entry: 'left'  });

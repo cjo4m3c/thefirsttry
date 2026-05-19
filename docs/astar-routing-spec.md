@@ -625,11 +625,11 @@ pickBestPath(src, tgt, override, srcId, tgtId):
 
 | dx \ dy | dy < -T (target 上方) | \|dy\| < T (同 row) | dy > T (target 下方) |
 |---|---|---|---|
-| dx < -T | L→R + T→B + T→T + B→B + **L→B + T→R** | **T→T + B→B only** (v1.14 backward 強制 corridor) | L→R + B→T + T→T + B→B + **L→T + B→R** |
+| dx < -T | L→R + T→B + T→T + B→B + **L→B + T→R** | T→T + B→B (Tier-1) + L→R (Tier-2, v1.17) | L→R + B→T + T→T + B→B + **L→T + B→R** |
 | \|dx\| < T | T→B + L→L + R→R | AUTO 1 (退化) | B→T + L→L + R→R |
-| dx > T | R→L + T→B + T→T + B→B + **R→B + T→L** | R→L + T→T + B→B (adj) **或** T→T + B→B only (gap, v1.14) | R→L + B→T + T→T + B→B + **R→T + B→L** |
+| dx > T | R→L + T→B + T→T + B→B + **R→B + T→L** | R→L + T→T + B→B (adj) / T→T + B→B (Tier-1) + R→L (Tier-2, v1.17 for gap) | R→L + B→T + T→T + B→B + **R→T + B→L** |
 
-(T = 30。粗體 = v1.7 新增斜軸 pair。v1.14 同 row 跨 col 分 adjacent/non-adjacent)
+(T = 30。粗體 = v1.7 新增斜軸 pair。v1.14 同 row 跨 col 分 adjacent/non-adjacent。v1.17 加 Tier-2 fallback)
 
 實作（router/pickPath.js::generateCandidates）：
 
@@ -647,7 +647,13 @@ if (sameRow && !sameCol):          // 同 row 跨 col
   // v1.14：兩種情況都加 T→T + B→B：
   //   - adjacent (|dx| ≤ 288): 主候選 R→L + corridor 備援
   //   - non-adjacent / backward: 沒主候選，只 T→T + B→B 強制走 corridor
-  candidates += [T→T, B→B]
+  candidates += [T→T, B→B]  // Tier-1 視覺首選
+  // v1.17 Tier-2 fallback：R→L (dx>0) 或 L→R (dx<0)
+  // 飽和情境 (4+ edges 同 task port 都違規) 時 rule 1 hard preference 退讓視覺
+  // 走直線 R→L 通過 task 之間 — 比 violate rule 1 好
+  // adjacent case autoPick 已含 R→L → dedupe 自動移除 Tier-2 重複
+  candidates += [dx>0 ? {exit:'right', entry:'left', tier:2}
+                      : {exit:'left',  entry:'right', tier:2}]
 else if (sameCol && !sameRow):     // 同 col 跨 row
   candidates += [L→L, R→R]         // 左右 corridor 繞行
 else if (!sameRow && !sameCol):    // 對角象限
@@ -707,9 +713,31 @@ else:  // 幾乎同 col
 - **Gateway 類型偏好**（parallel 應偏好 bottom 出）：可加新 candidate generator
 - **斜軸逆向 6 種**：v1.7 只開順向 2 個 / 對角象限。逆向繞遠的 6 種等實際需求再開
 - **Drag preview 跟 A* final 不一致**（spec §9 / handoff §6.5）：useDragEndpoint 加 throttle 跑 A*
-- **同 row adjacent 跨元件視覺辨識度**：v1.14 已解「跨多 col」+「backward」走 T→T/B→B，但**相鄰 col（|dx| ≤ 288px）forward 仍走 R→L**。若使用者抱怨「兩格相鄰也想走 corridor」可調 `ADJACENT_DX_LIMIT` 至 0（極端：所有同 row 跨元件都走 corridor，連 1 col 相鄰也是）
+- **同 row adjacent 跨元件視覺辨識度**：v1.14 已解「跨多 col」+「backward」走 T→T/B→B，但**相鄰 col（|dx| ≤ 288px）forward 仍走 R→L**。若使用者抱怨「兩格相鄰也想走 corridor」可調 `ADJACENT_DX_LIMIT` 至 0
+- **Tier-2 fallback 觸發頻率**：v1.17 R→L Tier-2 在飽和情境才用。若實測發現過度頻繁觸發 → 表示視覺退化 → 應檢視 layout 結構（拆 lane / 重組 task 順序）而非調整 tier 系統
 
 這些都是擴 cost 維度 / 候選 generator 適用範圍，不是寫 if-then 業務規則分支（依 task.type / gatewayType 等 attribute）。
+
+### 6.6 Tier 系統與 pickBestPath 3-pass (v1.17)
+
+candidate 可標 `tier: 2` 識別 Tier-2 fallback。`pickBestPath` 3-pass:
+
+```js
+let bestT1Clean = null, bestT2Clean = null, bestAnyDirty = null;
+for (const sides of candidates):
+  const result = computePath(...)
+  const portPenalty = ...
+  const cohPenalty = ...
+  const baseCost = result.cost + cohPenalty  // 不含 port violation
+  if (portPenalty === 0):
+    if (sides.tier === 2): bestT2Clean = pickLower(bestT2Clean, ...)
+    else                 : bestT1Clean = pickLower(bestT1Clean, ...)
+  else:
+    bestAnyDirty = pickLower(bestAnyDirty, ...)
+return bestT1Clean ?? bestT2Clean ?? bestAnyDirty
+```
+
+**永續性原則**：rule 1 hard preference > 視覺首選 > violation。當 Tier-1 全違規 → 退到 Tier-2 (視覺退化但 rule 1 安全)；Tier-2 也全違規才 fallback 違規版。
 
 ---
 
@@ -920,6 +948,7 @@ v1.13 S24 嘗試用 cost dim 補 stub 黑洞 → 失敗（cost penalty 太局部
 | **v1.15 兩個 cross path 緊鄰**（左上→右下 + 左下→右上 同 col 共用 vertical 段）| **OCCUPY halo radius=2**：後 route path 偏 2-3 cells (HALO_PENALTY=30/10) 視覺清楚分離，不再 1 grid 緊貼 |
 | **v1.15 同 source 多 fork trunk (4+ 條 corridor)**| **lane 動態高度 fine-tune** (BASE_CAP=1, STEP=24, P_SAME_SOURCE_FORK=1.0)：lane 自動擴張 + trunk 間 halo spread，label 不互蓋 |
 | **v1.15 任何 edge 進 port stub**| **STUB_LENGTH=3**：箭頭至少距元件邊框 3 cells (24px)，不重疊；短 path fallback (manhattan<6) 降到 max(1, floor(M/3)) |
+| **v1.17 飽和情境 4+ edges 同 task port** | **Tier-2 R→L fallback**：當所有 T→T/B→B candidates 違規時，A* 選 R→L (Tier-2) 視覺退化但 rule 1 安全；非飽和情境仍 T→T/B→B (Tier-1) 不退化 |
 
 ---
 
@@ -955,6 +984,7 @@ v1.13 S24 嘗試用 cost dim 補 stub 黑洞 → 失敗（cost penalty 太局部
 | 2026-05-18 | v1.13 | **Phase C 兩合一精修**：(a) **S24 維度 7 Bend Endpoint Clearance** — astar.js 加 `BEND_ENDPOINT_PENALTY(20)`，turn cell 在距 endpoint < 3 cells 時付。解短 backward edge B→B candidate 的 bend 落 d=1 處 → 進閘道 stub 被擠 → 箭頭跟元件邊框重疊。對症（只罰 turn cell，stub 直走不變）。spec §6.1 已解。(b) **動態 lane 高度** — layout-astar.js Phase 2 加啟發式：對每條 raw edge 預判 corridor 機率（backward 1.0 / gap forward 0.5 / adjacent 0 / cross-lane 0.15），累加到 lane row。超出預設 4 row 容量時，每多 1 row 流量擴 `2*GRID_CELL=16px`，上限 240px。LPMC 大流程 lane 從 144→192px 後 6 條 backward 分散不擠；純直連 lane 維持 144px 不浪費。 | 0de9d36 |
 | 2026-05-18 | v1.14 | **Phase D 永續性重構**：(a) **回退 v1.13 S24 dim 7** — 實測發現 penalty=20 在 endpoint <3 處反向誘導 A* 找 3-turn 替代路徑（cost N+49 < 被罰的 2-turn N+52），引入新 bug（短 path 進 endpoint 多 1 個小彎）。cost function 回 6 維。教訓：cost dim 罰得太局部會讓 A* 找替代繞過 penalty。(b) **candidate generation 重劃** — 同 row 跨 col 分 adjacent / non-adjacent：`|dx| ≤ ADJACENT_DX_LIMIT(288, 1.5×COL_W)` 仍走 R→L 主候選；`|dx| > 288` (gap forward) 或 backward 強制 T→T / B→B 走 corridor，解觀察 2「R→L 短直線視覺辨識度低」+ 順便解 Issue 1 根因「短 backward stub 擠」。屬 candidate set 職責，不污染 cost function。(c) **新增 §10.5 職責分層** — 永續性核心：新需求先判斷屬 cost dim / candidate set / multi-pass / layout 哪層，不跨層 over-fit。修法決策樹第 0 步前置此判斷。(d) **保留 v1.13b 動態 lane 高度** — 跟 candidate 重劃互補，T→T/B→B 走 corridor 更需要 lane 寬度。 | d339715 |
 | 2026-05-18 | v1.15 | **Phase E 視覺距離 unified framework**：補上 v1.0-v1.14 對「視覺間距」處理的結構不對稱（dim 1 對 task 邊距推 4 cells、dim 2 對 path 邊距 0 cells、stub 區 dim 全 skip 黑洞）。三個獨立工具同框架 (§10.5.1)：(a) **OCCUPY halo radius=2** — `grid.js` markHalo + getOccupyPenalty halo branch：path cell perpendicular ±2 cells 標 halo，異 source/target same/opposite dir 付 30/10 penalty。解情境 1/3「cross path 緊鄰 + fork trunk 擠」。same source/target halo 不罰（share-free 不退化）。(b) **STUB_LENGTH=3** — `router/pickPath.js::computePath` startCell/goalCell 內縮 K cells，A\* 不搜尋 stub 區。Hard 內縮非 soft penalty 避免 v1.13 S24 重蹈覆轍。短 path fallback (manhattan<6) 降到 max(1, floor(M/3))。解情境 2「stub 1 grid 進 port、箭頭重疊邊框」。(c) **lane 啟發式 fine-tune** — `layout-astar.js`：BASE_CAP 4→1（更敏感擴張）+ STEP 16→24（trunk + label 上下空間）+ 新加 P_SAME_SOURCE_FORK=1.0 識別同 source N+ fork pattern。解情境 3「4 fork trunk 擠 + label 蓋」(原 v1.13b load=2 不擴 → 現在 load=4 擴到 240px)。永續性檢查 ✓ 不違反紅線、不加新 cost dim、3 個工具獨立可調。 | 0c977d8 path... |
-| 2026-05-18 | v1.16 | **Phase F 6 合一補齊**：解情境 4 (header 重疊) + 問題 1 (拖一邊另一邊動) + 問題 2 (rule 1 violation) + v1.15 grid alignment bug fix：(a) **bug fix: LANE_GROWTH_STEP 24→16** — v1.15 設成 3*GRID_CELL=24 破壞 NODE_VOFFSET=LANE_H/2 對齊紅線，回 2*GRID_CELL=16。(b) **§10.5.1 第 4 種距離: lane 邊界 (header/padding buffer)** — `grid.js::markBoundaries` 加 HEADER_BUFFER_CELLS=2 + FOOTER_BUFFER_CELLS=2，path 不能走在距 title bar / padding < 2 cells，label 不溢出邊界。(c) **Boundary lane multiplier** — `layout-astar.js`：lane 0 / 末端 lane 用 BOUNDARY_LANE_MULTIPLIER=2 額外擴張，補回 buffer 占用 + 提供 top/bottom corridor。(d) **Same-source halo 低 penalty** — `grid.js`：HALO_PENALTY_SAME_NEAR=5, HALO_PENALTY_SAME_FAR=2 (vs 異 src/tgt 30/10)，fork trunks 自然 spread 2+ cells 而非 1 grid 緊貼。Share-free 軸延伸 (S22/S23) 邏輯保留（主路徑分支處理，halo 分支不影響）。(e) **§10.5.2 User Override Stability** — `useDragEndpoint::endDrag` 加 `pinSiblings()`：拖 target/source 時 pin 共用 endpoint 的其他 edges 為當前 sides，避免 A* multi-pass 重 route 影響 sibling。解問題 1。(f) **Rule 1 hard preference** — `router/pickPath.js::pickBestPath` 改 2-pass：先在無 PORT_VIOLATION candidates 中挑最低，找不到才退回違規版。Rule 1 升為 hard preference 而非 soft penalty。解問題 2。 | (本 PR) |
+| 2026-05-18 | v1.16 | **Phase F 6 合一補齊**：解情境 4 (header 重疊) + 問題 1 (拖一邊另一邊動) + 問題 2 (rule 1 violation) + v1.15 grid alignment bug fix：(a) **bug fix: LANE_GROWTH_STEP 24→16** — v1.15 設成 3*GRID_CELL=24 破壞 NODE_VOFFSET=LANE_H/2 對齊紅線，回 2*GRID_CELL=16。(b) **§10.5.1 第 4 種距離: lane 邊界 (header/padding buffer)** — `grid.js::markBoundaries` 加 HEADER_BUFFER_CELLS=2 + FOOTER_BUFFER_CELLS=2，path 不能走在距 title bar / padding < 2 cells，label 不溢出邊界。(c) **Boundary lane multiplier** — `layout-astar.js`：lane 0 / 末端 lane 用 BOUNDARY_LANE_MULTIPLIER=2 額外擴張，補回 buffer 占用 + 提供 top/bottom corridor。(d) **Same-source halo 低 penalty** — `grid.js`：HALO_PENALTY_SAME_NEAR=5, HALO_PENALTY_SAME_FAR=2 (vs 異 src/tgt 30/10)，fork trunks 自然 spread 2+ cells 而非 1 grid 緊貼。Share-free 軸延伸 (S22/S23) 邏輯保留（主路徑分支處理，halo 分支不影響）。(e) **§10.5.2 User Override Stability** — `useDragEndpoint::endDrag` 加 `pinSiblings()`：拖 target/source 時 pin 共用 endpoint 的其他 edges 為當前 sides，避免 A* multi-pass 重 route 影響 sibling。解問題 1。(f) **Rule 1 hard preference** — `router/pickPath.js::pickBestPath` 改 2-pass：先在無 PORT_VIOLATION candidates 中挑最低，找不到才退回違規版。Rule 1 升為 hard preference 而非 soft penalty。解問題 2。 | 0c977d8...366de99 |
+| 2026-05-18 | v1.17 | **Tier-2 candidate fallback**：解 v1.16 hard preference 在飽和情境（4+ edges 同 task 所有 Tier-1 candidates 都違規）退回 lowest violation 的 gap。`generateCandidates` 對 sameRow gap 加 Tier-2 R→L (dx>0) / L→R (dx<0) — 視覺次優 (直線過 task 之間 v1.14 原本要避) 但 rule 1 安全。`pickBestPath` 升級成 3-pass：T1 clean → T2 clean → any dirty。解圖二 backward 配送出貨→閘道走 Tier-2 R→L (條件閘道 top 'out' 跟 backward 'in' 不再撞)；解圖一 1-0-1-2 → gw2 同理。Adjacent 情境 autoPick R→L 已含 Tier-1 → dedupe 移除 Tier-2 重複。 | (本 PR) |
 
 未來每次 cost function / grid / multi-pass / candidate set / layout 邏輯變更都要在此記錄。
