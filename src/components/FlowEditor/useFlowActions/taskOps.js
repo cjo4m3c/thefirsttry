@@ -92,7 +92,7 @@ export function makeTaskOps({ liveFlow, patch }) {
       rewired = liveFlow.tasks;
       // Surface the limitation as a save-time blocking-style warning via
       // a quick alert. Rare action, lightweight feedback is fine.
-      alert('闘道後方新增的任務需要手動到編輯面板（右側 ✏️ 編輯）連接到對應分支。已為您插入新任務。');
+      alert('閘道後方新增的任務需要手動到編輯面板（右側「編輯」）連接到對應分支。已為您插入新任務。');
     } else {
       // Regular task / start / interaction / l3activity — move anchor's
       // outgoing to newTask, anchor → newTask sole sequence connection.

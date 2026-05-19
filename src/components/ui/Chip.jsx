@@ -28,6 +28,9 @@ const VARIANTS = {
   // Header bg (`--brand-dark` `#2A5598`) 更深一階、ID 識別徽章更突出。
   id:       'bg-brand-darker border-brand-darker text-white tracking-wider',
   more:     'bg-paper-2 border-line text-ink-soft',
+  // PR #240：filter chip — 給 SearchBar active filter 用、
+  // 也可給未來其他「篩選中」狀態 chip 共用
+  filter:   'bg-brand-soft border-brand-soft text-brand-dark gap-1',
 };
 
 // id variant 用 mono 字 + 較小字（per spec：fs-caption + mono + 略寬 letter-spacing）

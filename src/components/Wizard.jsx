@@ -28,22 +28,23 @@ function initFormData(flow) {
 }
 
 // ── Step indicator ───────────────────────────────────────────────
+// PR #240：tailwind blue-600 → brand token、跟 spec primary 一致。
 function StepIndicator({ current, steps }) {
   return (
     <div className="flex items-center justify-center mb-8">
       {steps.map((label, i) => (
         <div key={i} className="flex items-center">
           <div className={`flex items-center justify-center w-8 h-8 rounded-full text-base font-semibold transition-colors
-            ${i < current  ? 'bg-blue-600 text-white' :
-              i === current ? 'bg-blue-600 text-white ring-4 ring-blue-100' :
-                              'bg-gray-200 text-gray-500'}`}>
+            ${i < current  ? 'bg-brand text-white' :
+              i === current ? 'bg-brand text-white ring-4 ring-brand-soft' :
+                              'bg-paper-2 text-ink-faint'}`}>
             {i + 1}
           </div>
-          <span className={`ml-2 text-base ${i === current ? 'font-semibold text-blue-600' : 'text-gray-500'}`}>
+          <span className={`ml-2 text-base ${i === current ? 'font-semibold text-brand' : 'text-ink-faint'}`}>
             {label}
           </span>
           {i < steps.length - 1 && (
-            <div className={`w-8 h-0.5 mx-2 ${i < current ? 'bg-blue-600' : 'bg-gray-200'}`} />
+            <div className={`w-8 h-0.5 mx-2 ${i < current ? 'bg-brand' : 'bg-paper-2'}`} />
           )}
         </div>
       ))}
