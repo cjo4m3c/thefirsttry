@@ -8,9 +8,15 @@
  * 不重做的部分（沿用 Dashboard 既有）：search / sort / filter / bulk
  * toolbar — view 切換不影響這些 state。
  *
- * 列高 / 排序 / 分頁等 spec 進階功能本 PR 不做（per 使用者選 A）。
+ * 2026-05-19 強化（5 項使用者需求）：
+ *   1. 表頭 checkbox 全選 / 部分選中 indeterminate
+ *   2. 5 欄表頭可點排序（編號 / 名稱 / 角色 / 任務 / 日期），跟外面 sort
+ *      dropdown 共享同一個 sortKey state（完全同步）
+ *   3. 動作欄 6 顆按鈕全展開（編輯 / 複製 / PNG / Drawio / Excel / 刪除），
+ *      下載不再收 ▾ dropdown
+ *   4. 日期欄 whitespace-nowrap + 拉寬到 w-64 確保螢幕 100% 不折成 4 列
  */
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { exportDrawio } from '../../utils/drawioExport.js';
 import { exportFlowToExcel } from '../../utils/excelExport.js';
 import { fmtDateTime } from './sortFlows.js';
@@ -26,44 +32,6 @@ function PinIcon({ pinned }) {
       strokeLinejoin="round">
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
-  );
-}
-
-// 下載 ▾ dropdown — 對齊 FlowEditor Header 既有 pattern（click 開、外面關）
-function DownloadMenu({ flow, onExportPng }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    const id = setTimeout(() => document.addEventListener('mousedown', onDocClick), 0);
-    return () => {
-      clearTimeout(id);
-      document.removeEventListener('mousedown', onDocClick);
-    };
-  }, [open]);
-  function pick(action) {
-    setOpen(false);
-    action();
-  }
-  return (
-    <div ref={ref} className="relative inline-block">
-      <Button size="xs" onClick={() => setOpen(v => !v)} title="下載 PNG / Drawio / Excel">
-        下載 ▾
-      </Button>
-      {open && (
-        <div className="absolute right-0 mt-1 min-w-[110px] bg-card rounded shadow-lg border border-line py-1 z-30">
-          <button onClick={() => pick(() => onExportPng(flow))}
-            className="block w-full text-left px-3 py-1.5 text-xs text-ink hover:bg-paper-2">PNG</button>
-          <button onClick={() => pick(() => exportDrawio(flow))}
-            className="block w-full text-left px-3 py-1.5 text-xs text-ink hover:bg-paper-2">Drawio</button>
-          <button onClick={() => pick(() => exportFlowToExcel(flow))}
-            className="block w-full text-left px-3 py-1.5 text-xs text-ink hover:bg-paper-2">Excel</button>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -87,24 +55,90 @@ function RolesPreview({ roles }) {
   );
 }
 
+// 可排序表頭 — 點擊在 column-asc / column-desc 之間切換；目前 active 欄顯示 ↑ / ↓
+function SortableHeader({ column, label, sortKey, onSortKeyChange, className = '' }) {
+  const ascKey = `${column}-asc`;
+  const descKey = `${column}-desc`;
+  const isAsc = sortKey === ascKey;
+  const isDesc = sortKey === descKey;
+  const isActive = isAsc || isDesc;
+  const next = isAsc ? descKey : ascKey;
+  return (
+    <th className={`px-3 py-2 font-semibold ${className}`}>
+      <button
+        onClick={() => onSortKeyChange(next)}
+        className={`inline-flex items-center gap-1 hover:text-ink transition-colors ${isActive ? 'text-ink' : ''}`}
+        title={`點擊以${isAsc ? '改為降序' : '排序'}`}>
+        <span>{label}</span>
+        <span className={`text-[10px] ${isActive ? '' : 'opacity-30'}`}>
+          {isDesc ? '↓' : '↑'}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+// 表頭 checkbox — 全選 / 取消全選 / 部分選中 indeterminate
+function HeaderCheckbox({ flows, selectedIds, onSelectAll, onClearSelected }) {
+  const ref = useRef(null);
+  const total = flows.length;
+  const selectedCount = flows.reduce((n, f) => n + (selectedIds.has(f.id) ? 1 : 0), 0);
+  const allChecked = total > 0 && selectedCount === total;
+  const partial = selectedCount > 0 && selectedCount < total;
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = partial;
+  }, [partial]);
+  function onChange() {
+    if (allChecked) onClearSelected();
+    else onSelectAll();
+  }
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={allChecked}
+      onChange={onChange}
+      className="w-4 h-4 cursor-pointer"
+      title={allChecked ? '取消全選' : '全選本頁'}
+      disabled={total === 0}
+    />
+  );
+}
+
 export function FlowListTable({
-  flows, selectedIds, onToggleSelect, onTogglePin,
-  onEdit, onDelete, onClone, onExportPng,
+  flows, selectedIds, onToggleSelect, onSelectAll, onClearSelected,
+  sortKey, onSortKeyChange,
+  onTogglePin, onEdit, onDelete, onClone, onExportPng,
 }) {
   return (
     <div className="overflow-x-auto border border-line rounded-lg bg-card">
       <table className="w-full text-sm border-collapse">
         <thead className="bg-paper-2 text-ink-soft">
           <tr className="text-left">
-            <th className="px-3 py-2 w-10"></th>
+            <th className="px-3 py-2 w-10">
+              <HeaderCheckbox
+                flows={flows}
+                selectedIds={selectedIds}
+                onSelectAll={onSelectAll}
+                onClearSelected={onClearSelected} />
+            </th>
             <th className="px-2 py-2 w-8"></th>
-            <th className="px-3 py-2 w-24 font-semibold">編號</th>
-            <th className="px-3 py-2 font-semibold">名稱</th>
-            <th className="px-3 py-2 w-16 text-center font-semibold">角色</th>
-            <th className="px-3 py-2 w-16 text-center font-semibold">任務</th>
-            <th className="px-3 py-2 w-56 font-semibold">主要角色</th>
-            <th className="px-3 py-2 w-44 font-semibold">日期</th>
-            <th className="px-3 py-2 w-72 font-semibold">動作</th>
+            <SortableHeader column="number" label="編號"
+              sortKey={sortKey} onSortKeyChange={onSortKeyChange}
+              className="w-24" />
+            <SortableHeader column="name" label="名稱"
+              sortKey={sortKey} onSortKeyChange={onSortKeyChange} />
+            <SortableHeader column="roles" label="角色"
+              sortKey={sortKey} onSortKeyChange={onSortKeyChange}
+              className="w-16 text-center" />
+            <SortableHeader column="tasks" label="任務"
+              sortKey={sortKey} onSortKeyChange={onSortKeyChange}
+              className="w-16 text-center" />
+            <th className="px-3 py-2 w-48 font-semibold">主要角色</th>
+            <SortableHeader column="updated" label="日期"
+              sortKey={sortKey} onSortKeyChange={onSortKeyChange}
+              className="w-64" />
+            <th className="px-3 py-2 w-[22rem] font-semibold">動作</th>
           </tr>
         </thead>
         <tbody>
@@ -144,17 +178,19 @@ export function FlowListTable({
                 <td className="px-3 py-2">
                   <RolesPreview roles={flow.roles} />
                 </td>
-                {/* 日期 */}
-                <td className="px-3 py-2 text-xs text-ink-faint leading-tight">
+                {/* 日期 — whitespace-nowrap 確保兩列不折成四列 */}
+                <td className="px-3 py-2 text-xs text-ink-faint leading-tight whitespace-nowrap">
                   {flow.createdAt && <div>建立：{fmtDateTime(flow.createdAt)}</div>}
                   {flow.updatedAt && <div>更新：{fmtDateTime(flow.updatedAt)}</div>}
                 </td>
-                {/* 動作 */}
+                {/* 動作 — 6 顆全展開、不再收 ▾ */}
                 <td className="px-3 py-2">
                   <div className="flex gap-1 flex-wrap items-center">
                     <Button size="xs" onClick={() => onEdit(flow.id)}>編輯</Button>
                     <Button size="xs" onClick={() => onClone(flow)} title="複製整條流程做延伸編輯">複製</Button>
-                    <DownloadMenu flow={flow} onExportPng={onExportPng} />
+                    <Button size="xs" onClick={() => onExportPng(flow)} title="下載 PNG 圖檔">PNG</Button>
+                    <Button size="xs" onClick={() => exportDrawio(flow)} title="下載 Drawio 檔">Drawio</Button>
+                    <Button size="xs" onClick={() => exportFlowToExcel(flow)} title="下載 Excel 檔">Excel</Button>
                     <Button size="xs" variant="danger" onClick={() => {
                       if (window.confirm(`確定要刪除「${flow.l3Name}」嗎？`)) onDelete(flow.id);
                     }}>刪除</Button>
