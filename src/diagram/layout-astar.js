@@ -154,10 +154,13 @@ function doLayout(flow) {
 
   // ── 2. Lane 動態高度 + 位置 ─────────────────────────────────────
   // v1.13：依預估 corridor 流量擴展擁擠 lane，避免多平行線段擠壓。
-  // v1.16 §10.5.1 第 4 種距離：lane 0 / 末端 lane 用 BOUNDARY_LANE_MULTIPLIER=2
+  // v1.16 §10.5.1 第 4 種距離：lane 0 / 末端 lane 用 BOUNDARY_LANE_MULTIPLIER
   // 額外擴張，補回 grid.markBoundaries 加的 HEADER_BUFFER / FOOTER_BUFFER 占用，
-  // 同時提供更多 top/bottom corridor 空間（情境 4-b）。
-  const BOUNDARY_LANE_MULTIPLIER = 2;
+  // 同時提供更多 top/bottom corridor 空間。
+  // v1.19 M5: 2→3 — 解情境 4 (閘道 4 ports 滿載 + user T→T 紅燈) 需更寬 corridor
+  // 容多 trunks。3 仍 grid-aligned (3 * LANE_GROWTH_STEP 16 = 48px / step, 仍
+  // 2*GRID_CELL 倍數)。
+  const BOUNDARY_LANE_MULTIPLIER = 3;
   const taskIds = new Set(tasks.map(t => t.id));
   const laneLoads = estimateLaneCorridorLoads(tasks, taskIds, colOf, taskRowOf);
   const lastLaneIdx = roles.length - 1;
