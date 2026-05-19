@@ -18,8 +18,9 @@
 const STATE_CLASS = {
   saveCelebrate: 'border-emerald-400 save-celebrate-flash text-white',
   savePulse:     'border-amber-300 bg-amber-400 text-amber-950 hover:bg-amber-300 save-pulse',
-  hasChanges:    'border-white bg-white text-brand-dark-hover hover:bg-opacity-90',
-  default:       'border-white border-opacity-40 text-white font-normal hover:bg-white hover:bg-opacity-10',
+  // hasChanges 用 font-semibold override baseCls 的 font-medium、強調主動作
+  hasChanges:    'border-white bg-white text-brand-dark-hover hover:bg-opacity-90 font-semibold',
+  default:       'border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10',
 };
 
 function pickState({ saveCelebrate, savePulse, hasChanges }) {
@@ -31,7 +32,10 @@ function pickState({ saveCelebrate, savePulse, hasChanges }) {
 
 export function SaveButton({ hasChanges, savePulse, saveCelebrate, savePhrase, onSave }) {
   const state = pickState({ saveCelebrate, savePulse, hasChanges });
-  const baseCls = 'px-3 py-1.5 text-base rounded border font-semibold transition-colors';
+  // PR #239：拉齊 dark-bar 規格（text-sm 14 / rounded-md 6 / font-medium）
+  // 跟 Header 其他 7 button 視覺一致。hasChanges 狀態用 font-semibold
+  // override 強調主動作差異（透過 STATE_CLASS）。
+  const baseCls = 'px-3 py-1.5 text-sm rounded-md border font-medium transition-colors';
   return (
     <div className="relative">
       <button

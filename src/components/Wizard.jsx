@@ -244,8 +244,8 @@ export default function Wizard({ flow, onSave, onCancel }) {
 
   return (
     <div className="min-h-screen" style={{ background: '#F5F8FC' }}>
-      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-dark)', color: 'white' }}>
-        <button onClick={onCancel} className="opacity-70 hover:opacity-100 text-base">← 返回</button>
+      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-darker)', color: 'white' }}>
+        <Button variant="dark-bar" onClick={onCancel}>← 返回</Button>
         <span className="text-2xl font-bold tracking-wide">
           {flow ? `編輯：${data.l3Number} ${data.l3Name}` : '新增 L3 工作流'}
         </span>
