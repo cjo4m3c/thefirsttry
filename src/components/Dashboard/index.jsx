@@ -21,7 +21,7 @@ import BackToTop from '../BackToTop.jsx';
 import { parseExcelToFlow } from '../../utils/excelImport.js';
 import { exportDrawio } from '../../utils/drawioExport.js';
 import { exportFlowToExcel } from '../../utils/excelExport.js';
-import { SORT_OPTIONS, sortFlows } from './sortFlows.js';
+import { SORT_OPTIONS, sortFlows, filterFlows, extractL2Options, extractRoleOptions } from './sortFlows.js';
 import { ImportErrorBanner, ImportSuccessBanner, ImportWarningsBanner } from './Banners.jsx';
 import { BulkToolbar, PngProgressBanner } from './BulkToolbar.jsx';
 import { FlowCard } from './FlowCard.jsx';
@@ -29,10 +29,27 @@ import { FlowListTable } from './FlowListTable.jsx';
 import { ViewSwitcher } from './ViewSwitcher.jsx';
 import { DuplicateImportModal } from './DuplicateImportModal.jsx';
 import { CloneFlowModal } from './CloneFlowModal.jsx';
+import { SearchBar, EmptyState } from './SearchBar.jsx';
+import { Pagination } from './Pagination.jsx';
 
 const VIEW_PREF_KEY = 'bpm_dashboard_view';
 const SORT_PREF_KEY = 'flowsprite.dashboardSortKey';
+const SEARCH_STATE_KEY = 'flowsprite.dashboardSearch'; // sessionStorage、跨 page navigate 保留、不跨 browser session
 const VALID_SORT_KEYS = new Set(SORT_OPTIONS.map(o => o.value));
+const PAGE_SIZE = 25;
+
+function loadSearchState() {
+  try {
+    const raw = sessionStorage.getItem(SEARCH_STATE_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    return {
+      keyword: typeof v.keyword === 'string' ? v.keyword : '',
+      l2: typeof v.l2 === 'string' ? v.l2 : '',
+      roles: Array.isArray(v.roles) ? v.roles.filter(x => typeof x === 'string') : [],
+    };
+  } catch { return null; }
+}
 
 export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExcel, onTogglePin, onClone }) {
   // sortKey localStorage 持久化（PR #234）— 跨 session 記住、跟 view 同 pattern
@@ -56,6 +73,21 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
   useEffect(() => {
     try { localStorage.setItem(VIEW_PREF_KEY, view); } catch { /* quota / disabled */ }
   }, [view]);
+  // 搜尋 / 篩選 state（PR #235）— sessionStorage 持久化、跨 page navigate
+  // 保留、不跨瀏覽器 session（搜尋是臨時行為、不該長期記）
+  const initialSearch = loadSearchState();
+  const [keyword, setKeyword] = useState(initialSearch?.keyword ?? '');
+  const [l2, setL2] = useState(initialSearch?.l2 ?? '');
+  const [filterRoles, setFilterRoles] = useState(initialSearch?.roles ?? []);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({ keyword, l2, roles: filterRoles }));
+    } catch { /* quota / disabled */ }
+  }, [keyword, l2, filterRoles]);
+  const [page, setPage] = useState(1);
+  // 篩選改變 → page 自動 reset 到 1（避免「第 3 頁但 filter 後只剩 2 頁」）
+  useEffect(() => { setPage(1); }, [keyword, l2, filterRoles]);
+
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
   // 2026-05-13 拆兩段（fixes / notices）— 替代舊單一 importWarnings state。
@@ -75,7 +107,26 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
   const [pendingClone, setPendingClone] = useState(null);
   const fileInputRef = useRef(null);
 
-  const sortedFlows = useMemo(() => sortFlows(flows, sortKey), [flows, sortKey]);
+  // 篩選 dropdown 選項（從全集 flows 抽出，非 filtered 結果）
+  const l2Options = useMemo(() => extractL2Options(flows), [flows]);
+  const roleOptions = useMemo(() => extractRoleOptions(flows), [flows]);
+  // Pipeline: filter → sort → paginate
+  const filteredFlows = useMemo(
+    () => filterFlows(flows, { keyword, l2, roles: filterRoles }),
+    [flows, keyword, l2, filterRoles]
+  );
+  const sortedFlows = useMemo(() => sortFlows(filteredFlows, sortKey), [filteredFlows, sortKey]);
+  const totalPages = Math.max(1, Math.ceil(sortedFlows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedFlows = useMemo(
+    () => sortedFlows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [sortedFlows, safePage]
+  );
+  function clearAllFilters() {
+    setKeyword('');
+    setL2('');
+    setFilterRoles([]);
+  }
 
   // Auto-clear logo reaction after animation completes
   useEffect(() => {
@@ -288,15 +339,28 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
 
         <PngProgressBanner pngQueue={pngQueue} pngTotal={pngTotal} />
 
+        {/* 搜尋 / 篩選 bar — PR #235、3 filter AND 結合（keyword / L2 / 角色多選）*/}
+        {flows.length > 0 && (
+          <SearchBar
+            keyword={keyword} onKeywordChange={setKeyword}
+            l2={l2} onL2Change={setL2}
+            roles={filterRoles} onRolesChange={setFilterRoles}
+            l2Options={l2Options} roleOptions={roleOptions}
+            resultCount={sortedFlows.length} totalCount={flows.length}
+            onClearAll={clearAllFilters} />
+        )}
+
         {/* Flow list — 2026-05-18：view='cards' 或 'table'、所有功能 parity */}
-        {sortedFlows.length === 0 ? (
+        {flows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <div className="text-5xl mb-4">📋</div>
             <p className="text-lg">尚無活動，點選右上角「新增 L3 活動」或「上傳 Excel」開始</p>
           </div>
+        ) : sortedFlows.length === 0 ? (
+          <EmptyState onClearAll={clearAllFilters} />
         ) : view === 'table' ? (
           <FlowListTable
-            flows={sortedFlows}
+            flows={pagedFlows}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelected}
             onSelectAll={selectAll}
@@ -310,7 +374,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             onExportPng={setPendingPngFlow} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sortedFlows.map(flow => (
+            {pagedFlows.map(flow => (
               <FlowCard key={flow.id}
                 flow={flow}
                 isSelected={selectedIds.has(flow.id)}
@@ -322,6 +386,11 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
                 onExportPng={setPendingPngFlow} />
             ))}
           </div>
+        )}
+
+        {sortedFlows.length > 0 && (
+          <Pagination page={safePage} totalPages={totalPages}
+            totalCount={sortedFlows.length} onPageChange={setPage} />
         )}
 
       </main>

@@ -115,7 +115,7 @@ export function FlowListTable({
     <div className="overflow-x-auto border border-line rounded-lg bg-card">
       {/* 字級 spec fs-body 14px（new 7 階）；table-fixed 配合明確欄寬讓名稱 truncate 生效 */}
       <table className="w-full text-sm border-collapse table-fixed">
-        <thead className="bg-paper-2 text-ink-soft">
+        <thead className="bg-paper-2 text-ink-soft sticky top-0 z-10">
           <tr className="text-left">
             <th className="px-3 py-2 w-10">
               <HeaderCheckbox
