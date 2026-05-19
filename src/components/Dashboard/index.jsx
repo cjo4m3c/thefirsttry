@@ -31,9 +31,20 @@ import { DuplicateImportModal } from './DuplicateImportModal.jsx';
 import { CloneFlowModal } from './CloneFlowModal.jsx';
 
 const VIEW_PREF_KEY = 'bpm_dashboard_view';
+const SORT_PREF_KEY = 'flowsprite.dashboardSortKey';
+const VALID_SORT_KEYS = new Set(SORT_OPTIONS.map(o => o.value));
 
 export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExcel, onTogglePin, onClone }) {
-  const [sortKey, setSortKey] = useState('number-asc');
+  // sortKey localStorage 持久化（PR #234）— 跨 session 記住、跟 view 同 pattern
+  const [sortKey, setSortKey] = useState(() => {
+    try {
+      const v = localStorage.getItem(SORT_PREF_KEY);
+      return v && VALID_SORT_KEYS.has(v) ? v : 'number-asc';
+    } catch { return 'number-asc'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(SORT_PREF_KEY, sortKey); } catch { /* quota / disabled */ }
+  }, [sortKey]);
   // 2026-05-18 表格 view（方案 A）— 卡片 / 表格 二選一、localStorage 記憶。
   // 兩個 view 共享所有 state（sort / search / filter / select）、只是渲染不同。
   const [view, setView] = useState(() => {
