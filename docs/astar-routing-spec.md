@@ -863,6 +863,9 @@ return bestT1Clean ?? bestT2Clean ?? bestAnyDirty
 2. 該層內找對應工具（既有 dim / 既有 candidate logic / 既有 layout pre-pass）
 3. 沒對應工具才考慮新增 — 仍在同層內擴展，不跨層
 4. **絕對不**因為一個工具好用就強塞到別層需求上
+5. **加新 cost dim 前先判斷粒度**（v1.13 S24 教訓的精確版）：
+   - **Per-cell** (連續搜索空間) 的局部 penalty 危險 — A\* 會在 cell-level 找替代繞過（如 v1.13 S24 加 1 個 turn 避罰區）
+   - **Per-candidate** (離散選擇) 的 flat penalty 安全 — A\* 沒「同 candidate 內部 hack」可走，只能換 candidate（如 v1.18 A1 stability）
 
 ### 10.5.1 視覺距離 Unified Framework (v1.15 立)
 
@@ -904,23 +907,37 @@ v1.13 S24 嘗試用 cost dim 補 stub 黑洞 → 失敗（cost penalty 太局部
 - 多 trunk 擠 lane → 調 BASE_CORRIDOR_CAPACITY / LANE_GROWTH_STEP / P_SAME_SOURCE_FORK
 - 線跟 sticky header / padding 重疊 → 調 HEADER_BUFFER_CELLS / FOOTER_BUFFER_CELLS / BOUNDARY_LANE_MULTIPLIER (v1.16)
 
-### 10.5.2 User Override Stability (v1.16 立)
+### 10.5.2 User Override Stability — A1 Stability Dim 7 (v1.18 重設計)
 
-**設計觀察**：A\* 是 stateless across edits — 每次 layout 都從零跑 multi-pass。當使用者加新 edge 或拖既有 edge 時，**所有共用 endpoint 的其他 edges 的 routing 上下文都會變**（predictAnchors 投票變、reservePort first-wins 切換、coherence anchor 改、halo 占用變），導致這些 edges 視覺也跟著動 — 違反使用者期待「拖一邊只動一邊」。
+**設計觀察**：A\* 是 stateless across edits — 每次 layout 都從零跑 multi-pass。當使用者加新 edge 或拖既有 edge 時，所有共用 endpoint 的其他 edges 的 routing 上下文都會變（predictAnchors / reservePort / coherence anchor / halo 占用），導致這些 edges 視覺也跟著動。
 
-**修法**：使用者顯式定位過的 edge（包含 sibling 共用 endpoint 的）pin 為 full override，避免 multi-pass 重 route 動它們。
+**v1.16 sibling pin (失敗的設計)**：useDragEndpoint::endDrag 寫 full override 給 sibling 強制 stale sides。**問題**：跟 v1.16 rule 1 hard preference 衝突 — 新 edge 加入時 sibling 被 pin 在 stale，A\* 為避新違規重路由其他 edges，視覺更糟（問題 3.2/3.3）。
 
-| 觸發 | Pin 範圍 |
-|---|---|
-| 拖 target 到新 task | 同 newTargetId 其他 incoming edges |
-| 拖 source side | 同 fromId 其他 outgoing edges |
-| 拖 target side | 同 toId 其他 incoming edges |
+**v1.18 A1 stability dim (新設計)**：把「視覺穩定性」做進 A\* cost function 而非 UI pin。
 
-實作位置：`useDragEndpoint::endDrag` 加 `pinSiblings()` helper。每個 sibling 寫入 full override `{ exitSide, entrySide }` 為當前 routed 結果。
+`pickPath.js::pickBestPath` 新加 `prior` 參數 + `STABILITY_PENALTY=20`：
+```js
+const stabilityCost = (sides) =>
+  prior && (sides.exit !== prior.exit || sides.entry !== prior.entry)
+    ? STABILITY_PENALTY : 0;
+const baseCost = result.cost + cohPenalty + stabilityCost(sides);
+```
 
-**Trade-off**：sibling 被 pin 後變「黏」— 未來 task 位置變不會自動 refresh 走線，使用者需手動拖才能 unpin。這是穩定性 vs 自動最佳化的選擇，符合使用者「我拖一邊只動一邊」期待。
+`routeAll.js` 接 `priorEdges` Map (edgeKey → {exit, entry})，查每 edge prior 傳給 pickBestPath。
 
-**未來「拖一邊另一邊也動」/「加新 edge 影響舊 edge」類需求**都按本原則處理，不再加新 cost dim 或調 anchor 邏輯。
+`layout-astar.js` 維 `priorByFlowId` module-level Map (flowKey → priorEdges)，每次 doLayout 後 snapshot 結果，下次同 flow 用。
+
+**vs v1.16 sibling pin 優點**：
+- **per-candidate level (離散)** 不是 per-cell — 不犯 v1.13 S24 cell-level 教訓（A\* 無「繞過 penalty 但仍同 candidate」可能）
+- **soft (20) << portPenalty (500)** — rule 1 hard preference 永遠優先，飽和情境 A\* 仍找 clean
+- **跟 Tier 系統相容**：T1 clean stab=0 > T1 clean stab=20 > T2 clean stab=0 ...
+- **不會「黏」**：純 router internal，不寫 user-visible override，sibling 不顯示「已編輯」橘點
+
+**未來「拖一邊另一邊也動」類需求**：調 `STABILITY_PENALTY` 數值（20 太小→ sibling 仍跑；太大→ 過度黏阻止合理 re-route）。**不再加新 cost dim 或新 UI pin**。
+
+### 10.5.3 Drag deadband (v1.18 立)
+
+`useDragEndpoint::endDrag` 加 MIN_DRAG_DELTA=8px (1 grid cell) — cursor 移動距離 < MIN_DRAG_DELTA 且未拖到不同 task 時，視為「沒拖」，不寫 override 也不觸發 sibling effect。解問題 3.1 「拖了沒動 sibling 出現已編輯橘點」。
 
 ---
 
@@ -985,6 +1002,7 @@ v1.13 S24 嘗試用 cost dim 補 stub 黑洞 → 失敗（cost penalty 太局部
 | 2026-05-18 | v1.14 | **Phase D 永續性重構**：(a) **回退 v1.13 S24 dim 7** — 實測發現 penalty=20 在 endpoint <3 處反向誘導 A* 找 3-turn 替代路徑（cost N+49 < 被罰的 2-turn N+52），引入新 bug（短 path 進 endpoint 多 1 個小彎）。cost function 回 6 維。教訓：cost dim 罰得太局部會讓 A* 找替代繞過 penalty。(b) **candidate generation 重劃** — 同 row 跨 col 分 adjacent / non-adjacent：`|dx| ≤ ADJACENT_DX_LIMIT(288, 1.5×COL_W)` 仍走 R→L 主候選；`|dx| > 288` (gap forward) 或 backward 強制 T→T / B→B 走 corridor，解觀察 2「R→L 短直線視覺辨識度低」+ 順便解 Issue 1 根因「短 backward stub 擠」。屬 candidate set 職責，不污染 cost function。(c) **新增 §10.5 職責分層** — 永續性核心：新需求先判斷屬 cost dim / candidate set / multi-pass / layout 哪層，不跨層 over-fit。修法決策樹第 0 步前置此判斷。(d) **保留 v1.13b 動態 lane 高度** — 跟 candidate 重劃互補，T→T/B→B 走 corridor 更需要 lane 寬度。 | d339715 |
 | 2026-05-18 | v1.15 | **Phase E 視覺距離 unified framework**：補上 v1.0-v1.14 對「視覺間距」處理的結構不對稱（dim 1 對 task 邊距推 4 cells、dim 2 對 path 邊距 0 cells、stub 區 dim 全 skip 黑洞）。三個獨立工具同框架 (§10.5.1)：(a) **OCCUPY halo radius=2** — `grid.js` markHalo + getOccupyPenalty halo branch：path cell perpendicular ±2 cells 標 halo，異 source/target same/opposite dir 付 30/10 penalty。解情境 1/3「cross path 緊鄰 + fork trunk 擠」。same source/target halo 不罰（share-free 不退化）。(b) **STUB_LENGTH=3** — `router/pickPath.js::computePath` startCell/goalCell 內縮 K cells，A\* 不搜尋 stub 區。Hard 內縮非 soft penalty 避免 v1.13 S24 重蹈覆轍。短 path fallback (manhattan<6) 降到 max(1, floor(M/3))。解情境 2「stub 1 grid 進 port、箭頭重疊邊框」。(c) **lane 啟發式 fine-tune** — `layout-astar.js`：BASE_CAP 4→1（更敏感擴張）+ STEP 16→24（trunk + label 上下空間）+ 新加 P_SAME_SOURCE_FORK=1.0 識別同 source N+ fork pattern。解情境 3「4 fork trunk 擠 + label 蓋」(原 v1.13b load=2 不擴 → 現在 load=4 擴到 240px)。永續性檢查 ✓ 不違反紅線、不加新 cost dim、3 個工具獨立可調。 | 0c977d8 path... |
 | 2026-05-18 | v1.16 | **Phase F 6 合一補齊**：解情境 4 (header 重疊) + 問題 1 (拖一邊另一邊動) + 問題 2 (rule 1 violation) + v1.15 grid alignment bug fix：(a) **bug fix: LANE_GROWTH_STEP 24→16** — v1.15 設成 3*GRID_CELL=24 破壞 NODE_VOFFSET=LANE_H/2 對齊紅線，回 2*GRID_CELL=16。(b) **§10.5.1 第 4 種距離: lane 邊界 (header/padding buffer)** — `grid.js::markBoundaries` 加 HEADER_BUFFER_CELLS=2 + FOOTER_BUFFER_CELLS=2，path 不能走在距 title bar / padding < 2 cells，label 不溢出邊界。(c) **Boundary lane multiplier** — `layout-astar.js`：lane 0 / 末端 lane 用 BOUNDARY_LANE_MULTIPLIER=2 額外擴張，補回 buffer 占用 + 提供 top/bottom corridor。(d) **Same-source halo 低 penalty** — `grid.js`：HALO_PENALTY_SAME_NEAR=5, HALO_PENALTY_SAME_FAR=2 (vs 異 src/tgt 30/10)，fork trunks 自然 spread 2+ cells 而非 1 grid 緊貼。Share-free 軸延伸 (S22/S23) 邏輯保留（主路徑分支處理，halo 分支不影響）。(e) **§10.5.2 User Override Stability** — `useDragEndpoint::endDrag` 加 `pinSiblings()`：拖 target/source 時 pin 共用 endpoint 的其他 edges 為當前 sides，避免 A* multi-pass 重 route 影響 sibling。解問題 1。(f) **Rule 1 hard preference** — `router/pickPath.js::pickBestPath` 改 2-pass：先在無 PORT_VIOLATION candidates 中挑最低，找不到才退回違規版。Rule 1 升為 hard preference 而非 soft penalty。解問題 2。 | 0c977d8...366de99 |
-| 2026-05-18 | v1.17 | **Tier-2 candidate fallback**：解 v1.16 hard preference 在飽和情境（4+ edges 同 task 所有 Tier-1 candidates 都違規）退回 lowest violation 的 gap。`generateCandidates` 對 sameRow gap 加 Tier-2 R→L (dx>0) / L→R (dx<0) — 視覺次優 (直線過 task 之間 v1.14 原本要避) 但 rule 1 安全。`pickBestPath` 升級成 3-pass：T1 clean → T2 clean → any dirty。解圖二 backward 配送出貨→閘道走 Tier-2 R→L (條件閘道 top 'out' 跟 backward 'in' 不再撞)；解圖一 1-0-1-2 → gw2 同理。Adjacent 情境 autoPick R→L 已含 Tier-1 → dedupe 移除 Tier-2 重複。 | (本 PR) |
+| 2026-05-18 | v1.17 | **Tier-2 candidate fallback**：解 v1.16 hard preference 在飽和情境（4+ edges 同 task 所有 Tier-1 candidates 都違規）退回 lowest violation 的 gap。`generateCandidates` 對 sameRow gap 加 Tier-2 R→L (dx>0) / L→R (dx<0) — 視覺次優但 rule 1 安全。`pickBestPath` 升級成 3-pass：T1 clean → T2 clean → any dirty。 | 7b0f42f |
+| 2026-05-18 | v1.18 | **Phase G 5 合一補齊**：(a) **R1 Tier-3 lazy fallback** — `pickPath.js` 4-pass 加 T3 lazy 階段，T1+T2 全 dirty 時生全 16 port pair 找 clean (跨類別飽和救援)。(b) **R2 violation/fallback fix** — `violations.js` Rule 2 改 pathSegmentsCrossRect 支援 skip first/last segment，detect 「path 繞回 source/target」；`fallbackOrthoPath` 沿 exit 方向先走 1 cell。(c) **R3 drag deadband** — `useDragEndpoint::endDrag` MIN_DRAG_DELTA=8px 過濾微小拖曳。(d) **R4 revert v1.16 sibling pin** — 移除 pinSiblings (跟 rule 1 hard pref 衝突)。(e) **A1 stability dim 7 §10.5.2** — `pickPath.js` STABILITY_PENALTY=20 per-candidate (離散層級不犯 v1.13 S24 cell-level 教訓), `layout-astar.js` 維 priorByFlowId Map snapshot；soft preference < portPenalty(500) 保 rule 1 hard。 | (本 PR) |
 
 未來每次 cost function / grid / multi-pass / candidate set / layout 邏輯變更都要在此記錄。
