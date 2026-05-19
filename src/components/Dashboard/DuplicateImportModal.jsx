@@ -36,14 +36,8 @@ export function DuplicateImportModal({ pendingImport, onResolve }) {
       </ModalBody>
       <ModalFoot className="flex-wrap">
         <Button onClick={() => onResolve('cancel')}>取消匯入</Button>
-        {/* `#3470B5` 中藍沒對應 token；本 PR scope 不擴 token、保 inline */}
-        <button onClick={() => onResolve('keep')}
-          className="px-4 py-2 rounded-lg text-sm text-white transition-colors"
-          style={{ background: '#3470B5' }}
-          onMouseEnter={e => e.currentTarget.style.background = '#5B8AC9'}
-          onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}>
-          都保留
-        </button>
+        {/* 都保留 = 主動作 primary；覆蓋 = 破壞動作 danger-fill */}
+        <Button variant="primary" onClick={() => onResolve('keep')}>都保留</Button>
         <Button variant="danger-fill" onClick={() => onResolve('overwrite')}>
           覆蓋（刪除 {totalOld} 個舊的）
         </Button>

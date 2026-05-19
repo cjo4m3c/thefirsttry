@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import { COLORS } from '../../diagram/constants.js';
+import { Modal, ModalBody } from '../ui/Modal.jsx';
 
 export function LegendSection() {
   const items = [
@@ -95,33 +95,19 @@ function LegendIcon({ type }) {
  *
  * Click backdrop / ESC closes.
  */
+// PR #238：改用 Modal base（design system 一致性）。Modal base 已處理
+// ESC 鍵 / backdrop click / body scroll lock、不再需要自寫 useEffect。
 export function LegendModal({ open, onClose }) {
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e) { if (e.key === 'Escape') onClose?.(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4"
-      onClick={onClose}
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      width={672}
+      title="圖例說明"
     >
-      <div
-        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-          <span className="text-base font-semibold text-gray-700">圖例說明</span>
-          <button onClick={onClose} title="關閉（Esc）"
-            className="text-gray-400 hover:text-gray-700 text-lg leading-none">✕</button>
-        </div>
-        <div className="p-5">
-          <LegendSection />
-        </div>
-      </div>
-    </div>
+      <ModalBody>
+        <LegendSection />
+      </ModalBody>
+    </Modal>
   );
 }

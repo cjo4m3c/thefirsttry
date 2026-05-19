@@ -18,6 +18,7 @@ import { useState, useEffect, useRef } from 'react';
 import ChangelogPanel from './ChangelogPanel.jsx';
 import HelpPanel from './HelpPanel.jsx';
 import DesignGuidelinePanel from './DesignGuidelinePanel.jsx';
+import { Button } from './ui/Button.jsx';
 
 const MENU_ITEMS = [
   { key: 'changelog', label: '更新紀錄' },
@@ -54,15 +55,15 @@ export default function InfoDropdown() {
   return (
     <>
       <div ref={ref} className="relative">
-        <button
+        <Button
+          variant="dark-bar"
           onClick={() => setMenuOpen(v => !v)}
-          title="查看更新紀錄、業務規則、設計規範"
-          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors inline-flex items-center gap-1.5">
+          title="查看更新紀錄、業務規則、設計規範">
           <span>說明</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
             <polygon points="0,0 10,0 5,6" />
           </svg>
-        </button>
+        </Button>
         {menuOpen && (
           <div className="absolute right-0 mt-1 min-w-[140px] bg-white rounded-lg shadow-lg border border-line py-1 z-20">
             {MENU_ITEMS.map(item => (

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { LegendModal } from '../DiagramRenderer/legend.jsx';
 import { Button } from '../ui/Button.jsx';
+import { SaveButton } from './SaveButton.jsx';
 
 // Encouragement phrases shown as the save-button tooltip when there are
 // unsaved changes. Picked once per edit session (locks until save) so the
@@ -170,34 +171,12 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
             </div>
           )}
         </div>
-        <div className="relative">
-          <button
-            onClick={onSave}
-            title={hasChanges ? savePhrase : '目前沒有未儲存的變更'}
-            className={`px-3 py-1.5 text-base rounded border font-semibold transition-colors ${
-              saveCelebrate
-                ? 'border-emerald-400 save-celebrate-flash'
-                : savePulse !== 'none'
-                  ? 'border-amber-300 bg-amber-400 text-amber-950 hover:bg-amber-300 save-pulse'
-                  : hasChanges
-                    ? 'border-white bg-white text-brand-dark-hover hover:bg-opacity-90'
-                    : 'border-white border-opacity-40 text-white font-normal hover:bg-white hover:bg-opacity-10'
-            }`}>
-            儲存
-          </button>
-          {saveCelebrate && (
-            // 5-particle confetti burst — colored circles + rotated squares
-            // fan out from the button (no emoji). Range ~42px per user
-            // 2026-05-04 (+30% vs. previous single-sparkle implementation).
-            <>
-              <span aria-hidden="true" className="confetti confetti-1" />
-              <span aria-hidden="true" className="confetti confetti-2" />
-              <span aria-hidden="true" className="confetti confetti-3" />
-              <span aria-hidden="true" className="confetti confetti-4" />
-              <span aria-hidden="true" className="confetti confetti-5" />
-            </>
-          )}
-        </div>
+        <SaveButton
+          hasChanges={hasChanges}
+          savePulse={savePulse}
+          saveCelebrate={saveCelebrate}
+          savePhrase={savePhrase}
+          onSave={onSave} />
         <button
           onClick={onTogglePin}
           title={liveFlow.pinned ? '取消置頂' : '置頂此工作流'}

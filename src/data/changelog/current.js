@@ -6,6 +6,21 @@
 export default [
   {
     date: '2026-05-19',
+    title: 'Design system 一致性 — 4 panel 改 Modal base + InfoDropdown / 儲存 button / 8 CTA 全遷 Button base + primary CTA 改亮藍',
+    items: [
+      '**緣由**：使用者要求「先檢查全站設計跟 design guideline 是否一致、列不一致 + 根因」、確認後執行。Audit 結果 4 根因：(R1) Primary CTA 顏色未定（spec brand 亮藍 vs 實際 brand-dark 深藍）(R2) PR #232 漏遷 InfoDropdown + 儲存 button (R3) 4 panel 歷史遺留沒走 Modal base (R4) base 元件 variant 不夠。使用者決策：**primary CTA 改亮藍（spec brand `#006EBC`）**、視覺看完不喜歡可一行 revert。',
+      '**1. 4 panel 全遷 Modal base**（R3）：`HelpPanel` / `ChangelogPanel` / `DesignGuidelinePanel` / `DiagramRenderer/legend` 從各自手寫 `<div className="fixed inset-0 z-50 ...">` backdrop → 用 `<Modal isOpen onClose title subtitle>`。每個 panel 自帶 ESC 關閉邏輯（HelpPanel x、legend useEffect onKey）也移除、Modal base 統一處理。改 modal 樣式從 4 處改 → 1 處改。',
+      '**2. InfoDropdown 遷 Button variant="dark-bar"**（R2）：首頁右上「說明 ▾」從 inline `<button className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 ...">` → `<Button variant="dark-bar">`。字級 16 → 14 / 圓角 4 → 6 / 字重 normal → medium、視覺跟編輯頁 7 顆 dark-bar button **完全一致**（解決使用者「首頁說明跟編輯頁按鈕樣式同但跟 header 7 button 不同」問題）。',
+      '**3. SaveButton 拆子元件**（R2）：`FlowEditor/Header.jsx` 儲存 button 4 狀態（saveCelebrate / savePulse / hasChanges / default）三層條件 className → 抽 `src/components/FlowEditor/SaveButton.jsx`、4 個 STATE_CLASS object 集中。Header.jsx 從 ~30 行 inline 條件 → `<SaveButton .../>` 6 行 prop。',
+      '**4. 8 個 inline confirm button 全遷 `<Button variant="primary">`**（R1 + R3）：Dashboard 上傳 Excel / 新增 L3 / Wizard 下一步 / Wizard 進入編輯流程 / CloneFlowModal 複製並開啟 / DuplicateImportModal 都保留 / BulkToolbar 批量下載 + 批量刪除 → primary（亮藍 `#006EBC`）/ danger（白底紅字）。8 處 inline hex `#2A5598` / `#3470B5` + onMouseEnter/Leave 全清。',
+      '**結果**：全站 **0 處 inline confirm button**（之前 8 處）/ **0 處 inline modal backdrop**（之前 4 處）/ **0 處 inline hex hover button**（之前 8 處）。改 primary CTA 色現在改 `ui/Button.jsx` 一行：`primary: "bg-brand ..."` → 全動。**未來想換回 brand-dark 深藍 1 分鐘的事**。',
+      '**視覺變化**：8 個 CTA 從深藍 `#2A5598` → **亮藍 `#006EBC`**（spec 既有 primary 色）。Header bar / 編輯頁 dark-bar button 仍 brand-dark 不變、跟 CTA 視覺對比強。',
+      '**新檔 + 動到的檔案（11 個）**：`src/components/FlowEditor/SaveButton.jsx`（**新**）/ `src/components/HelpPanel.jsx`（→ Modal）/ `src/components/ChangelogPanel.jsx`（→ Modal）/ `src/components/DesignGuidelinePanel.jsx`（→ Modal）/ `src/components/DiagramRenderer/legend.jsx`（→ Modal、移 useEffect onKey）/ `src/components/InfoDropdown.jsx`（→ Button dark-bar）/ `src/components/FlowEditor/Header.jsx`（→ SaveButton）/ `src/components/Wizard.jsx`（3 個 button → Button variant）/ `src/components/Dashboard/index.jsx`（2 CTA → Button primary）/ `src/components/Dashboard/CloneFlowModal.jsx`（→ Button primary）/ `src/components/Dashboard/DuplicateImportModal.jsx`（→ Button primary）/ `src/components/Dashboard/BulkToolbar.jsx`（→ Button primary + danger）+ `src/data/changelog/current.js`。',
+      '**驗證**：`npm run build` 通過。audit：0 inline backdrop / 0 inline confirm hex / source 無 >20KB 違規。手動：(a) Dashboard 上傳 / 新增 CTA 變亮藍 (b) Wizard 下一步 / 儲存變亮藍 (c) modal confirm button 全亮藍 (d) BulkToolbar 下載亮藍、刪除白底紅 (e) 首頁說明跟編輯頁圖例 button 視覺完全一致（14px / 圓角 6 / medium）(f) 儲存 button 4 狀態正常切換 (g) 4 panel ESC 鍵 / backdrop 點關閉正常 (h) Modal 標題 / 副標題正確顯示。',
+    ],
+  },
+  {
+    date: '2026-05-19',
     title: 'FlowTable.jsx 拆檔（20.4 → 13.3KB）+ 首頁 6 項優化（移副標 / view+sort 整併篩選列 / 去 emoji / native arrow）',
     items: [
       '**緣由**：FlowTable.jsx 20.4KB 已超 CLAUDE.md §6 硬 20KB 上限、spec「擋邏輯改動、先拆檔」。+ 使用者 6 項首頁優化：(1) 刪標題副標 (2) L2 dropdown 移 ▾ 字 (3) 「+」prefix 移除 (4) 角色 dropdown 箭頭跟 native select 一致 (5) view/sort 整併到 SearchBar 同列置右、無內容隱藏 (6) 移「共 N 個」count。',
