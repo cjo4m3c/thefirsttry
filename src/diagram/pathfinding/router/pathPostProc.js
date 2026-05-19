@@ -57,11 +57,25 @@ export function sideToDir(side) {
 }
 
 export function fallbackOrthoPath(srcPort, tgtPort, sides) {
-  // 找不到 path 時的退路：簡單 L-shape
-  if (sides.exit === 'right' || sides.exit === 'left') {
-    return [[srcPort.x, srcPort.y], [tgtPort.x, srcPort.y], [tgtPort.x, tgtPort.y]];
+  // v1.18 R2 修：A* 找不到 path 時的退路。原本簡單 L-shape 不檢查 exit direction，
+  // 可能讓「往南穿過 source task」這種違規 path 變成 _bendPoints (圖4)。改成從
+  // srcPort 沿 exit 方向先走 1 cell 出 source task，再 L 過去。仍可能跨其他 task
+  // (這是 A* 失敗的最後 fallback)，但至少不從 source 內部出發。
+  const EXIT_STEP = 8;  // 1 grid cell, sync with constants GRID_CELL
+  let dx = 0, dy = 0;
+  switch (sides.exit) {
+    case 'right':  dx =  EXIT_STEP; break;
+    case 'left':   dx = -EXIT_STEP; break;
+    case 'bottom': dy =  EXIT_STEP; break;
+    case 'top':    dy = -EXIT_STEP; break;
   }
-  return [[srcPort.x, srcPort.y], [srcPort.x, tgtPort.y], [tgtPort.x, tgtPort.y]];
+  const afterExit = [srcPort.x + dx, srcPort.y + dy];
+  if (sides.exit === 'right' || sides.exit === 'left') {
+    return [[srcPort.x, srcPort.y], afterExit,
+            [tgtPort.x, afterExit[1]], [tgtPort.x, tgtPort.y]];
+  }
+  return [[srcPort.x, srcPort.y], afterExit,
+          [afterExit[0], tgtPort.y], [tgtPort.x, tgtPort.y]];
 }
 
 /** 把 path 強制 axis-aligned + 移除 collinear 中間點 */

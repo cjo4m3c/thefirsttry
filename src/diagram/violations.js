@@ -70,8 +70,11 @@ export function detectOverrideViolations(flow) {
   }
 
   // ── Rule 2: line crosses a task rectangle (other than its endpoints) ──
-  // Reroute each connection and check every segment against every other
-  // task's bounding rect. If any segment intersects, warn.
+  // v1.18 R2 修：原本 skip source/target task 整條，漏掉「path 繞回 source/target
+  // 自己」情境 (圖4 case: 線從 1-1-5-8.top 出發往南穿過 1-1-5-8)。改成：
+  //   對 source task: skip 第一段 (legitimate port stub), 中段/最後段要檢查
+  //   對 target task: skip 最後段, 起始/中段要檢查
+  //   其他 task: 所有 segment 都檢查
   connections.forEach((c, i) => {
     const fromPos = positions[c.fromId];
     const toPos   = positions[c.toId];
@@ -81,10 +84,11 @@ export function detectOverrideViolations(flow) {
         c.laneBottomY, c.laneTopCorridorY);
 
     for (const t of flow.tasks) {
-      if (t.id === c.fromId || t.id === c.toId) continue;
       const pos = positions[t.id];
       if (!pos) continue;
-      if (pathCrossesRect(pts, pos)) {
+      const skipFirstSeg = (t.id === c.fromId);
+      const skipLastSeg  = (t.id === c.toId);
+      if (pathSegmentsCrossRect(pts, pos, skipFirstSeg, skipLastSeg)) {
         warnings.push(`連線 「${labelOf(c.fromId)}」 → 「${labelOf(c.toId)}」 穿過任務 「${labelOf(t.id)}」（違反規則 2：視覺不重疊）`);
         violatingConnIdx.add(i);
         break;  // one warning per connection is enough
@@ -99,10 +103,9 @@ function sideLabel(side) {
   return { top: '上', right: '右', bottom: '下', left: '左' }[side] || side;
 }
 
-// A polyline path crosses a rect if any segment intersects or is fully
-// contained within the rect. We use a small inset (2 px) on the rect so
-// lines that merely graze the border aren't flagged.
-function pathCrossesRect(pts, pos) {
+// v1.18 R2 修：擴展版本支援 skip 第一段 / 最後段 (port stub 合法觸碰 source/target
+// task 邊界, 但中段路徑跨入 source/target 自己 = violation 圖4 case)。
+function pathSegmentsCrossRect(pts, pos, skipFirstSeg, skipLastSeg) {
   const INSET = 2;
   const rect = {
     x1: pos.left.x   + INSET,
@@ -112,7 +115,10 @@ function pathCrossesRect(pts, pos) {
   };
   if (rect.x2 <= rect.x1 || rect.y2 <= rect.y1) return false;
 
+  const lastIdx = pts.length - 2;
   for (let i = 0; i < pts.length - 1; i++) {
+    if (skipFirstSeg && i === 0) continue;
+    if (skipLastSeg && i === lastIdx) continue;
     if (segmentCrossesRect(pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1], rect)) {
       return true;
     }
