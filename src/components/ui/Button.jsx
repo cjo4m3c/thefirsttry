@@ -42,6 +42,12 @@ const VARIANTS = {
   primary: 'bg-brand border-brand text-white hover:opacity-90',
   ghost:   'bg-card border-line border-dashed text-ink-soft hover:bg-paper-2',
   danger:  'bg-card border-line text-danger hover:bg-danger-soft',
+  // Filled warning（橘黃底白字）— 給「仍然儲存」/「確定重設」這類 destructive
+  // 但非錯誤的確認 button 用。對應 spec semantic `--warning` token。
+  warning: 'bg-warning border-warning text-white hover:opacity-90',
+  // Filled danger（紅底白字）— 給 DuplicateImport「覆蓋」這類真正破壞性的
+  // confirm button 用。
+  'danger-fill': 'bg-danger border-danger text-white hover:opacity-90',
   // dark-bar：跑在 --brand-dark Header bg 上的透明白邊白字 button
   // （FlowEditor / Dashboard / Wizard 三個深藍 header 共用）
   'dark-bar': 'bg-transparent border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10',
