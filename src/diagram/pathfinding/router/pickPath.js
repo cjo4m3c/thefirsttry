@@ -39,19 +39,62 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
   }
 
   // 候選 port 組合（依 dx/dy 選合理子集，避免跑 16 種）
-  const candidates = generateCandidates(src, tgt, override);
+  const primary = generateCandidates(src, tgt, override);
 
   // v1.16 dim 5 範圍擴大：Rule 1 從 soft penalty 升級成 hard preference。
-  // v1.17：擴大為 3-pass 選擇支援 Tier-1 (視覺首選) vs Tier-2 (rule 1 fallback)。
-  //   pass 1 (Tier-1 clean): 視覺首選 + portPenalty=0 → 理想
-  //   pass 2 (Tier-2 clean): 視覺次優 (R→L for sameRow gap) + portPenalty=0
-  //                          飽和情境用 — 視覺退讓避免 rule 1 違規
-  //   pass 3 (any dirty):    最後 fallback — 所有 candidate 都違規時退讓
-  // 解問題 A+B：4+ edges 同 task port 飽和時，主動找 Tier-2 alternative。
+  // v1.17：3-pass 選擇支援 Tier-1 (視覺首選) vs Tier-2 (rule 1 fallback)。
+  // v1.18：4-pass 加 Tier-3 lazy generation — primary 全 dirty 時生全 16 port pair
+  //        補充 candidates 找 clean version (解問題 1 saturated 跨類別 candidate)。
+  //   pass 1 (Tier-1 clean): 視覺首選 + portPenalty=0  → 理想
+  //   pass 2 (Tier-2 clean): primary 的 visual fallback + portPenalty=0
+  //   pass 3 (Tier-3 clean): lazy 全套 port pair + portPenalty=0  → saturation 救援
+  //   pass 4 (any dirty):    最後 fallback (極端飽和)
   let bestT1Clean = null;
   let bestT2Clean = null;
   let bestAnyDirty = null;
-  for (const sides of candidates) {
+  const tryCandidate = (sides, tier) => {
+    const result = computePath(grid, src, tgt, sides, sourceId, targetId);
+    if (!result) return;
+    const portPenalty =
+        grid.getPortConflictPenalty(sourceId, sides.exit,  'out')
+      + grid.getPortConflictPenalty(targetId, sides.entry, 'in');
+    const cohPenalty =
+        grid.getCoherenceMismatchPenalty(sourceId, sides.exit,  'out')
+      + grid.getCoherenceMismatchPenalty(targetId, sides.entry, 'in');
+    const baseCost = result.cost + cohPenalty;  // 不含 port violation
+    if (portPenalty === 0) {
+      if (tier === 1) {
+        if (!bestT1Clean || baseCost < bestT1Clean.cost) {
+          bestT1Clean = { path: result.path, sides, cost: baseCost };
+        }
+      } else if (tier === 2) {
+        if (!bestT2Clean || baseCost < bestT2Clean.cost) {
+          bestT2Clean = { path: result.path, sides, cost: baseCost };
+        }
+      }
+      // tier 3 處理在下方 lazy 階段
+    } else {
+      const totalDirty = baseCost + portPenalty;
+      if (!bestAnyDirty || totalDirty < bestAnyDirty.cost) {
+        bestAnyDirty = { path: result.path, sides, cost: totalDirty };
+      }
+    }
+    return { portPenalty, baseCost };
+  };
+
+  for (const sides of primary) {
+    const tier = sides.tier === 2 ? 2 : 1;
+    tryCandidate(sides, tier);
+  }
+
+  if (bestT1Clean) return bestT1Clean;
+  if (bestT2Clean) return bestT2Clean;
+
+  // v1.18 Tier-3 lazy: T1+T2 全 dirty → 跑全 16 port pair 找 clean
+  // 性能：30-task 流程少數 edge 觸發 → 多 ~10 個 A* runs/edge × ~5ms ≈ 可接受
+  let bestT3Clean = null;
+  const fallback = generateFallbackCandidates(src, tgt, primary);
+  for (const sides of fallback) {
     const result = computePath(grid, src, tgt, sides, sourceId, targetId);
     if (!result) continue;
     const portPenalty =
@@ -60,18 +103,10 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
     const cohPenalty =
         grid.getCoherenceMismatchPenalty(sourceId, sides.exit,  'out')
       + grid.getCoherenceMismatchPenalty(targetId, sides.entry, 'in');
-    const baseCost = result.cost + cohPenalty;  // 不含 port violation
-    const isT2 = sides.tier === 2;
+    const baseCost = result.cost + cohPenalty;
     if (portPenalty === 0) {
-      const bucket = isT2 ? 'T2Clean' : 'T1Clean';
-      if (bucket === 'T1Clean') {
-        if (!bestT1Clean || baseCost < bestT1Clean.cost) {
-          bestT1Clean = { path: result.path, sides, cost: baseCost };
-        }
-      } else {
-        if (!bestT2Clean || baseCost < bestT2Clean.cost) {
-          bestT2Clean = { path: result.path, sides, cost: baseCost };
-        }
+      if (!bestT3Clean || baseCost < bestT3Clean.cost) {
+        bestT3Clean = { path: result.path, sides, cost: baseCost };
       }
     } else {
       const totalDirty = baseCost + portPenalty;
@@ -80,7 +115,30 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
       }
     }
   }
-  return bestT1Clean ?? bestT2Clean ?? bestAnyDirty;
+  return bestT3Clean ?? bestAnyDirty;
+}
+
+/**
+ * v1.18 Tier-3 lazy fallback generator：補上 primary 沒含的 port pair。
+ * 用於 saturation 情境（T1+T2 全 dirty），讓 A* 嘗試所有 16 port pair 找 clean。
+ *
+ * 純空間幾何（依 dx/dy 號決定 isAxisDiagonal），不寫業務 if-then。
+ * 大部分 edge 不會觸發此 fallback (T1 永遠 clean)。
+ */
+export function generateFallbackCandidates(src, tgt, primary) {
+  const seen = new Set(primary.map(c => `${c.exit}|${c.entry}`));
+  const sides = ['top', 'bottom', 'left', 'right'];
+  const verticals = new Set(['top', 'bottom']);
+  const out = [];
+  for (const exit of sides) {
+    for (const entry of sides) {
+      const key = `${exit}|${entry}`;
+      if (seen.has(key)) continue;
+      const isAxisDiagonal = verticals.has(exit) !== verticals.has(entry);
+      out.push({ exit, entry, tier: 3, isAxisDiagonal });
+    }
+  }
+  return out;
 }
 
 export function generateCandidates(src, tgt, override) {
