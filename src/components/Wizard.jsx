@@ -63,25 +63,25 @@ function Step1({ data, onChange }) {
 
   return (
     <div className="max-w-lg mx-auto">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">L3 活動基本資訊</h2>
-      <p className="text-base text-gray-500 mb-6">輸入此活動的名稱與層級編號</p>
+      <h2 className="text-2xl font-bold text-ink mb-1">L3 活動基本資訊</h2>
+      <p className="text-base text-ink-soft mb-6">輸入此活動的名稱與層級編號</p>
       <div className="flex flex-col gap-5">
         <div>
-          <label className="block text-base font-medium text-gray-700 mb-1">L3 活動編號 <span className="text-red-500">*</span></label>
+          <label className="block text-base font-medium text-ink mb-1">L3 活動編號 <span className="text-danger">*</span></label>
           <input type="text" placeholder="例：1-1-1" value={data.l3Number}
             onChange={e => handleNumber(e.target.value)}
-            className={`w-full px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-400 ${numErr ? 'border-red-400' : 'border-gray-300'}`} />
-          {numErr && <p className="text-sm text-red-500 mt-1">{numErr}</p>}
-          <p className="text-sm text-gray-400 mt-1">三層編碼，例：1-1-1、2-3-4（與 Excel 匯入格式一致）</p>
+            className={`w-full px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-brand ${numErr ? 'border-danger' : 'border-line'}`} />
+          {numErr && <p className="text-sm text-danger mt-1">{numErr}</p>}
+          <p className="text-sm text-ink-faint mt-1">三層編碼，例：1-1-1、2-3-4（與 Excel 匯入格式一致）</p>
         </div>
         <div>
-          <label className="block text-base font-medium text-gray-700 mb-1">L3 活動名稱 <span className="text-red-500">*</span></label>
+          <label className="block text-base font-medium text-ink mb-1">L3 活動名稱 <span className="text-danger">*</span></label>
           <input type="text" placeholder="例：建立商機報價" value={data.l3Name}
             onChange={e => onChange({ l3Name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            className="w-full px-3 py-2 border border-line rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-brand" />
         </div>
         {data.l3Number && data.l3Name && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-base text-blue-700">
+          <div className="p-3 bg-info-soft border border-info rounded-lg text-base text-info-ink">
             預覽：<strong>{data.l3Number}</strong>　{data.l3Name}
             <br /><span className="text-sm opacity-70">L4 任務將從 {data.l3Number}-1 開始編號</span>
           </div>
@@ -132,9 +132,9 @@ function Step2({ data, onChange }) {
 
   return (
     <div className="max-w-xl mx-auto">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">泳道角色設定</h2>
-      <p className="text-base text-gray-500 mb-2">設定流程中的參與角色（至少 1 個）</p>
-      <p className="text-sm text-gray-400 mb-5 flex items-center gap-1">
+      <h2 className="text-2xl font-bold text-ink mb-1">泳道角色設定</h2>
+      <p className="text-base text-ink-soft mb-2">設定流程中的參與角色（至少 1 個）</p>
+      <p className="text-sm text-ink-faint mb-5 flex items-center gap-1">
         點左側 ▲ ▼ 改變泳道順序（由上到下）
       </p>
 
@@ -142,41 +142,41 @@ function Step2({ data, onChange }) {
         {data.roles.map((role, i) => (
           <div
             key={role.id}
-            className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg select-none">
+            className="flex items-center gap-3 p-3 bg-paper-2 border border-line rounded-lg select-none">
             <ReorderButtons
               canUp={i > 0} canDown={i < data.roles.length - 1}
               onUp={() => moveRole(i, -1)} onDown={() => moveRole(i, +1)} />
-            <span className="text-sm text-gray-400 w-4 flex-shrink-0">#{i + 1}</span>
+            <span className="text-sm text-ink-faint w-4 flex-shrink-0">#{i + 1}</span>
             <input type="text" placeholder="角色名稱" value={role.name}
               onChange={e => updateRole(role.id, 'name', e.target.value)}
               onBlur={() => onRoleNameBlur(role.id)}
-              className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              className="flex-1 px-3 py-1.5 border border-line rounded text-base focus:outline-none focus:ring-2 focus:ring-brand" />
             <select value={role.type}
               onChange={e => updateRole(role.id, 'type', e.target.value)}
-              className="px-2 py-1.5 border border-gray-300 rounded text-base focus:outline-none"
+              className="px-2 py-1.5 border border-line rounded text-base focus:outline-none"
               style={{ background: role.type === 'external' ? '#009900' : '#0066CC', color: 'white' }}>
               <option value="internal">內部角色</option>
               <option value="external">外部角色</option>
             </select>
             <button onClick={() => removeRole(role.id)} disabled={data.roles.length <= 1}
-              className="text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed text-2xl leading-none">✕</button>
+              className="text-danger hover:opacity-70 disabled:opacity-20 disabled:cursor-not-allowed text-2xl leading-none">✕</button>
           </div>
         ))}
       </div>
 
       <button onClick={addRole}
-        className="mt-4 w-full py-2 text-base border border-dashed border-blue-400 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+        className="mt-4 w-full py-2 text-base border border-dashed border-info text-info rounded-lg hover:bg-info-soft transition-colors">
         + 新增角色
       </button>
 
-      <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-        <div className="text-sm font-semibold text-gray-600 mb-2">泳道預覽（由上到下）：</div>
+      <div className="mt-4 p-3 bg-paper-2 border border-line rounded-lg">
+        <div className="text-sm font-semibold text-ink-soft mb-2">泳道預覽（由上到下）：</div>
         <div className="flex flex-col gap-1">
           {data.roles.filter(r => r.name).map((r, i) => (
             <div key={r.id} className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-sm" style={{ background: r.type === 'external' ? '#009900' : '#0066CC' }} />
-              <span className="text-sm font-medium text-gray-700">泳道 {i + 1}：{r.name}</span>
-              <span className="text-sm text-gray-400">（{r.type === 'external' ? '外部' : '內部'}）</span>
+              <span className="text-sm font-medium text-ink">泳道 {i + 1}：{r.name}</span>
+              <span className="text-sm text-ink-faint">（{r.type === 'external' ? '外部' : '內部'}）</span>
             </div>
           ))}
         </div>
@@ -256,15 +256,15 @@ export default function Wizard({ flow, onSave, onCancel }) {
         <StepIndicator current={step} steps={STEPS} />
 
         {errors.length > 0 && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-base font-semibold text-red-700 mb-2">請修正以下問題：</p>
+          <div className="mb-6 p-4 bg-danger-soft border border-danger rounded-lg">
+            <p className="text-base font-semibold text-danger-ink mb-2">請修正以下問題：</p>
             <ul className="list-disc list-inside space-y-1">
-              {errors.map((e, i) => <li key={i} className="text-base text-red-600">{e}</li>)}
+              {errors.map((e, i) => <li key={i} className="text-base text-danger">{e}</li>)}
             </ul>
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-line p-6 mb-6">
           {step === 0 && <Step1 data={data} onChange={handleChange} />}
           {step === 1 && <Step2 data={data} onChange={handleChange} />}
         </div>
