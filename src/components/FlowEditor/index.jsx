@@ -13,6 +13,7 @@ import DiagramRenderer from '../DiagramRenderer.jsx';
 import FlowTable from '../FlowTable.jsx';
 import BackToTop from '../BackToTop.jsx';
 import { Callout } from '../ui/Callout.jsx';
+import { ImportGroupList } from '../Dashboard/Banners.jsx';
 import RightDrawer from '../RightDrawer.jsx';
 import ContextMenu from '../ContextMenu.jsx';
 import { moveItem } from '../reorderButtons.jsx';
@@ -217,38 +218,35 @@ export default function FlowEditor({ flow, onBack, onSave }) {
             cross-check messages saved on this flow at import time. User
             clicks ✕ to permanently dismiss (saves the cleared array to
             localStorage so reopening the flow doesn't re-show). */}
-        {/* 2026-05-13 拆兩段顯示：fixes（已自動改）vs notices（純提醒）。
-            標題雙計數、各自一個 ul section；空 array section 不顯示；
-            兩個都空才整個 banner 不渲染。一鍵 ✕ 同時 dismiss 兩段。
-            2026-05-18 PR-6 follow-up：外層改用 <Callout variant="warning">。 */}
+        {/* fixes（已自動改）/ notices（純提醒）兩段。Group 結構 PR #236：
+            `{ l3, headline, details[] }`、ImportGroupList 縮排渲染。
+            FlowEditor 單一 flow、用 hideL3 隱藏 [L3 N] prefix。 */}
         {(() => {
           const fixes = Array.isArray(liveFlow.importFixes) ? liveFlow.importFixes : [];
           const notices = Array.isArray(liveFlow.importNotices) ? liveFlow.importNotices : [];
           if (fixes.length === 0 && notices.length === 0) return null;
+          const fixesCount = fixes.reduce((s, g) => s + (g?.details?.length ?? 0), 0);
+          const noticesCount = notices.reduce((s, g) => s + (g?.details?.length ?? 0), 0);
           const parts = [];
-          if (fixes.length > 0) parts.push(`系統已自動調整 ${fixes.length} 筆內容`);
-          if (notices.length > 0) parts.push(`另有 ${notices.length} 筆建議檢視（未自動處理）`);
-          const headline = `⚠ 匯入提醒：${parts.join('；')}（建議檢視 Excel 原始檔對照）`;
+          if (fixesCount > 0) parts.push(`系統已自動調整 ${fixesCount} 筆內容`);
+          if (noticesCount > 0) parts.push(`另有 ${noticesCount} 筆建議檢視（未自動處理）`);
+          const headline = `匯入提醒：${parts.join('；')}（建議檢視 Excel 原始檔對照）`;
           return (
             <Callout variant="warning" title={headline} onDismiss={handleDismissImportWarnings}>
               {fixes.length > 0 && (
                 <div className="ml-1 mb-2">
-                  <div className="font-semibold text-warning-ink mb-0.5">已自動調整（{fixes.length}）</div>
-                  <ul className="ml-4 max-h-48 overflow-y-auto pr-1 space-y-0.5 list-disc">
-                    {fixes.map((w, i) => (
-                      <li key={i} className="whitespace-pre-wrap">{w}</li>
-                    ))}
-                  </ul>
+                  <div className="font-semibold text-warning-ink mb-0.5">已自動調整（{fixesCount}）</div>
+                  <div className="max-h-48 overflow-y-auto pr-1">
+                    <ImportGroupList groups={fixes} hideL3 />
+                  </div>
                 </div>
               )}
               {notices.length > 0 && (
                 <div className="ml-1">
-                  <div className="font-semibold text-warning-ink mb-0.5">建議檢視（{notices.length}）</div>
-                  <ul className="ml-4 max-h-48 overflow-y-auto pr-1 space-y-0.5 list-disc">
-                    {notices.map((w, i) => (
-                      <li key={i} className="whitespace-pre-wrap">{w}</li>
-                    ))}
-                  </ul>
+                  <div className="font-semibold text-warning-ink mb-0.5">建議檢視（{noticesCount}）</div>
+                  <div className="max-h-48 overflow-y-auto pr-1">
+                    <ImportGroupList groups={notices} hideL3 />
+                  </div>
                 </div>
               )}
             </Callout>

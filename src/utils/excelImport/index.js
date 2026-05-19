@@ -48,18 +48,16 @@ export function parseExcelToFlow(arrayBuffer) {
   validateNumbering(allRows);
 
   // PR-D12: build L4 → Excel row index map for fix message attribution.
-  // Use original (pre-normalize) L4 strings to look up where the user wrote
-  // them in their source Excel. Built before grouping so we don't lose the
-  // global row index when the rows go through filter/group steps.
-  // Map is excelRow = i + 1 (1-indexed, header at row 1).
-  // Also map by base L3 to attribute cross-row warnings to specific flows.
-  const excelRowByL4 = {};
+  // PR #236：同一 L4 編號（例 multi-end `5-2-6-99` × 2 列）改成 array、
+  // normalizeL4Numbers 按 task 出現順序 + counter 配對正確 excelRow。
+  // Map: L4 → Array<excelRow>（同編號多列依序排列）
+  const excelRowsByL4 = {};
   const l3OfRow = {};   // excelRow → L3 number string
   for (let i = 1; i < allRows.length; i++) {
     const l4 = String(allRows[i][COL_L4_NUMBER] ?? '').trim();
     const l3 = String(allRows[i][COL_L3_NUMBER] ?? '').trim();
     const xlRow = i + 1;
-    if (l4 && !excelRowByL4[l4]) excelRowByL4[l4] = xlRow;
+    if (l4) (excelRowsByL4[l4] ||= []).push(xlRow);
     if (l3) l3OfRow[xlRow] = l3;
   }
 
@@ -104,68 +102,55 @@ export function parseExcelToFlow(arrayBuffer) {
 
   const flows = groups.map(group => buildFlow(group, auxColMap));
 
-  // 2026-05-13 拆兩個 array（使用者：「把實際有改的和純提醒區別開來」）：
-  //   - importFixes：A 自動補子流程 / B 自動調整 L4 / C 結束事件 _x 自動更新
-  //     （系統已替使用者改資料；headline + detail lines 全進此 bucket）
-  //   - importNotices：D 合併目標 incoming 不足 / E validation warnings /
-  //     F cross-row / G 閘道鏈 / H ❌ blocking（系統沒改、純提醒檢視）
-  // FlowEditor + Dashboard 兩處 banner 都讀這兩個 array，分區塊顯示計數。
-  // 舊資料 (importWarnings 單一 array) 由 storage/migrations.js migrateImportWarningsToFixes 一次性拆出。
+  // PR #236：訊息結構從 flat string array → nested group array。
+  // `flow.importFixes` / `flow.importNotices` 都是 Array<Group>：
+  //   Group = { l3: string, headline: string, details: string[] }
+  // Banner 渲染時 headline 一級、details 縮排二級。同 L3 多種類型 fix（如
+  // auto-sub + normalize）會產生多個 group、l3 相同 headline 不同。
+  // 移除所有 ❌ / ⚠ emoji（使用者：「不要 icon / emoji、純文字表達」）。
+  // 舊 flat string 格式由 storage/migrations.js migrateImportWarningsToFixes
+  // 一次性清空（使用者：「以新為主、不要並存」）。
   flows.forEach(flow => { flow.importFixes = []; flow.importNotices = []; });
 
-  // PR (2026-05-06): surface auto-added L3 activity elements (created when
-  // a gateway branch said「調用子流程 X-Y-Z」 but no `_s` row existed).
-  // Format mirrors normalizeWarnings: headline + one line per add. Strip
-  // the internal `__autoSubAdds` scaffolding from each flow afterward so
-  // it doesn't reach localStorage.
-  const autoSubWarnings = [];
+  // helper：build group + push 到 flow 對應 bucket + 同時收集到 global aggregator
+  const mkGroup = (l3, headline, details) => ({ l3, headline, details });
+
+  // === A. auto-sub adds：閘道分支寫「調用子流程」但 Excel 沒對應 _s 列 ===
+  const autoSubGroups = [];
   flows.forEach(flow => {
     const adds = flow.__autoSubAdds || [];
     delete flow.__autoSubAdds;
     if (adds.length === 0) return;
-    const pfx = flows.length > 1 ? `[L3 ${flow.l3Number}] ` : '';
-    const headlineGlobal = `${pfx}已自動補上 ${adds.length} 個子流程元件（閘道分支寫了「調用子流程」但 Excel 沒對應的 _s 列，依規則自動建立）：`;
-    const headlineFlow = `已自動補上 ${adds.length} 個子流程元件：`;
-    autoSubWarnings.push(headlineGlobal);
-    flow.importFixes.push(headlineFlow);
-    adds.forEach(a => {
+    const headline = `已自動補上 ${adds.length} 個子流程元件（閘道分支寫了「調用子流程」但 Excel 沒對應的 _s 列，依規則自動建立）：`;
+    const details = adds.map(a => {
       const branchTag = a.branchLabel ? `「${a.branchLabel}」分支` : '分支';
-      const line = `${a.sub}（調用 ${a.calledL3}）— 由閘道 ${a.gateway} 的${branchTag}建立`;
-      autoSubWarnings.push(line);
-      flow.importFixes.push(line);
+      return `${a.sub}（調用 ${a.calledL3}）— 由閘道 ${a.gateway} 的${branchTag}建立`;
     });
+    const g = mkGroup(flow.l3Number, headline, details);
+    autoSubGroups.push(g);
+    flow.importFixes.push(g);
   });
 
-  const normalizeWarnings = [];
+  // === B. normalize L4 numbers：自動調整 L4 編號以符合規則 ===
+  const normalizeGroups = [];
   flows.forEach(flow => {
-    const { tasks, fixes } = normalizeL4Numbers(flow.tasks, flow.l3Number, excelRowByL4);
+    const { tasks, fixes } = normalizeL4Numbers(flow.tasks, flow.l3Number, excelRowsByL4);
     flow.tasks = tasks;
-    if (fixes.length > 0) {
-      const pfx = flows.length > 1 ? `[L3 ${flow.l3Number}] ` : '';
-      const headlineGlobal = `${pfx}已自動調整 ${fixes.length} 個 L4 編號以符合規則：`;
-      const headlineFlow = `已自動調整 ${fixes.length} 個 L4 編號以符合規格：`;
-      normalizeWarnings.push(headlineGlobal);
-      flow.importFixes.push(headlineFlow);
-      fixes.forEach(f => {
-        // PR-D12: include Excel row number so user can locate the offending
-        // row in their source file (was `「name」 X → Y` only).
-        // PR (2026-05-06): dropped leading `  • ` prefix — the banner's
-        // <ul list-disc> renders the bullet visually, so a text-bullet here
-        // would double up. Indent via banner CSS if sub-hierarchy needed.
-        const rowTag = f.excelRow ? `第 ${f.excelRow} 列` : '';
-        const line = rowTag
-          ? `${rowTag}「${f.name}」 ${f.before} → ${f.after}`
-          : `「${f.name}」 ${f.before} → ${f.after}`;
-        normalizeWarnings.push(line);
-        flow.importFixes.push(line);
-      });
-    }
+    if (fixes.length === 0) return;
+    const headline = `已自動調整 ${fixes.length} 個 L4 編號以符合規則：`;
+    const details = fixes.map(f => {
+      const rowTag = f.excelRow ? `第 ${f.excelRow} 列` : '';
+      return rowTag
+        ? `${rowTag}「${f.name}」 ${f.before} → ${f.after}`
+        : `「${f.name}」 ${f.before} → ${f.after}`;
+    });
+    const g = mkGroup(flow.l3Number, headline, details);
+    normalizeGroups.push(g);
+    flow.importFixes.push(g);
   });
 
   // PR-D12: regenerate stored flowAnnotation post-normalize so localStorage
-  // strings match the displayed (formatConnection-derived) numbers. Stored
-  // strings are otherwise leftover Excel raw text and cause confusion when
-  // inspecting task objects in DevTools or via 3rd-party localStorage readers.
+  // strings match the displayed (formatConnection-derived) numbers.
   flows.forEach(flow => {
     const l4Map = computeDisplayLabels(flow.tasks, flow.l3Number);
     flow.tasks = flow.tasks.map(t => ({
@@ -174,62 +159,68 @@ export function parseExcelToFlow(arrayBuffer) {
     }));
   });
 
-  const mergeWarnings = [];
+  // === C. merge incoming 不足 ===
+  // collectMergeIncomingWarnings 訊息已含 `[L3 N] ` prefix、改 group 時要拆掉
+  const stripL3 = (line) => line.replace(/^\[L3 [^\]]+\]\s*/, '');
+  const mergeGroups = [];
   flows.forEach(flow => {
     const l4Map = computeDisplayLabels(flow.tasks, flow.l3Number);
     const lines = collectMergeIncomingWarnings(flow.tasks, flow.l3Number, l4Map);
-    if (lines.length > 0) {
-      mergeWarnings.push(...lines);
-      flow.importNotices.push(...lines);
-    }
+    if (lines.length === 0) return;
+    const headline = lines.length === 1 ? '合併目標的前置任務不足：' : `${lines.length} 個合併目標的前置任務不足：`;
+    const details = lines.map(stripL3);
+    const g = mkGroup(flow.l3Number, headline, details);
+    mergeGroups.push(g);
+    flow.importNotices.push(g);
   });
 
-  // 2026-05-06 per user: drop ALL connection-violation messages from Excel
-  // import banner. They surface in the editor (red borders + save modal),
-  // but on the upload screen the user can't act on them — the banner stays
-  // focused on data / structural issues.
-  // Connection violations come from `detectOverrideViolations` and surface
-  // as either:
-  //   blocking: 端點不混用 (Rule 1) — `「name」的 X 端點同時有進出連線`
-  //   warning:  視覺重疊 (Rule 2 summary) — `連線被任務矩形擋住`
-  //   warning:  視覺重疊 (per-line) — `連線「A」→「B」穿過任務「C」`
-  // 2026-05-05 already filtered the summary; 2026-05-06 expanded to also
-  // drop the per-line variant + the IN+OUT-mix blocking text.
+  // === D. validation blocking + warnings（移除 ❌ emoji） ===
+  // Connection violations 已 filter 掉（編輯器內紅框 + save modal 處理）
   const isConnectionViolation = (msg) =>
     /連線被任務矩形擋住/.test(msg)
     || /端點同時有進出連線/.test(msg)
     || /違反規則 1：端點不混用/.test(msg)
     || /穿過任務 「.*」（違反規則 2/.test(msg);
-  const validationLines = [];
+  const validationGroups = [];
   flows.forEach(flow => {
     const { blocking: vB, warnings: vW } = validateFlow(flow);
     const filteredB = vB.filter(b => !isConnectionViolation(b));
     const filteredW = vW.filter(w => !isConnectionViolation(w));
-    const pfx = flows.length > 1 ? `[L3 ${flow.l3Number}] ` : '';
-    const blocked = filteredB.map(b => `${pfx}❌ ${b}`);
-    const warned  = filteredW.map(w => `${pfx}${w}`);
-    validationLines.push(...blocked, ...warned);
-    if (filteredB.length || filteredW.length) {
-      flow.importNotices.push(...filteredB.map(b => `❌ ${b}`), ...filteredW);
-    }
+    if (filteredB.length === 0 && filteredW.length === 0) return;
+    const details = [...filteredB, ...filteredW];
+    const headline = filteredB.length > 0
+      ? `${details.length} 個結構問題（${filteredB.length} 個阻擋、${filteredW.length} 個建議）：`
+      : `${details.length} 個建議檢視：`;
+    const g = mkGroup(flow.l3Number, headline, details);
+    validationGroups.push(g);
+    flow.importNotices.push(g);
   });
 
-  // PR-D12: cross-row warnings (cross-check + chain) — attribute each line
-  // to its flow by extracting "第 N 列" → l3OfRow[N] → flow.l3Number.
+  // === E. cross-row warnings（cross-check + gateway chain）===
+  // 按 L3 group、同 L3 多條合一個 group。訊息保留「第 N 列」前綴（detail 內仍需）
+  const crossByL3 = {};
   warnings.forEach(line => {
     const m = line.match(/第 (\d+) 列/);
     const xlRow = m ? parseInt(m[1], 10) : null;
     const l3 = xlRow ? l3OfRow[xlRow] : null;
-    const target = l3 ? flows.find(f => f.l3Number === l3) : null;
-    if (target) target.importNotices.push(line);
+    if (!l3) return;
+    (crossByL3[l3] ||= []).push(line);
+  });
+  const crossGroups = [];
+  Object.entries(crossByL3).forEach(([l3, lines]) => {
+    const headline = `${lines.length} 個提醒：`;
+    const g = mkGroup(l3, headline, lines);
+    crossGroups.push(g);
+    const target = flows.find(f => f.l3Number === l3);
+    if (target) target.importNotices.push(g);
   });
 
   return {
     flows,
-    // 2026-05-13 split：Dashboard banner 分兩個 section 顯示。
+    // Dashboard banner 分兩個 section 顯示。Group 結構（PR #236）：
     // - fixes：系統實際改過的（自動補 / 自動調整）
-    // - notices：純提醒（merge / validation / cross-row / blocking）
-    fixes:   [...autoSubWarnings, ...normalizeWarnings],
-    notices: [...mergeWarnings, ...warnings, ...validationLines],
+    // - notices：純提醒（merge / cross-row / validation）
+    fixes:   [...autoSubGroups, ...normalizeGroups],
+    notices: [...mergeGroups, ...crossGroups, ...validationGroups],
   };
 }
