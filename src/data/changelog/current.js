@@ -6,6 +6,21 @@
 export default [
   {
     date: '2026-05-19',
+    title: 'Dashboard 表格 view 再優化 — 字級 spec 13px、列高同高、名稱加寬、動作加大 + DesignGuidelinePanel 移除文件位置',
+    items: [
+      '**緣由**：使用者三項表格 view 優化 + 一項 panel 調整：(1) ViewSwitcher 字級拉齊右側按鈕/下拉、是否違反 spec？ (2) 每列高度相同 (3) 螢幕 100% 時 L3 名稱加寬、動作按鈕加大 (4) 設計規範彈窗移除「文件位置」section。',
+      '**設計規範檢視**：spec §13.9.3 規定字級 7 階 `32/22/17/15/13/12/11`、明文「預設 UI · 按鈕 · 表格 = fs-body 13px」。Audit 後發現 sort dropdown (text-sm 14px) / 上傳 (text-base 16px) / 新增 (text-base 16px) / 表格列 (text-sm 14px) 早已違規不在 7 階。**使用者選整批拉齊到 13px**（最符合 spec、順便修既有違規）。',
+      '**1. 字級拉齊 spec 13px**：`ViewSwitcher` inner button `text-xs` → `text-[13px]`、Dashboard `sort select` `text-sm` → `text-[13px]`、`上傳 Excel / + 新增 L3` 加 `text-[13px]`、`FlowListTable` table `text-sm` → `text-[13px]`、日期 cell `text-xs` → `text-[11px]` (fs-caption)。',
+      '**2. 列高同高策略**：truncate `…` + hover tooltip — (a) L3 名稱 cell 包 `<div className="truncate" title={name}>`、超出顯示 `…`，hover 看全名 (b) `RolesPreview` 從 `flex-wrap` → `flex-nowrap overflow-hidden`、cap 從 2 chips → **1 chip + N**（順帶釋出欄寬給名稱）(c) 動作 `flex-wrap` → `flex-nowrap`。table 加 `table-fixed` 讓 truncate 在明確欄寬下生效。',
+      '**3. 名稱欄加寬 + 動作 button 加大**：動作 6 顆 `size="xs"` → `size="sm"`（11px → 12px、padding `py-0.5` → `py-1`）；主要角色欄 `w-48` → `w-32` 釋出 64px 給名稱；名稱欄從 ~136px → ~200px（1280 視窗）。動作欄維持 `w-[22rem]` 容納 sm 6 顆（~308px + buffer）。',
+      '**4. DesignGuidelinePanel 移除「文件位置」section**：使用者：「設計規範 popup 裡面不要放文件位置資訊」— 移除 `Section title="文件位置"` 整段（原列出 tokens.css / ui/ / elementTypes.js / business-spec.md / tailwind.config.js 5 個路徑）。Panel header subtitle 仍有 `docs/business-spec.md §13.9` 引用作為連結提示、不重複。',
+      '**動到的檔案（5 個）**：`src/components/Dashboard/ViewSwitcher.jsx`（字級 13px）/ `src/components/Dashboard/index.jsx`（sort/上傳/新增 字級 13px）/ `src/components/Dashboard/FlowListTable.jsx`（table-fixed + 字級 13px + truncate + 主要角色 1 chip+N + 動作 sm + 欄寬重排）/ `src/components/DesignGuidelinePanel.jsx`（移除文件位置 section）/ `src/data/changelog/current.js`（本條）。',
+      '**全站 audit 警告**：跑完字級 audit 全站還有 **162 處違規**（text-sm 80 / text-base 57 / text-lg 10 / text-xl 8 / text-2xl 6 / text-5xl 1）— FlowEditor Header (22 處)、ConnectionSection (28)、FlowTable (15)、Wizard (13) 為大宗。本 PR 只處理 Dashboard 表格 view 範圍、其他違規列入下批處理 backlog。',
+      '**驗證**：`npm run build` 通過。手動：(a) 卡片/表格 segment + sort + 上傳 + 新增 + 表格列字 視覺一致 13px (b) 名稱超長顯示 `…`、hover 看到 tooltip 全名 (c) 主要角色 1 chip + N (d) 動作 6 顆比之前大、不 wrap (e) 列高一致 (f) 點「設計規範 ▾」彈窗、底部沒有「文件位置」section。',
+    ],
+  },
+  {
+    date: '2026-05-19',
     title: 'Dashboard 表格 view 優化 — segment 對齊、表頭 checkbox 全選、5 欄可排序、動作 6 顆展開、日期不折行',
     items: [
       '**緣由**：使用者提 5 項表格 view 優化 — (1) 切換 segment 高度跟右側按鈕/下拉一樣 (2) 點標題列 checkbox 全選 (3) 除動作外都可排序 (4) 動作按鈕全展開不收合 (5) 兩列日期螢幕 100% 不能折成 4 列。',

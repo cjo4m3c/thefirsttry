@@ -171,16 +171,6 @@ export default function DesignGuidelinePanel({ isOpen = false, onClose = () => {
             </div>
           </Section>
 
-          <Section title="文件位置">
-            <ul className="text-xs text-ink space-y-1 list-disc pl-5">
-              <li><code className="text-ink-soft">src/styles/tokens.css</code> — 所有 CSS variables（SOT）</li>
-              <li><code className="text-ink-soft">src/components/ui/</code> — Button / Modal / Callout / Chip base 元件</li>
-              <li><code className="text-ink-soft">src/utils/elementTypes.js</code> — 8 種節點 KIND_BADGE + KIND_CARD_STYLE 配色</li>
-              <li><code className="text-ink-soft">docs/business-spec.md §13.9</code> — 完整 design system 規格 SOT</li>
-              <li><code className="text-ink-soft">tailwind.config.js</code> — Tailwind `bg-brand` / `text-ink-soft` 等 utility 對應 token</li>
-            </ul>
-          </Section>
-
         </div>
 
         {/* Footer */}
