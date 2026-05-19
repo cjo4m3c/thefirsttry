@@ -205,7 +205,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
   return (
     <div className="min-h-screen" style={{ background: '#F5F8FC' }}>
       {/* Top bar */}
-      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-dark)', color: 'white' }}>
+      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-darker)', color: 'white' }}>
         <img
           src={`${import.meta.env.BASE_URL}logo.png`}
           alt="FlowSprite Logo"

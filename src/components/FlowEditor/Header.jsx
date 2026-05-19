@@ -71,8 +71,8 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
 
   return (
     <header className="px-6 py-3 shadow-md flex items-center gap-4 sticky top-0 z-10"
-      style={{ background: 'var(--brand-dark)', color: 'white' }}>
-      <button onClick={onBack} className="opacity-70 hover:opacity-100 text-base flex-shrink-0">← 返回</button>
+      style={{ background: 'var(--brand-darker)', color: 'white' }}>
+      <Button variant="dark-bar" onClick={onBack}>← 返回</Button>
       <img
         src={`${import.meta.env.BASE_URL}logo.png`}
         alt="FlowSprite Logo"
@@ -177,13 +177,16 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
           saveCelebrate={saveCelebrate}
           savePhrase={savePhrase}
           onSave={onSave} />
+        {/* 置頂 ★：icon-only button、加 border + hover bg-white/10 跟其他
+            dark-bar button 拉齊（PR #239）。icon 18px / padding 縮小但
+            視覺與其他按鈕一致。 */}
         <button
           onClick={onTogglePin}
           title={liveFlow.pinned ? '取消置頂' : '置頂此工作流'}
-          className="p-1.5 rounded transition-transform hover:scale-110">
-          <svg width="20" height="20" viewBox="0 0 24 24"
+          className="px-2 py-1.5 rounded-md border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors inline-flex items-center justify-center">
+          <svg width="18" height="18" viewBox="0 0 24 24"
             fill={liveFlow.pinned ? '#FBBF24' : 'none'}
-            stroke={liveFlow.pinned ? '#FBBF24' : 'white'} strokeWidth="2"
+            stroke={liveFlow.pinned ? '#FBBF24' : 'currentColor'} strokeWidth="2"
             strokeLinejoin="round">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>
