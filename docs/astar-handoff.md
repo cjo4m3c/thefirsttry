@@ -8,7 +8,7 @@
 
 ## 1. 一句話現狀
 
-A* router 用 **6 維 cost function + A1 stability dim 7 (v1.18)** + **candidate set design (v1.14 + v1.17/v1.18 Tier 1/2/3)** + **動態 lane 高度 layout pre-pass (v1.13b + v1.15 + v1.16 修 grid bug)** + **視覺距離 unified framework (§10.5.1, 4 種距離)** + **User Override Stability §10.5.2 v1.18 重設計**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。v1.18 Phase G 5 合一補齊：Tier-3 lazy fallback + violation rule 2 detect 繞回 + drag deadband + revert v1.16 sibling pin + A1 stability dim (取代 sibling pin 的 hard pin → router-side soft preference)。剩餘 corner case 在 §6。
+A* router 用 **6 維 cost function + A1 stability dim 7 (v1.18) + M1 直線 rebate (v1.19)** + **candidate set design (v1.14 + v1.17/v1.18 Tier 1/2/3)** + **動態 lane 高度 layout pre-pass (v1.13b + v1.15 + v1.16 修 grid bug + v1.19 M5 boundary multi=3)** + **視覺距離 unified framework (§10.5.1, 4 種距離)** + **User Override Stability §10.5.2 v1.18 重設計** + **§10.5.4 Dim 力場互動表 (v1.19 P2 永續維運)**，所有改進記錄在 `docs/astar-routing-spec.md`。**main 完全不動**，只有 `/test-astar/` URL 跑 A*。v1.19 Phase H 4 合一：M1 直線優先 rebate (解情境 1/3 中段 zigzag) + M5 lane 容量加碼 (解情境 4 容量不足) + P1 regression smoke fixture + P2 dim 力場文件化。剩餘 corner case 在 §6。
 
 ---
 
@@ -279,7 +279,8 @@ git push origin claude/test-link-open-source-kKqHk
 | 2026-05-18 | 70ae11c | A* round 20 (Phase E): **視覺距離 unified framework** — 補上 v1.0-v1.14 對軟障礙處理的結構不對稱 (dim 1 task 邊距 vs dim 2 path 邊距 vs stub 區黑洞)。三個獨立工具同 framework (§10.5.1): (a) OCCUPY halo radius=2 (解 cross 緊鄰 + fork trunk 擠) (b) STUB_LENGTH=3 (解 stub 進 port 重疊) (c) lane 啟發式 fork pattern + BASE_CAP/STEP fine-tune (解 fork trunk + label 蓋) | v1.15 |
 | 2026-05-18 | 366de99 + 04cc20b | A* round 21 (Phase F): **6 合一補齊** — 解情境 4 (header 重疊) + 問題 1 (拖一邊另一邊動) + 問題 2 (rule 1 violation) + v1.15 grid bug: (a) LANE_GROWTH_STEP 24→16 修對齊 (b) markBoundaries 加 HEADER/FOOTER buffer 2 cells (c) lane 0/末 lane multiplier=2 (d) same-source halo 低 penalty 5/2 (e) sibling pin on drag (§10.5.2 立) (f) rule 1 hard preference 2-pass | v1.16 |
 | 2026-05-18 | 7b0f42f | A* round 22: **Tier-2 candidate fallback** — 解 v1.16 hard preference 飽和退化。Tier-2 R→L/L→R 加進 sameRow gap candidates，pickBestPath 3-pass | v1.17 |
-| 2026-05-18 | (本 PR) | A* round 23 (Phase G 5 合一): **R1** Tier-3 lazy fallback (16 port pair saturated 救援) + **R2** violation/fallback 修 (line 繞回 source/target detect + fallback sane exit direction) + **R3** drag deadband 8px + **R4** revert v1.16 sibling pin + **A1 stability dim 7** §10.5.2 (per-candidate level, 取代 v1.16 hard pin) | v1.18 |
+| 2026-05-18 | a985199 | A* round 23 (Phase G 5 合一): **R1** Tier-3 lazy fallback + **R2** violation/fallback 修 + **R3** drag deadband + **R4** revert sibling pin + **A1** stability dim 7 §10.5.2 | v1.18 |
+| 2026-05-19 | (本 PR) | A* round 24 (Phase H 4 合一): **M1** 直線 rebate (連續 ≥3 cells base 1→0.5 解 zigzag, rebate 不犯 S24 教訓) + **M5** boundary lane multiplier 2→3 (容多 trunks) + **P1** regression smoke fixture (`scripts/astar-smoke.mjs`) + **P2** §10.5.4 dim 力場互動表文件 | v1.19 |
 
 ---
 
@@ -305,7 +306,9 @@ git push origin claude/test-link-open-source-kKqHk
 | **同 source 4 fork trunk 同 lane** | **lane 擴到 192-240px，trunk 間 2 cells halo spread (v1.16 same-src halo)，label 不互蓋** | v1.15 lane fine-tune + v1.16 halo |
 | **Lane 0 (頂端 lane) 多 trunk** | **lane 擴到 240px + 2 cells header buffer，label 不溢出 sticky header「泳道圖」** | v1.16 markBoundaries buffer + BOUNDARY_LANE_MULTIPLIER=2 |
 | **拖一邊 (target/source side) 後另一邊** | **sibling edges 自動 pin 為當前 sides，視覺不跟著動** | v1.16 §10.5.2 sibling pin |
-| **同 task 4+ edges 飽和情境 (Tier-1 全違規)** | **rule 1 hard preference + Tier-2 fallback: 自動退到 R→L 視覺次優但 rule 1 安全** | v1.16 hard preference + v1.17 Tier-2 |
+| **同 task 4+ edges 飽和情境 (Tier-1 全違規)** | **rule 1 hard preference + Tier-3 lazy fallback: 自動找 16 port pair 中 clean** | v1.16/v1.17/v1.18 |
+| **單一 edge 中段 zigzag (情境 1, 3)** | **直走 ≥3 cells 後 base cost rebate 0.5, A* 偏好集中 turn** | v1.19 M1 |
+| **Lane 0 / 末端 lane 多 fork 容量** | **BOUNDARY_LANE_MULTIPLIER=3, 4+ trunks 有空間 spread** | v1.19 M5 |
 
 若任一 case 退化（regression），先確認當前 deploy 是 latest commit (`/test-astar/` 顯示版本)，再回頭看 commit history 找 break point。
 

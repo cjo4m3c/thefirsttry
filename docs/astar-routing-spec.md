@@ -90,12 +90,12 @@ routeAll
 
 ## 3. Cost Function（核心）
 
-### 3.1 完整公式（v1.14）
+### 3.1 完整公式（v1.19）
 
 ```js
 // astar.js per-cell cost
 cost(cell, dir, parent) =
-    1                                                                    // 基本移動
+    baseStep  // v1.19 M1: 1 if runLength<3 else 0.5 (直走 rebate)
   + (isTurn ? turnPenalty(turnCount) : 0)                                // 維度 0: 累進 turn (v1.10 S15)
   + proximityCost(distMap[cell], distFromEndpoint)                       // 維度 1: 障礙物距離 (v1.9 S8 + v1.11 S4)
   + getOccupyPenalty(cell, dir, src, tgt,                                // 維度 2: 智慧占用
@@ -782,6 +782,9 @@ return bestT1Clean ?? bestT2Clean ?? bestAnyDirty
 | `COHERENCE_PENALTY` | `grid.js` | 12 | base penalty (v1.6) ; v1.10 S16 動態 factor = 2*(1-strength)，壓倒性 anchor 不罰、邊際 anchor 全罰 |
 | `PROXIMITY_STUB_RADIUS` | `astar.js` | 2 | 距 start/goal ≤ 此值的 cells skip proximity (v1.9 S8, alignPortSegments 已強制 stub 沿軸方向，無需 push) |
 | `ANCHOR_MAJORITY` | `router.js` | > 0.5 | predictAnchors 嚴格 majority 才設 anchor (v1.9 S6, 票數分散時不預測回退 first-wins) |
+| **`STRAIGHT_REBATE_THRESHOLD`** | `astar.js` | 3 (v1.19 M1) | 連續同方向 cells ≥ 此值才啟動 rebate (短直線不獎勵, 避免過 greedy) |
+| **`STRAIGHT_REBATE`** | `astar.js` | 0.5 (v1.19 M1) | 直走 cell 在 runLength ≥ THRESHOLD 時 base cost (vs default 1.0) |
+| **`BOUNDARY_LANE_MULTIPLIER`** | `layout-astar.js` | 3 (v1.19, was 2 in v1.16) | lane 0 / 末端 lane 擴張倍數，補 header/footer buffer + 容多 trunks |
 | ~~`BEND_ENDPOINT_RADIUS` / `BEND_ENDPOINT_PENALTY`~~ | (已移除 v1.14) | — | v1.13 dim 7 已回退，詳 §3.7.1 |
 | **`ADJACENT_DX_LIMIT`** | `pickPath.js` | 288px (≈1.5×COL_W) | 同 row 跨 col 是否算「相鄰」的閾值（v1.14）。≤ 此值仍走 R→L 主候選；> 此值或 backward 強制 T→T / B→B（candidate set 層解視覺辨識度，避免 cost dim 污染）|
 | **`STUB_LENGTH`** | `pickPath.js` | 3 cells | v1.15 startCell/goalCell 內縮 K cells，A\* 不搜尋 stub 區（視覺距離 §10.5.1）。短 path (manhattan<6) fallback 降到 max(1, floor(M/3)) |
@@ -935,6 +938,29 @@ const baseCost = result.cost + cohPenalty + stabilityCost(sides);
 
 **未來「拖一邊另一邊也動」類需求**：調 `STABILITY_PENALTY` 數值（20 太小→ sibling 仍跑；太大→ 過度黏阻止合理 re-route）。**不再加新 cost dim 或新 UI pin**。
 
+### 10.5.4 Dim 力場互動表 (v1.19 立, 永續維運)
+
+**動機**：v1.x 累積多個 cost dim / 機制，cumulative effect 在某些 cell 互相干擾產生不直觀 path (如情境 1, 3 zigzag)。加新 dim 前先 review 此表，預測會在哪類 cell 累加、跟既有 dim 同向 / 反向 / 干擾。
+
+| Cell 類型 | dim 0 turn | dim 1 prox | dim 2 occupy | dim 2 halo | dim 4 center | STUB_LENGTH | dim 7 stab | M1 rebate (v1.19) |
+|---|---|---|---|---|---|---|---|---|
+| Stub cell (≤2 from port) | n/a | skip | skip (start/goal) | 視 src/tgt | skip(< radius) | hard 起終段 | flat | runLength≥3 才 rebate (stub 通常 < 3) |
+| 中段直走 cell | 0 (no turn) | 推離 task (0-4) | spread 或 share | 推離 prior (0-30) | 拉中點 (0-15) | n/a | flat | **rebate 0.5** ✓ |
+| Turn cell (中段) | 15-30 | 推離 task | spread/share | 推離 prior | 拉中點 | n/a | flat | runLength 重置→無 rebate |
+| 軸延伸 cell (S22/S23) | n/a | 推離 task | share-free 0 | 不影響 (halo perp) | n/a | n/a | flat | 視走法 |
+| Endpoint-zone (3-5 from port, v1.11 S4) | n/a | bonus 6 推更強 | n/a | n/a | n/a | n/a | flat | 視走法 |
+
+**判斷新 dim 是否安全**：
+- 在某 cell 類型跟現有 dim **同向** → 補強既有 (低風險, OK if 效果不夠)
+- **反向** → 互相抵消 (慎重評估數值, 別 cancel out)
+- **干擾** (一個推一個拉) → cumulative 產生 unintended path 形狀 (避免, 或重新分區)
+
+**加 dim 前必確認的問題**：
+1. 此 dim 是 per-cell 還是 per-candidate? (per-cell 連續空間危險 → v1.13 S24 教訓)
+2. 是 penalty 還是 rebate? (penalty 危險可能被 A* 繞過, rebate 安全直接鼓勵)
+3. 在哪類 cell 生效? (跟既有 dim 力場是否衝突)
+4. 數值跟既有 dim 的相對大小? (避免主導或被淹沒)
+
 ### 10.5.3 Drag deadband (v1.18 立)
 
 `useDragEndpoint::endDrag` 加 MIN_DRAG_DELTA=8px (1 grid cell) — cursor 移動距離 < MIN_DRAG_DELTA 且未拖到不同 task 時，視為「沒拖」，不寫 override 也不觸發 sibling effect。解問題 3.1 「拖了沒動 sibling 出現已編輯橘點」。
@@ -1003,6 +1029,7 @@ const baseCost = result.cost + cohPenalty + stabilityCost(sides);
 | 2026-05-18 | v1.15 | **Phase E 視覺距離 unified framework**：補上 v1.0-v1.14 對「視覺間距」處理的結構不對稱（dim 1 對 task 邊距推 4 cells、dim 2 對 path 邊距 0 cells、stub 區 dim 全 skip 黑洞）。三個獨立工具同框架 (§10.5.1)：(a) **OCCUPY halo radius=2** — `grid.js` markHalo + getOccupyPenalty halo branch：path cell perpendicular ±2 cells 標 halo，異 source/target same/opposite dir 付 30/10 penalty。解情境 1/3「cross path 緊鄰 + fork trunk 擠」。same source/target halo 不罰（share-free 不退化）。(b) **STUB_LENGTH=3** — `router/pickPath.js::computePath` startCell/goalCell 內縮 K cells，A\* 不搜尋 stub 區。Hard 內縮非 soft penalty 避免 v1.13 S24 重蹈覆轍。短 path fallback (manhattan<6) 降到 max(1, floor(M/3))。解情境 2「stub 1 grid 進 port、箭頭重疊邊框」。(c) **lane 啟發式 fine-tune** — `layout-astar.js`：BASE_CAP 4→1（更敏感擴張）+ STEP 16→24（trunk + label 上下空間）+ 新加 P_SAME_SOURCE_FORK=1.0 識別同 source N+ fork pattern。解情境 3「4 fork trunk 擠 + label 蓋」(原 v1.13b load=2 不擴 → 現在 load=4 擴到 240px)。永續性檢查 ✓ 不違反紅線、不加新 cost dim、3 個工具獨立可調。 | 0c977d8 path... |
 | 2026-05-18 | v1.16 | **Phase F 6 合一補齊**：解情境 4 (header 重疊) + 問題 1 (拖一邊另一邊動) + 問題 2 (rule 1 violation) + v1.15 grid alignment bug fix：(a) **bug fix: LANE_GROWTH_STEP 24→16** — v1.15 設成 3*GRID_CELL=24 破壞 NODE_VOFFSET=LANE_H/2 對齊紅線，回 2*GRID_CELL=16。(b) **§10.5.1 第 4 種距離: lane 邊界 (header/padding buffer)** — `grid.js::markBoundaries` 加 HEADER_BUFFER_CELLS=2 + FOOTER_BUFFER_CELLS=2，path 不能走在距 title bar / padding < 2 cells，label 不溢出邊界。(c) **Boundary lane multiplier** — `layout-astar.js`：lane 0 / 末端 lane 用 BOUNDARY_LANE_MULTIPLIER=2 額外擴張，補回 buffer 占用 + 提供 top/bottom corridor。(d) **Same-source halo 低 penalty** — `grid.js`：HALO_PENALTY_SAME_NEAR=5, HALO_PENALTY_SAME_FAR=2 (vs 異 src/tgt 30/10)，fork trunks 自然 spread 2+ cells 而非 1 grid 緊貼。Share-free 軸延伸 (S22/S23) 邏輯保留（主路徑分支處理，halo 分支不影響）。(e) **§10.5.2 User Override Stability** — `useDragEndpoint::endDrag` 加 `pinSiblings()`：拖 target/source 時 pin 共用 endpoint 的其他 edges 為當前 sides，避免 A* multi-pass 重 route 影響 sibling。解問題 1。(f) **Rule 1 hard preference** — `router/pickPath.js::pickBestPath` 改 2-pass：先在無 PORT_VIOLATION candidates 中挑最低，找不到才退回違規版。Rule 1 升為 hard preference 而非 soft penalty。解問題 2。 | 0c977d8...366de99 |
 | 2026-05-18 | v1.17 | **Tier-2 candidate fallback**：解 v1.16 hard preference 在飽和情境（4+ edges 同 task 所有 Tier-1 candidates 都違規）退回 lowest violation 的 gap。`generateCandidates` 對 sameRow gap 加 Tier-2 R→L (dx>0) / L→R (dx<0) — 視覺次優但 rule 1 安全。`pickBestPath` 升級成 3-pass：T1 clean → T2 clean → any dirty。 | 7b0f42f |
-| 2026-05-18 | v1.18 | **Phase G 5 合一補齊**：(a) **R1 Tier-3 lazy fallback** — `pickPath.js` 4-pass 加 T3 lazy 階段，T1+T2 全 dirty 時生全 16 port pair 找 clean (跨類別飽和救援)。(b) **R2 violation/fallback fix** — `violations.js` Rule 2 改 pathSegmentsCrossRect 支援 skip first/last segment，detect 「path 繞回 source/target」；`fallbackOrthoPath` 沿 exit 方向先走 1 cell。(c) **R3 drag deadband** — `useDragEndpoint::endDrag` MIN_DRAG_DELTA=8px 過濾微小拖曳。(d) **R4 revert v1.16 sibling pin** — 移除 pinSiblings (跟 rule 1 hard pref 衝突)。(e) **A1 stability dim 7 §10.5.2** — `pickPath.js` STABILITY_PENALTY=20 per-candidate (離散層級不犯 v1.13 S24 cell-level 教訓), `layout-astar.js` 維 priorByFlowId Map snapshot；soft preference < portPenalty(500) 保 rule 1 hard。 | (本 PR) |
+| 2026-05-18 | v1.18 | **Phase G 5 合一補齊**：(a) **R1 Tier-3 lazy fallback** — `pickPath.js` 4-pass 加 T3 lazy 階段，T1+T2 全 dirty 時生全 16 port pair 找 clean (跨類別飽和救援)。(b) **R2 violation/fallback fix** — `violations.js` Rule 2 改 pathSegmentsCrossRect 支援 skip first/last segment，detect 「path 繞回 source/target」；`fallbackOrthoPath` 沿 exit 方向先走 1 cell。(c) **R3 drag deadband** — `useDragEndpoint::endDrag` MIN_DRAG_DELTA=8px 過濾微小拖曳。(d) **R4 revert v1.16 sibling pin** — 移除 pinSiblings (跟 rule 1 hard pref 衝突)。(e) **A1 stability dim 7 §10.5.2** — `pickPath.js` STABILITY_PENALTY=20 per-candidate (離散層級不犯 v1.13 S24 cell-level 教訓), `layout-astar.js` 維 priorByFlowId Map snapshot；soft preference < portPenalty(500) 保 rule 1 hard。 | a985199 |
+| 2026-05-18 | v1.19 | **Phase H 4 合一 — 解情境 1/3 zigzag + 永續維運基建**：(a) **M1 直線優先 rebate** — `astar.js` A* node 加 runLength, 連續直走 ≥3 cells 時 base cost 1→0.5。鼓勵 path 集中 turn 在少數位置而非中段 zigzag。Rebate 不犯 v1.13 S24 教訓 (rebate 安全：A* 想拿必須直走, 沒繞過可能)。解情境 1 (5-7-2 → 5-7-2-6 階梯) + 情境 3 (5-7-2 → 左上閘道多餘 turn)。(b) **M5 lane 容量加碼** — `layout-astar.js` BOUNDARY_LANE_MULTIPLIER 2→3, lane 0 / 末端 lane 擴張更激進 (容 4+ trunks)。解情境 4 (閘道 4 ports 滿載 + user T→T 紅燈)。(c) **P1 regression smoke** — `scripts/astar-smoke.mjs` 把報過的 case 寫成 fixture, 每次改 dim 前後手動跑驗證形狀屬性 (turns 數 / lane heights / grid 對齊)。5 fixtures 全 pass。(d) **P2 §10.5.4 Dim 力場互動表** — 文件化每 dim 在不同 cell 類型的拉/推方向, 加新 dim 前 review 預測 cumulative effect。 | (本 PR) |
 
 未來每次 cost function / grid / multi-pass / candidate set / layout 邏輯變更都要在此記錄。
