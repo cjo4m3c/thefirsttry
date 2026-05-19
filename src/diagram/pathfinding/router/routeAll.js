@@ -18,9 +18,12 @@ import { fallbackOrthoPath } from './pathPostProc.js';
  * @param {object} positions - { [taskId]: { cx, cy, left, right, top, bottom } }
  * @param {number} svgWidth
  * @param {number} svgHeight
+ * @param {Map} [priorEdges] - v1.18 A1 stability dim: edgeKey → {exit, entry} 上次 layout 結果，
+ *                              讓 A* 對 candidates 加 STABILITY_PENALTY 偏好保持。傳 undefined 等同
+ *                              第一次 layout，所有 edges 沒 prior。
  * @returns {Array} routed connections, each with _bendPoints + exitSide + entrySide
  */
-export function routeAll(rawConns, positions, svgWidth, svgHeight) {
+export function routeAll(rawConns, positions, svgWidth, svgHeight, priorEdges) {
   const grid = new RoutingGrid(positions, svgWidth, svgHeight);
 
   // S1 (v1.8) + S6 (v1.9) Anchor by geometry pre-compute：
@@ -53,8 +56,11 @@ export function routeAll(rawConns, positions, svgWidth, svgHeight) {
       results.push({ ...conn, exitSide: 'right', entrySide: 'left', _bendPoints: [] });
       continue;
     }
+    // v1.18 A1: 查 prior sides (上次 layout 結果) 給 pickBestPath 加 stability penalty
+    const priorKey = `${conn.fromId}|${conn.overrideKey}`;
+    const prior = priorEdges?.get(priorKey);
     // 用 multi-port trial 找最佳 port 組合，純 cost-based。
-    const trial = pickBestPath(grid, src, tgt, conn._override, conn.fromId, conn.toId);
+    const trial = pickBestPath(grid, src, tgt, conn._override, conn.fromId, conn.toId, prior);
 
     let pathPx = trial?.path;
     let sides = trial?.sides;

@@ -55,6 +55,18 @@ const objCache = new WeakMap();   // flow → layout
 const hashCache = new Map();      // structuralHash → layout
 const HASH_CACHE_LIMIT = 20;
 
+// v1.18 A1 §10.5.2 stability dim：per-flow prior edges snapshot。
+// 每次 doLayout 後存當前 sides 到 priorByFlowId，下次同 flow layout 時
+// pickBestPath 對 candidates 加 STABILITY_PENALTY if !match prior。
+// 解問題 3.2/3.3：拖一邊不導致 sibling 跑奇怪路徑 — A* 偏好保持上次選擇但
+// 仍尊重 rule 1 hard preference (port 500 >> stability 20)。
+const priorByFlowId = new Map();   // flowKey → Map<edgeKey, {exit, entry}>
+const PRIOR_CACHE_LIMIT = 20;
+
+function getFlowKey(flow) {
+  return flow?.id || flow?.l3Number || 'default';
+}
+
 function structuralHash(flow) {
   const parts = [];
   parts.push('R');
@@ -219,7 +231,23 @@ function doLayout(flow) {
   const svgHeight = totalH + LAYOUT.PADDING_BOTTOM;
 
   // ── 6. 跑 A* 多 pass route ───────────────────────────────────
-  const connections = routeAll(rawConns, positions, svgWidth, svgHeight);
+  // v1.18 A1: 讀 prior 給 routeAll 算 stability cost
+  const flowKey = getFlowKey(flow);
+  const prior = priorByFlowId.get(flowKey);
+  const connections = routeAll(rawConns, positions, svgWidth, svgHeight, prior);
+  // 更新 prior 為這次結果，下次同 flow layout 用
+  const newPrior = new Map();
+  for (const c of connections) {
+    if (c.exitSide && c.entrySide) {
+      newPrior.set(`${c.fromId}|${c.overrideKey}`, { exit: c.exitSide, entry: c.entrySide });
+    }
+  }
+  priorByFlowId.set(flowKey, newPrior);
+  // Trim 防 memory 爆
+  if (priorByFlowId.size > PRIOR_CACHE_LIMIT) {
+    const firstKey = priorByFlowId.keys().next().value;
+    priorByFlowId.delete(firstKey);
+  }
 
   return {
     positions,

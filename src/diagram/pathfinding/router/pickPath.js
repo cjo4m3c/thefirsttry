@@ -25,7 +25,16 @@ function isAxisDiagonal(exit, entry) {
   return exitVertical !== entryVertical;
 }
 
-export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
+/** v1.18 A1 stability dim 7 (§10.5.2 User Override Stability)：
+ * 對每 candidate 在 baseCost 加 STABILITY_PENALTY 如果 sides 跟 prior 不同。
+ * Per-candidate (離散) 不是 per-cell — 不犯 v1.13 S24 cell-level 教訓。
+ *
+ * 跟 priority 兼容: portPenalty(500) >> STABILITY_PENALTY(20)，rule 1 hard
+ * preference 永遠優先；STABILITY 只影響「同 violation status 之間 prior 比較」。
+ */
+const STABILITY_PENALTY = 20;
+
+export function pickBestPath(grid, src, tgt, override, sourceId, targetId, prior) {
   // 有 user override 時尊重，不試其他組合
   if (override?.exitSide && override?.entrySide) {
     const sides = {
@@ -37,6 +46,13 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
     const result = computePath(grid, src, tgt, sides, sourceId, targetId);
     return result ? { path: result.path, sides, cost: result.cost } : null;
   }
+
+  // v1.18 A1: stability cost helper — sides 跟 prior 不同付 STABILITY_PENALTY
+  const stabilityCost = (sides) => {
+    if (!prior) return 0;
+    if (sides.exit !== prior.exit || sides.entry !== prior.entry) return STABILITY_PENALTY;
+    return 0;
+  };
 
   // 候選 port 組合（依 dx/dy 選合理子集，避免跑 16 種）
   const primary = generateCandidates(src, tgt, override);
@@ -61,7 +77,7 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
     const cohPenalty =
         grid.getCoherenceMismatchPenalty(sourceId, sides.exit,  'out')
       + grid.getCoherenceMismatchPenalty(targetId, sides.entry, 'in');
-    const baseCost = result.cost + cohPenalty;  // 不含 port violation
+    const baseCost = result.cost + cohPenalty + stabilityCost(sides);  // v1.18 A1 加 stability
     if (portPenalty === 0) {
       if (tier === 1) {
         if (!bestT1Clean || baseCost < bestT1Clean.cost) {
@@ -103,7 +119,7 @@ export function pickBestPath(grid, src, tgt, override, sourceId, targetId) {
     const cohPenalty =
         grid.getCoherenceMismatchPenalty(sourceId, sides.exit,  'out')
       + grid.getCoherenceMismatchPenalty(targetId, sides.entry, 'in');
-    const baseCost = result.cost + cohPenalty;
+    const baseCost = result.cost + cohPenalty + stabilityCost(sides);  // v1.18 A1 stability
     if (portPenalty === 0) {
       if (!bestT3Clean || baseCost < bestT3Clean.cost) {
         bestT3Clean = { path: result.path, sides, cost: baseCost };

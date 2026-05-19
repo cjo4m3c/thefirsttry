@@ -101,10 +101,10 @@ export function useDragEndpoint({ svgRef, flow, positions, connections, editable
       } else if (onChangeTarget) {
         onChangeTarget(conn.fromId, conn.overrideKey, newTargetId, snapSide);
       }
-      // v1.16 §10.5.2 User Override Stability：pin 共用 newTargetId 的其他
-      // incoming edges，避免新 edge 加入後 multi-pass 重 route 改變 sibling 端點。
-      // 解使用者「拖一邊另一邊也動」(問題 1 / 5-1-4-5 case).
-      pinSiblings(connections, idx, 'target', newTargetId, onUpdateOverride);
+      // v1.18 R4: 拿掉 v1.16 sibling pin (寫 full override 強制 stale sides 跟
+      //          rule 1 hard preference 衝突，產生問題 3.2/3.3 怪路徑)。
+      //          視覺穩定性改由 A1 stability dim (router-side, soft preference)
+      //          處理，跟 rule 1 hard preference 兼容。
       setDragInfo(null);
       return;
     }
@@ -120,38 +120,10 @@ export function useDragEndpoint({ svgRef, flow, positions, connections, editable
           ? { exitSide: dragInfo.proposedSide, entrySide: conn.entrySide }
           : { exitSide: conn.exitSide,         entrySide: dragInfo.proposedSide };
         onUpdateOverride(conn.fromId, conn.overrideKey, full);
-        // v1.16 §10.5.2：pin sibling edges sharing the affected endpoint task.
-        // 拖 source side → pin 同 fromId 其他 outgoing；
-        // 拖 target side → pin 同 toId 其他 incoming.
-        const targetId = dragInfo.endpoint === 'source' ? conn.fromId : conn.toId;
-        pinSiblings(connections, idx, dragInfo.endpoint, targetId, onUpdateOverride);
+        // v1.18 R4: sibling pin 拿掉 — 由 A1 stability dim 取代 (見 grid.js)。
       }
     }
     setDragInfo(null);
-  }
-
-  /** v1.16 §10.5.2 User Override Stability — pin sibling edges sharing
-   * the dragged endpoint's task. Avoid multi-pass re-route changing siblings
-   * after a new/dragged edge introduces context changes.
-   *
-   * @param {string} endpoint - 'source' (pin 同 fromId 其他 outgoing) 或
-   *                            'target' (pin 同 toId 其他 incoming)
-   * @param {string} taskId   - 共用的 task id (fromId or toId)
-   */
-  function pinSiblings(conns, draggedIdx, endpoint, taskId, updateOverride) {
-    if (!updateOverride || !taskId) return;
-    for (let i = 0; i < conns.length; i++) {
-      if (i === draggedIdx) continue;
-      const o = conns[i];
-      const sharesEndpoint = endpoint === 'source'
-        ? o.fromId === taskId
-        : o.toId === taskId;
-      if (!sharesEndpoint) continue;
-      if (!o.exitSide || !o.entrySide) continue;  // 沒 route 結果不 pin
-      updateOverride(o.fromId, o.overrideKey, {
-        exitSide: o.exitSide, entrySide: o.entrySide,
-      });
-    }
   }
 
   return { dragInfo, setDragInfo, startDrag, moveDrag, endDrag };
