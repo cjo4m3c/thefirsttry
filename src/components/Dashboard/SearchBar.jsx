@@ -8,6 +8,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '../ui/Button.jsx';
+import { Chip } from '../ui/Chip.jsx';
 import { autoSpace } from '../../utils/autoSpace.js';
 
 export function SearchBar({
@@ -67,36 +68,56 @@ export function SearchBar({
   );
 }
 
+// FilterChip — 包 `<Chip variant="filter">` + 內嵌「✕ 清除」按鈕
 function FilterChip({ children, onClear }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-brand-soft text-brand-dark text-xs">
+    <Chip variant="filter">
       {children}
       <button onClick={onClear} className="hover:text-danger" title="清除此篩選">✕</button>
-    </span>
+    </Chip>
   );
 }
 
 function L2Dropdown({ value, options, onChange }) {
   return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      className="px-3 py-2 rounded-lg border border-line text-sm bg-card focus:outline-none focus:ring-2 focus:ring-brand-light"
-      title="按 L2 編號（前兩段）篩選">
+    <SelectWithChevron value={value} onChange={onChange}
+      title="按 L2 編號（前兩段）篩選" ariaLabel="L2 篩選">
       <option value="">全部 L2</option>
       {options.map(o => (
         <option key={o.value} value={o.value}>{o.value} ({o.count})</option>
       ))}
-    </select>
+    </SelectWithChevron>
   );
 }
 
-// SVG chevron-down 跟 native <select> 箭頭視覺一致（PR #237、角色 trigger 用）
+// SVG chevron-down — 飽和實心三角、3 個 dropdown 一致用此（PR #240）。
+// L2 / sort dropdown 用 `<select>` + `appearance-none` 隱藏 native arrow、
+// 包裝 div overlay 此元件；角色 dropdown 是 button + 直接放此元件。
 function ChevronDown() {
   return (
-    <svg width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true" className="opacity-60">
+    <svg width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
       <polygon points="0,0 10,0 5,6" />
     </svg>
+  );
+}
+
+// Wrapper: native <select> + 隱藏內建箭頭 + 自繪實心 SVG chevron overlay。
+// L2 / sort dropdown 共用此 pattern 跟角色 button trigger 視覺一致。
+export function SelectWithChevron({ value, onChange, title, children, ariaLabel }) {
+  return (
+    <div className="relative inline-block">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        title={title}
+        aria-label={ariaLabel}
+        className="appearance-none pl-3 pr-8 py-2 rounded-lg border border-line text-sm bg-card focus:outline-none focus:ring-2 focus:ring-brand-light cursor-pointer">
+        {children}
+      </select>
+      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-ink-soft">
+        <ChevronDown />
+      </span>
+    </div>
   );
 }
 

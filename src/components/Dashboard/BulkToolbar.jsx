@@ -23,14 +23,14 @@ export function BulkToolbar({
   if (selectedCount === 0) return null;
   const noFormat = !(bulkFormats.png || bulkFormats.drawio || bulkFormats.excel);
   return (
-    <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-300 flex items-center gap-3 flex-wrap">
-      <span className="text-sm font-medium text-blue-800">已選 {selectedCount} / {totalCount} 個活動</span>
+    <div className="mb-4 p-3 rounded-lg bg-info-soft border border-info flex items-center gap-3 flex-wrap">
+      <span className="text-sm font-medium text-info-ink">已選 {selectedCount} / {totalCount} 個活動</span>
       <Button size="sm" onClick={onSelectAll}>全選</Button>
       <Button size="sm" onClick={onClearSelected}>取消選取</Button>
-      <span className="mx-2 text-gray-300">|</span>
-      <span className="text-xs text-blue-700">格式：</span>
+      <span className="mx-2 text-line">|</span>
+      <span className="text-xs text-info-ink">格式：</span>
       {FORMATS.map(fmt => (
-        <label key={fmt} className="flex items-center gap-1 text-xs text-blue-800 cursor-pointer select-none">
+        <label key={fmt} className="flex items-center gap-1 text-xs text-info-ink cursor-pointer select-none">
           <input type="checkbox" checked={bulkFormats[fmt]}
             onChange={e => onSetBulkFormat(fmt, e.target.checked)}
             className="w-3.5 h-3.5" />
@@ -50,8 +50,8 @@ export function BulkToolbar({
 export function PngProgressBanner({ pngQueue, pngTotal }) {
   if (pngQueue.length === 0) return null;
   return (
-    <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-300 text-sm text-yellow-800 flex items-center gap-2">
-      <span className="animate-spin inline-block w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full" />
+    <div className="mb-4 p-3 rounded-lg bg-warning-soft border border-warning text-sm text-warning-ink flex items-center gap-2">
+      <span className="animate-spin inline-block w-4 h-4 border-2 border-warning border-t-transparent rounded-full" />
       正在產生 PNG {pngTotal - pngQueue.length + 1} / {pngTotal}（{pngQueue[0]?.l3Number} {pngQueue[0]?.l3Name}）
     </div>
   );

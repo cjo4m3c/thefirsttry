@@ -15,7 +15,7 @@ export function SaveModal({ saveModal, onCancel, onSaveAnyway }) {
       onClose={onCancel}
       variant={isBlocking ? 'danger' : 'warning'}
       width={560}
-      title={isBlocking ? '⛔ 必要條件未達，無法儲存' : '⚠️ 有建議改善項目'}
+      title={isBlocking ? '必要條件未達，無法儲存' : '有建議改善項目'}
       subtitle={isBlocking
         ? '修正以下問題後才能儲存：'
         : '以下項目建議修正。您可以選擇仍然儲存，或取消並回去調整：'}
@@ -48,7 +48,7 @@ export function ResetAllModal({ open, onCancel, onConfirm }) {
       onClose={onCancel}
       variant="warning"
       width={480}
-      title="⚠️ 重設所有手動端點"
+      title="重設所有手動端點"
       subtitle="此動作會清除本工作流所有連線的手動拖曳端點設定，回到自動路由。無法復原。"
     >
       <ModalFoot>

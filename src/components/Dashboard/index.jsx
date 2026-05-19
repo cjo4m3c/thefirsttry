@@ -29,7 +29,7 @@ import { FlowListTable } from './FlowListTable.jsx';
 import { ViewSwitcher } from './ViewSwitcher.jsx';
 import { DuplicateImportModal } from './DuplicateImportModal.jsx';
 import { CloneFlowModal } from './CloneFlowModal.jsx';
-import { SearchBar, EmptyState } from './SearchBar.jsx';
+import { SearchBar, EmptyState, SelectWithChevron } from './SearchBar.jsx';
 import { Pagination } from './Pagination.jsx';
 import { useExcelImport } from './useExcelImport.js';
 
@@ -277,22 +277,18 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             onClearAll={clearAllFilters}
             viewSwitcher={<ViewSwitcher value={view} onChange={setView} />}
             sortControl={
-              <select
-                value={sortKey}
-                onChange={e => setSortKey(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-line text-sm text-ink bg-card focus:outline-none focus:ring-2 focus:ring-brand-light">
+              <SelectWithChevron value={sortKey} onChange={setSortKey} ariaLabel="排序方式">
                 {SORT_OPTIONS.map(o => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
-              </select>
+              </SelectWithChevron>
             } />
         )}
 
         {/* Flow list — 2026-05-18：view='cards' 或 'table'、所有功能 parity */}
         {flows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <div className="text-5xl mb-4">📋</div>
-            <p className="text-lg">尚無活動，點選右上角「新增 L3 活動」或「上傳 Excel」開始</p>
+          <div className="flex flex-col items-center justify-center py-20 text-ink-faint">
+            <p className="text-lg">尚無活動，點選右上角「新增 L3 工作流」或「上傳 Excel」開始</p>
           </div>
         ) : sortedFlows.length === 0 ? (
           <EmptyState onClearAll={clearAllFilters} />
