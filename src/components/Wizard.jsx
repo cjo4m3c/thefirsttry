@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { generateId } from '../utils/storage.js';
+import { Button } from './ui/Button.jsx';
 import { ReorderButtons, moveItem } from './reorderButtons.jsx';
 import { syncTasksToRoles, ensureExternalPrefix, stripExternalPrefix } from '../utils/elementTypes.js';
 import {
@@ -268,26 +269,17 @@ export default function Wizard({ flow, onSave, onCancel }) {
         </div>
 
         <div className="flex justify-between">
-          <button onClick={step === 0 ? onCancel : handleBack}
-            className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 text-base hover:bg-gray-50 transition-colors">
+          <Button onClick={step === 0 ? onCancel : handleBack} className="px-5 py-2">
             {step === 0 ? '取消' : '← 上一步'}
-          </button>
+          </Button>
           {step < LAST_WIZARD_STEP ? (
-            <button onClick={handleNext}
-              className="px-5 py-2 rounded-lg text-white text-base font-medium transition-colors"
-              style={{ background: '#3470B5' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#274F86'}
-              onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}>
+            <Button variant="primary" onClick={handleNext} className="px-5 py-2">
               下一步 →
-            </button>
+            </Button>
           ) : (
-            <button onClick={handleSave}
-              className="px-5 py-2 rounded-lg text-white text-base font-medium transition-colors"
-              style={{ background: 'var(--brand-dark)' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-dark-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dark)'}>
+            <Button variant="primary" onClick={handleSave} className="px-5 py-2">
               進入編輯流程 →
-            </button>
+            </Button>
           )}
         </div>
       </main>

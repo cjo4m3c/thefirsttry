@@ -16,6 +16,7 @@ import { useState, useMemo, useEffect } from 'react';
 // `InfoDropdown`「說明 ▾」單顆按鈕（使用者：「這三個按鈕不是第一眼需要
 // 知道的資訊、有什麼好方法可以收攏」）。
 import InfoDropdown from '../InfoDropdown.jsx';
+import { Button } from '../ui/Button.jsx';
 import DiagramRenderer from '../DiagramRenderer.jsx';
 import BackToTop from '../BackToTop.jsx';
 import { exportDrawio } from '../../utils/drawioExport.js';
@@ -233,22 +234,13 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
               className="hidden"
               onChange={handleFileChange}
             />
-            <button
-              onClick={triggerFilePicker}
-              className="px-5 py-2 rounded-lg text-white text-sm font-medium shadow transition-colors"
-              style={{ background: '#2A5598' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
-              onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
+            <Button variant="primary" onClick={triggerFilePicker} className="px-5 py-2 shadow">
               上傳 Excel
-            </button>
+            </Button>
 
-            <button onClick={onNew}
-              className="px-5 py-2 rounded-lg text-white text-sm font-medium shadow transition-colors"
-              style={{ background: '#2A5598' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
-              onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
+            <Button variant="primary" onClick={onNew} className="px-5 py-2 shadow">
               新增 L3 工作流
-            </button>
+            </Button>
           </div>
         </div>
 

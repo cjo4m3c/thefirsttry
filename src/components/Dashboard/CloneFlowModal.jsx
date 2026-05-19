@@ -86,14 +86,9 @@ export function CloneFlowModal({ source, onResolve }) {
       </ModalBody>
       <ModalFoot>
         <Button onClick={() => onResolve(null)}>取消</Button>
-        <button onClick={submit}
-          disabled={!canSubmit}
-          className="px-4 py-2 rounded-lg text-sm text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: canSubmit ? 'var(--brand-dark)' : '#9CA3AF' }}
-          onMouseEnter={e => { if (canSubmit) e.currentTarget.style.background = 'var(--brand-dark-hover)'; }}
-          onMouseLeave={e => { if (canSubmit) e.currentTarget.style.background = 'var(--brand-dark)'; }}>
+        <Button variant="primary" disabled={!canSubmit} onClick={submit}>
           複製並開啟
-        </button>
+        </Button>
       </ModalFoot>
     </Modal>
   );
