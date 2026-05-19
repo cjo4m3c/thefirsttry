@@ -60,9 +60,9 @@ export default function ChangelogPanel({ isOpen = false, onClose = () => {} }) {
         <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
           <button onClick={onClose}
             className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-            style={{ background: '#2A5598' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
-            onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
+            style={{ background: 'var(--brand-dark)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-dark-hover)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dark)'}>
             關閉
           </button>
         </div>

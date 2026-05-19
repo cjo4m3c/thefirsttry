@@ -10,7 +10,8 @@ const HOVER_STROKE = '#2563EB'; // Tailwind blue-600
 // Connection hover palette — distinct colors for incoming vs outgoing so the
 // viewer can tell at a glance which related edge flows in which direction.
 // Palette values from ui-rules.md.
-const HOVER_OUT_STROKE = '#2A5598'; // primary deep blue — where this element LEADS TO
+// SVG `stroke` attribute 不認 CSS variable、保留 hex literal；須跟 `--brand-dark` 同步。
+const HOVER_OUT_STROKE = '#2A5598'; // === var(--brand-dark) — where this element LEADS TO
 const HOVER_IN_STROKE  = '#7AB5DD'; // light blue        — what FEEDS INTO this element
 
 export function ArrowMarkers() {

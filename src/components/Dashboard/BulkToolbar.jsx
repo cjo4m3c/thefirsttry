@@ -7,8 +7,8 @@
  * in flight (Chrome silently drops too-fast download bursts; serial PNG
  * generation is the only reliable path for >5 flows).
  */
-const BTN_BLUE = '#2A5598';
-const BTN_BLUE_HOVER = '#1E4677';
+const BTN_BLUE = 'var(--brand-dark)';
+const BTN_BLUE_HOVER = 'var(--brand-dark-hover)';
 const RED = '#DC2626';
 const RED_BG = '#FEE2E2';
 

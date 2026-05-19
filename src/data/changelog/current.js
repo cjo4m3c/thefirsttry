@@ -6,6 +6,20 @@
 export default [
   {
     date: '2026-05-19',
+    title: 'Inline `#2A5598` 全站 → `var(--brand-dark)` token migration（design system 漸進拉齊 PR 1/4）',
+    items: [
+      '**緣由**：spec §13.9.1 規定 token 是 SOT、改 hex 改 tokens.css 不改 inline；但全站還有 24 處 hex literal `#2A5598`（Header bg / button bg / 各種 modal 確認按鈕）+ 9 處 hover hex `#1E4677` 散落。痛點：改色要 grep 替換全站、違反 token SOT 原則。本 PR 為「design system 漸進拉齊」4-PR 系列第 1 棒（最低風險純機械替換）。',
+      '**新增 token `--brand-dark-hover: #1E4677`**：原本 hover 色散落各處沒 token、`tokens.css` 加 + `tailwind.config.js` 加 `bg-brand-dark-hover` / `text-brand-dark-hover` utility。',
+      '**機械替換 9 個檔案**：(1) `DesignGuidelinePanel.jsx` 關閉 button (2) `HelpPanel.jsx` 關閉 button (3) `ChangelogPanel.jsx` 關閉 button (4) `Wizard.jsx` header bg + 儲存 button (5) `Dashboard/BulkToolbar.jsx` BTN_BLUE / BTN_BLUE_HOVER 常數 (6) `BackToTop.jsx` 浮按鈕 bg (7) `Dashboard/CloneFlowModal.jsx` 確認 button (8) `ContextMenu/subforms.jsx` 3 個確認 button (9) `FlowEditor/DrawerContent.jsx` 確認新增 button (10) `Dashboard/index.jsx` Header bg (11) `FlowEditor/Header.jsx` 儲存 button `text-[#1E4677]` → `text-brand-dark-hover` (12) `src/index.css` save-celebrate-flash keyframe。共 24 處 hex 替換為 `var(--brand-dark)` / `var(--brand-dark-hover)` 或 Tailwind utility。',
+      '**SVG 例外處理**：`DiagramRenderer/arrows.jsx HOVER_OUT_STROKE` 是 SVG `stroke` attribute、不認 CSS variable、保留 hex `#2A5598`、但加註解 `// === var(--brand-dark)` 標記同步。',
+      '**Dashboard 上傳/新增 CTA 保留**：使用者指示「Dashboard 上傳/新增 CTA」這次跳過、留給未來「Button variant primary 遷移」一起做（design system 系列 PR 3）。`Dashboard/index.jsx` line 242-252 共 6 處 hex 維持不動。',
+      '**結果**：source `#2A5598` 從 18 處 → 2 處（Dashboard CTA × 2 = 6 行）；`#1E4677` 從 9 處 → 3 處（Dashboard CTA × 2 = 6 行 + tokens.css 定義 + arrows.jsx 同步註解）。改 brand-dark 色未來只要動 tokens.css 一處（除 Dashboard CTA 仍要手動之外）。',
+      '**動到的檔案（13 個）**：`src/styles/tokens.css`（加 `--brand-dark-hover`）/ `tailwind.config.js`（加 utility）/ `src/index.css`（keyframe）/ `src/components/{DesignGuidelinePanel,HelpPanel,ChangelogPanel,Wizard,BackToTop}.jsx` / `src/components/Dashboard/{BulkToolbar,CloneFlowModal,index}.jsx` / `src/components/ContextMenu/subforms.jsx` / `src/components/FlowEditor/{DrawerContent,Header}.jsx` / `src/components/DiagramRenderer/arrows.jsx`（註解）+ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動：(a) Dashboard / Wizard / FlowEditor Header 三個深藍 header bg 視覺一致（皆 `--brand-dark`）(b) 各 panel 關閉按鈕 hover 漸深 (c) Dashboard 上傳/新增 CTA 視覺保持不變（hex 未動）(d) 流程圖 hover task 下游箭頭仍為 #2A5598 深藍。',
+    ],
+  },
+  {
+    date: '2026-05-19',
     title: '字級 spec 7 階重新校準 — 以實際網頁字級反推、新 11/12/14/16/18/20/24 + display 48',
     items: [
       '**緣由**：PR #228 audit 揭露全站 162 處字級違反舊 spec 7 階 (11/12/13/15/17/22/32)。盤點實際使用：12px 121 處 ⭐ / 14px 72 處 ⭐ / 16px 51 處 ⭐ / 18px 8 / 20px 6 / 24px 5 / 48px 1、舊 spec 的 15/17/22/32 幾乎沒人用（0-4 處）。使用者：「以現在網頁字級為基準，做七階層字級設計後，反過頭來拉齊網頁中所有不合規的內容」→ 反推新 spec 而非拉齊到舊 spec。',

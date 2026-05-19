@@ -185,7 +185,7 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
                 : savePulse !== 'none'
                   ? 'border-amber-300 bg-amber-400 text-amber-950 hover:bg-amber-300 save-pulse'
                   : hasChanges
-                    ? 'border-white bg-white text-[#1E4677] hover:bg-opacity-90'
+                    ? 'border-white bg-white text-brand-dark-hover hover:bg-opacity-90'
                     : 'border-white border-opacity-40 text-white font-normal hover:bg-white hover:bg-opacity-10'
             }`}>
             儲存
