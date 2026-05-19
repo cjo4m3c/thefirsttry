@@ -1,8 +1,8 @@
 /**
  * astar.js — A* orthogonal path finder with cost-based visual preferences.
  *
- * Cost function (v1.14) per-cell：
- *   cost = 1                                                    // 基本移動
+ * Cost function (v1.19) per-cell：
+ *   cost = baseStep                                              // v1.19 M1: 直走 ≥3 cells rebate 1→0.5
  *        + turnPenalty(turnCount)  if isTurn                    // dim 0: 累進 turn
  *        + max(0, PROXIMITY_BONUS - distFromObstacle) if !stub  // dim 1: corridor 中央
  *        + getOccupyPenalty(cell, dir, src, tgt, entry, exit)   // dim 2: smart 占用 (S22/S23 雙軸延伸)
@@ -36,6 +36,17 @@ const CENTER_WEIGHT = 1.5;     // turn cell 離 path 中點越遠，加 cost 越
 // 但 2-bend U/S 的中段 bend 仍進 Center Bias 計算 (保留 v1.1 修的 bend 拉中點)。
 const CENTER_SKIP_RADIUS_MIN = 4;
 const CENTER_SKIP_RADIUS_MAX = 10;
+
+// v1.19 M1 直線優先 rebate：A* node 維護 runLength (連續同方向 cells 數)。
+// 直走 cell 在 runLength ≥ STRAIGHT_REBATE_THRESHOLD 後 base cost 從 1 → 0.5。
+// 鼓勵 A* 找盡量直的 path，集中 turn 在少數位置而非中段 zigzag。
+//
+// 為何 rebate 安全 (vs v1.13 S24 penalty 失敗)：rebate 在「直走 cell」給折扣，
+// A* 想拿 rebate 必須直走；沒有「假裝直走但其實彎」的繞過可能。S24 是 penalty
+// 在特定 cell，A* 在連續搜索空間找出多 turn 替代避罰區。對稱：penalty 危險，
+// rebate 安全 (詳 §10.5 修法決策樹 step 5)。
+const STRAIGHT_REBATE_THRESHOLD = 3;  // 連續直走 3 cells 後啟動 rebate
+const STRAIGHT_REBATE = 0.5;          // base cost 1 → 0.5
 
 /** S15 (v1.10) Turn penalty 累進：第 1-2 turn 同 base，第 3+ 急升。
  *  解長 path 中「bend 數權重相對 base cost 太小」(類型 A)：
@@ -145,7 +156,8 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
     dir: sourceExitDir,
     g: 0,
     h: manhattan(start, goal),
-    turnCount: 0,  // S15 (v1.10) 累進 turn penalty 用
+    turnCount: 0,        // S15 (v1.10) 累進 turn penalty 用
+    runLength: 1,        // v1.19 M1: 連續同方向 cells 數，rebate 用
     parent: null,
   };
   open.push(startNode);
@@ -231,9 +243,19 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
       const newTurnCount = cur.turnCount + (isTurn ? 1 : 0);
       const turnCost = isTurn ? turnPenalty(newTurnCount) : 0;
 
+      // v1.19 M1 直線優先 rebate：
+      // - turn cell → runLength 重置為 1 (新方向第 1 cell)
+      // - 直走 cell → runLength 沿用父 +1
+      // - runLength ≥ THRESHOLD 時 base cost 從 1 → 0.5 (rebate 0.5)
+      // 鼓勵集中 turn，A* 直走越長越便宜。
+      const newRunLength = isTurn ? 1 : cur.runLength + 1;
+      const baseStep = newRunLength >= STRAIGHT_REBATE_THRESHOLD
+        ? STRAIGHT_REBATE   // 0.5
+        : 1;
+
       // Tie-break: 同方向 0.01 < perp 0.02 < perp 0.03 < opposite 0.04
       const tieBias = i * 0.01;
-      const newG = cur.g + 1
+      const newG = cur.g + baseStep
         + turnCost
         + proximityCost
         + occupyCost
@@ -244,7 +266,8 @@ export function findPath(grid, start, goal, sourceExitDir, sourceId, targetId, o
       const nkey = cellKey(ncell, d);
       if (closed.has(nkey) && closed.get(nkey) <= newG) continue;
 
-      open.push({ cell: ncell, dir: d, g: newG, h: newH, turnCount: newTurnCount, parent: cur });
+      open.push({ cell: ncell, dir: d, g: newG, h: newH,
+                   turnCount: newTurnCount, runLength: newRunLength, parent: cur });
     }
   }
 
