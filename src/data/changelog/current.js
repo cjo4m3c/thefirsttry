@@ -6,6 +6,19 @@
 export default [
   {
     date: '2026-05-18',
+    title: 'Dashboard 新增表格 view（方案 A）— 卡片 / 表格 切換、所有 features parity',
+    items: [
+      '**緣由**：使用者「希望可以做表格檢視的介面」+「卡片上有的功能表格上都有，兩者差異只是排列排版不同」+ 選方案 A（只表格、不做分組 / 分頁 / 列高 toggle / filter chip 重做）。',
+      '**新檔 `FlowListTable.jsx`**（~150 行）：9 欄表格 — checkbox / ★ / 編號（Chip id） / 名稱 / 角色 count / 任務 count / 主要角色 chips (前 2 + `+N`) / 建立+更新日期 / 動作（編輯 / 複製 / 下載 ▾ / 刪除）。所有 callback 跟 `FlowCard` 同 prop signature、Dashboard 端可直接 swap。下載 ▾ dropdown 沿用 FlowEditor Header 既有 pattern（click 開、外面關）。row hover bg `--paper`、selected row 用 `--brand-light-soft` 高亮。Roles preview cap 2 個避免欄寬爆掉、超過用 `<Chip variant="more">+N</Chip>`。',
+      '**新檔 `ViewSwitcher.jsx`**（~30 行）：segmented control「卡片 / 表格」二選一。對齊 spec `.seg` 樣式（paper-2 軌 + card 選中底 + shadow-sm）。',
+      '**Dashboard 整合**：(a) state 加 `view = "cards" | "table"`、localStorage key `bpm_dashboard_view` 持久化偏好 (b) toolbar 加 `<ViewSwitcher>` 在 sort select 左邊 (c) flow list render 條件：view==="table" → `<FlowListTable>`、否則維持原本 grid + `<FlowCard>` (d) 所有 callback (toggleSelect / togglePin / edit / delete / clone / exportPng) 兩 view 共享。',
+      '**不在範圍**（per 方案 A）：分組 view / 列高 toggle / 排序欄位點 header / filter chip 系統重做 / 分頁。這些是 spec 完整版（方案 C）的功能、使用者明示先做 A。',
+      '**動到的檔案（3 個 + 2 新檔）**：`src/components/Dashboard/FlowListTable.jsx`（新）/ `src/components/Dashboard/ViewSwitcher.jsx`（新）/ `src/components/Dashboard/index.jsx`（view state + localStorage + 條件 render）/ `src/data/changelog/current.js`（本條）。',
+      '**驗證**：`npm run build` 通過。手動驗證：(a) Dashboard toolbar 顯示「卡片 ▎表格」segment、預設卡片 (b) 點「表格」→ 流程列表變表格、9 欄完整 (c) 重新整理頁面 → 仍保持表格 view（localStorage）(d) 表格內：點 ★ pin 切換、勾 checkbox 進批量選 / 按 BulkToolbar 下載、編輯進 FlowEditor、複製跳 modal、下載 ▾ 開選單 PNG/Drawio/Excel、刪除 confirm (e) 切回卡片 → 所有 state 保留（select / sort）(f) row hover 變 paper bg、selected row 變 brand-light-soft (g) 多 role 顯示「業務 財務 +3」。',
+    ],
+  },
+  {
+    date: '2026-05-18',
     title: '首頁「說明 ▾」按鈕對齊編輯頁規格 + L3 chip 改用 `#1B2E4C` 品牌最深色',
     items: [
       '**緣由**：使用者「首頁按鈕規格請跟編輯頁按鈕規格拉齊」+「首頁 L3 編號的 chip 請都改成用品牌深色 #1B2E4C」。',

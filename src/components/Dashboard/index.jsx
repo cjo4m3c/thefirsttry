@@ -25,11 +25,26 @@ import { SORT_OPTIONS, sortFlows } from './sortFlows.js';
 import { ImportErrorBanner, ImportSuccessBanner, ImportWarningsBanner } from './Banners.jsx';
 import { BulkToolbar, PngProgressBanner } from './BulkToolbar.jsx';
 import { FlowCard } from './FlowCard.jsx';
+import { FlowListTable } from './FlowListTable.jsx';
+import { ViewSwitcher } from './ViewSwitcher.jsx';
 import { DuplicateImportModal } from './DuplicateImportModal.jsx';
 import { CloneFlowModal } from './CloneFlowModal.jsx';
 
+const VIEW_PREF_KEY = 'bpm_dashboard_view';
+
 export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExcel, onTogglePin, onClone }) {
   const [sortKey, setSortKey] = useState('number-asc');
+  // 2026-05-18 表格 view（方案 A）— 卡片 / 表格 二選一、localStorage 記憶。
+  // 兩個 view 共享所有 state（sort / search / filter / select）、只是渲染不同。
+  const [view, setView] = useState(() => {
+    try {
+      const v = localStorage.getItem(VIEW_PREF_KEY);
+      return v === 'table' ? 'table' : 'cards';
+    } catch { return 'cards'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(VIEW_PREF_KEY, view); } catch { /* quota / disabled */ }
+  }, [view]);
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
   // 2026-05-13 拆兩段（fixes / notices）— 替代舊單一 importWarnings state。
@@ -202,6 +217,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             <p className="text-sm text-gray-500 mt-1">點星星可置頂、勾選可批量下載</p>
           </div>
           <div className="flex items-center gap-2">
+            <ViewSwitcher value={view} onChange={setView} />
             <select
               value={sortKey}
               onChange={e => setSortKey(e.target.value)}
@@ -260,12 +276,22 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
 
         <PngProgressBanner pngQueue={pngQueue} pngTotal={pngTotal} />
 
-        {/* Flow list */}
+        {/* Flow list — 2026-05-18：view='cards' 或 'table'、所有功能 parity */}
         {sortedFlows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <div className="text-5xl mb-4">📋</div>
             <p className="text-lg">尚無活動，點選右上角「新增 L3 活動」或「上傳 Excel」開始</p>
           </div>
+        ) : view === 'table' ? (
+          <FlowListTable
+            flows={sortedFlows}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelected}
+            onTogglePin={onTogglePin}
+            onEdit={onEdit}
+            onDelete={handleDelete}
+            onClone={setPendingClone}
+            onExportPng={setPendingPngFlow} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {sortedFlows.map(flow => (
