@@ -11,9 +11,8 @@ const VIEWS = [
 ];
 
 export function ViewSwitcher({ value, onChange }) {
-  // 2026-05-19：高度對齊右側 sort dropdown / 上傳 / 新增（py-2 + text-[13px]
-  // ≈ 38px）、字級拉齊 spec fs-body 13px（PR #228、使用者：「字能不能也
-  // 拉齊？」整批拉到 13px）。
+  // 高度對齊右側 sort dropdown / 上傳 / 新增（py-2 + text-sm ≈ 38px）、
+  // 字級拉齊 new spec fs-body 14px。
   return (
     <div className="inline-flex bg-paper-2 border border-line rounded-md p-0.5 gap-0.5 h-[38px]">
       {VIEWS.map(v => {
@@ -22,7 +21,7 @@ export function ViewSwitcher({ value, onChange }) {
           <button
             key={v.value}
             onClick={() => onChange(v.value)}
-            className={`h-full px-3 text-[13px] font-medium rounded transition-colors ${
+            className={`h-full px-3 text-sm font-medium rounded transition-colors ${
               active
                 ? 'bg-card text-ink shadow-sm font-semibold'
                 : 'text-ink-soft hover:text-ink'

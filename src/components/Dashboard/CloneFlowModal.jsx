@@ -10,6 +10,8 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { L3_NUMBER_PATTERN } from '../../utils/taskDefs.js';
+import { Modal, ModalBody, ModalFoot } from '../ui/Modal.jsx';
+import { Button } from '../ui/Button.jsx';
 
 export function CloneFlowModal({ source, onResolve }) {
   const [newL3Number, setNewL3Number] = useState('');
@@ -41,17 +43,17 @@ export function CloneFlowModal({ source, onResolve }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onResolve(null); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-800">複製工作流</h2>
-          <p className="text-xs text-gray-500 mt-1">
-            從「<span className="font-mono text-blue-700">{source.l3Number}</span> {source.l3Name}」複製一份新流程，原始流程不會更動。
-          </p>
-        </div>
-        <div className="px-6 py-4 space-y-4">
+    <Modal
+      isOpen={!!source}
+      onClose={() => onResolve(null)}
+      width={480}
+      title="複製工作流"
+    >
+      <ModalBody>
+        <p className="text-xs text-gray-500">
+          從「<span className="font-mono text-blue-700">{source.l3Number}</span> {source.l3Name}」複製一份新流程，原始流程不會更動。
+        </p>
+        <div className="space-y-4 mt-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">新 L3 編號</label>
             <input
@@ -81,21 +83,18 @@ export function CloneFlowModal({ source, onResolve }) {
             子流程引用（調用 X-Y-Z）維持指向原流程。
           </p>
         </div>
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
-          <button onClick={() => onResolve(null)}
-            className="px-4 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors">
-            取消
-          </button>
-          <button onClick={submit}
-            disabled={!canSubmit}
-            className="px-4 py-2 rounded-lg text-sm text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: canSubmit ? '#2A5598' : '#9CA3AF' }}
-            onMouseEnter={e => { if (canSubmit) e.currentTarget.style.background = '#1E4677'; }}
-            onMouseLeave={e => { if (canSubmit) e.currentTarget.style.background = '#2A5598'; }}>
-            複製並開啟
-          </button>
-        </div>
-      </div>
-    </div>
+      </ModalBody>
+      <ModalFoot>
+        <Button onClick={() => onResolve(null)}>取消</Button>
+        <button onClick={submit}
+          disabled={!canSubmit}
+          className="px-4 py-2 rounded-lg text-sm text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ background: canSubmit ? 'var(--brand-dark)' : '#9CA3AF' }}
+          onMouseEnter={e => { if (canSubmit) e.currentTarget.style.background = 'var(--brand-dark-hover)'; }}
+          onMouseLeave={e => { if (canSubmit) e.currentTarget.style.background = 'var(--brand-dark)'; }}>
+          複製並開啟
+        </button>
+      </ModalFoot>
+    </Modal>
   );
 }

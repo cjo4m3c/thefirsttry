@@ -32,9 +32,9 @@ import { forwardRef } from 'react';
 const BASE = 'inline-flex items-center gap-1 whitespace-nowrap border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-1';
 
 const SIZES = {
-  md: 'px-3 py-1.5 text-[13px] leading-[1.4] rounded-md font-medium',  // fs-body
-  sm: 'px-2.5 py-1 text-[12px] leading-[1.4] rounded-[5px] font-medium', // fs-label / radius-sm
-  xs: 'px-2 py-0.5 text-[11px] leading-[1.4] rounded font-medium',     // fs-caption / radius-xs
+  md: 'px-3 py-1.5 text-sm leading-[1.4] rounded-md font-medium',      // fs-body 14
+  sm: 'px-2.5 py-1 text-xs leading-[1.4] rounded-[5px] font-medium',   // fs-label 12 / radius-sm
+  xs: 'px-2 py-0.5 text-[11px] leading-[1.4] rounded font-medium',     // fs-caption 11 / radius-xs
 };
 
 const VARIANTS = {
@@ -42,6 +42,15 @@ const VARIANTS = {
   primary: 'bg-brand border-brand text-white hover:opacity-90',
   ghost:   'bg-card border-line border-dashed text-ink-soft hover:bg-paper-2',
   danger:  'bg-card border-line text-danger hover:bg-danger-soft',
+  // Filled warning（橘黃底白字）— 給「仍然儲存」/「確定重設」這類 destructive
+  // 但非錯誤的確認 button 用。對應 spec semantic `--warning` token。
+  warning: 'bg-warning border-warning text-white hover:opacity-90',
+  // Filled danger（紅底白字）— 給 DuplicateImport「覆蓋」這類真正破壞性的
+  // confirm button 用。
+  'danger-fill': 'bg-danger border-danger text-white hover:opacity-90',
+  // dark-bar：跑在 --brand-dark Header bg 上的透明白邊白字 button
+  // （FlowEditor / Dashboard / Wizard 三個深藍 header 共用）
+  'dark-bar': 'bg-transparent border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10',
 };
 
 export const Button = forwardRef(function Button(

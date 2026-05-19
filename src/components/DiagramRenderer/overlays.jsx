@@ -111,8 +111,8 @@ export function HoverTooltip({ tooltip, tasks }) {
       className="fixed z-30 pointer-events-none bg-white shadow-xl border border-gray-200 rounded-lg p-2.5 max-w-xs"
       style={style}
     >
-      <div className="text-[13px] font-semibold text-gray-700 mb-1">任務重點說明</div>
-      <div className="text-[13px] text-gray-600 whitespace-pre-wrap leading-relaxed">
+      <div className="text-sm font-semibold text-gray-700 mb-1">任務重點說明</div>
+      <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
         {t.description}
       </div>
     </div>

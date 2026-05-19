@@ -148,7 +148,7 @@ export default function HelpPanel({ isOpen = false, onClose = () => {} }) {
                       : { bg: 'bg-gray-50',   border: 'border-gray-200',   badgeBg: 'bg-gray-200',   badgeText: 'text-gray-700',   ruleText: 'text-gray-800',   label: 'Import' };
                     return (
                       <div key={i} className={`flex gap-3 ${style.bg} border ${style.border} rounded-lg px-3 py-2`}>
-                        <div className={`px-2 py-0.5 h-fit rounded ${style.badgeBg} ${style.badgeText} text-[10px] font-bold flex-shrink-0`}>
+                        <div className={`px-2 py-0.5 h-fit rounded ${style.badgeBg} ${style.badgeText} text-[11px] font-bold flex-shrink-0`}>
                           {style.label}
                         </div>
                         <div>
@@ -214,9 +214,9 @@ export default function HelpPanel({ isOpen = false, onClose = () => {} }) {
             <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
               <button onClick={onClose}
                 className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-                style={{ background: '#2A5598' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
-                onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
+                style={{ background: 'var(--brand-dark)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-dark-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dark)'}>
                 關閉
               </button>
             </div>

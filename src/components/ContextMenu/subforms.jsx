@@ -46,7 +46,7 @@ export function L3ActivitySubForm({
           className="px-3 py-1 text-xs text-gray-600 hover:text-gray-900">取消</button>
         <button onClick={onSubmit} disabled={!l3Number.trim()}
           className="px-3 py-1 text-xs rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: l3Number.trim() ? '#2A5598' : '#9CA3AF' }}>
+          style={{ background: l3Number.trim() ? 'var(--brand-dark)' : '#9CA3AF' }}>
           確認
         </button>
       </div>
@@ -73,7 +73,7 @@ export function ConnectionSubForm({
           className="px-3 py-1 text-xs text-gray-600 hover:text-gray-900">取消</button>
         <button onClick={onSubmit} disabled={!connTarget}
           className="px-3 py-1 text-xs rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: connTarget ? '#2A5598' : '#9CA3AF' }}>
+          style={{ background: connTarget ? 'var(--brand-dark)' : '#9CA3AF' }}>
           確認
         </button>
       </div>
@@ -163,7 +163,7 @@ export function GatewaySubForm({
           className="px-3 py-1 text-xs text-gray-600 hover:text-gray-900">取消</button>
         <button onClick={onSubmit} disabled={!canSubmit}
           className="px-3 py-1 text-xs rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: canSubmit ? '#2A5598' : '#9CA3AF' }}>
+          style={{ background: canSubmit ? 'var(--brand-dark)' : '#9CA3AF' }}>
           確認
         </button>
       </div>

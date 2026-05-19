@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { LegendModal } from '../DiagramRenderer/legend.jsx';
+import { Button } from '../ui/Button.jsx';
 
 // Encouragement phrases shown as the save-button tooltip when there are
 // unsaved changes. Picked once per edit session (locks until save) so the
@@ -98,62 +99,56 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
         {/* Header buttons. Order left → right:
             [圖例] [conditional reset] [open editor] [download ▼] [save] [pin star].
             Same outlined-white style; "儲存" gets solid white fill on hasChanges. */}
-        <button
+        <Button variant="dark-bar"
           onClick={() => setLegendOpen(true)}
-          title="圖例說明（流程圖元件對照表）"
-          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+          title="圖例說明（流程圖元件對照表）">
           圖例
-        </button>
+        </Button>
         {/* Density toggle (compact / default / spacious) — cycles on click.
             Applied via CSS zoom on the diagram wrapper; PNG export
             temporarily resets to 1x for full-resolution capture. */}
-        <button
+        <Button variant="dark-bar"
           onClick={onCycleDensity}
-          title={`目前：${densityLabel} — 點一下切換到「${densityNext}」`}
-          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+          title={`目前：${densityLabel} — 點一下切換到「${densityNext}」`}>
           {densityLabel}
-        </button>
+        </Button>
         {/* Undo / Redo (Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z). Stack clears
             after every save per spec — disabled while empty so users see
             visually whether undo is available. */}
-        <button
+        <Button variant="dark-bar"
           onClick={onUndo}
           disabled={!canUndo}
-          title={canUndo ? '復原（Ctrl+Z / Cmd+Z）' : '沒有可復原的動作（每次儲存後會清空）'}
-          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          title={canUndo ? '復原（Ctrl+Z / Cmd+Z）' : '沒有可復原的動作（每次儲存後會清空）'}>
           ↶ 復原
-        </button>
-        <button
+        </Button>
+        <Button variant="dark-bar"
           onClick={onRedo}
           disabled={!canRedo}
-          title={canRedo ? '取消復原（Ctrl+Y / Ctrl+Shift+Z）' : '沒有可重做的動作'}
-          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          title={canRedo ? '取消復原（Ctrl+Y / Ctrl+Shift+Z）' : '沒有可重做的動作'}>
           ↷ 重做
-        </button>
+        </Button>
         {liveFlow.tasks.some(t => t.connectionOverrides && Object.keys(t.connectionOverrides).length > 0) && (
-          <button
+          <Button variant="dark-bar"
             onClick={onResetAllConfirm}
-            title="重設所有手動拖曳的連線端點"
-            className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+            title="重設所有手動拖曳的連線端點">
             重設所有端點
-          </button>
+          </Button>
         )}
-        <button
+        <Button variant="dark-bar"
           onClick={onOpenDrawer}
-          title="開啟編輯面板"
-          className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+          title="開啟編輯面板">
           打開編輯器
-        </button>
+        </Button>
         <div ref={downloadRef} className="relative">
-          <button
+          <Button variant="dark-bar"
             onClick={() => setDownloadOpen(v => !v)}
             title="下載流程圖或 Excel（會先檢核並儲存全頁變更）"
-            className="px-3 py-1.5 text-base rounded border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors whitespace-nowrap inline-flex items-center gap-1.5">
+            className="whitespace-nowrap">
             <span>下載</span>
             <svg width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
               <polygon points="0,0 10,0 5,6" />
             </svg>
-          </button>
+          </Button>
           {downloadOpen && (
             <div className="absolute right-0 mt-1 min-w-[160px] bg-white rounded shadow-lg border border-gray-200 py-1 z-20">
               <button
@@ -185,7 +180,7 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
                 : savePulse !== 'none'
                   ? 'border-amber-300 bg-amber-400 text-amber-950 hover:bg-amber-300 save-pulse'
                   : hasChanges
-                    ? 'border-white bg-white text-[#1E4677] hover:bg-opacity-90'
+                    ? 'border-white bg-white text-brand-dark-hover hover:bg-opacity-90'
                     : 'border-white border-opacity-40 text-white font-normal hover:bg-white hover:bg-opacity-10'
             }`}>
             儲存

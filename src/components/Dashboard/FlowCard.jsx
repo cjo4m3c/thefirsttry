@@ -34,7 +34,12 @@ export function FlowCard({
           </svg>
         </button>
         <Chip variant="id" className="flex-shrink-0 font-bold">{flow.l3Number}</Chip>
-        <span className="font-semibold text-ink leading-tight line-clamp-2">{autoSpace(flow.l3Name)}</span>
+        {/* L3 活動名稱 — clickable button 進編輯（PR #234 加）；hover text-brand */}
+        <button onClick={() => onEdit(flow.id)}
+          title={`${flow.l3Name} — 點擊進入編輯`}
+          className="text-left font-semibold text-ink leading-tight line-clamp-2 hover:text-brand transition-colors cursor-pointer">
+          {autoSpace(flow.l3Name)}
+        </button>
       </div>
 
       {/* Stats */}

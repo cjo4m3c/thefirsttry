@@ -35,11 +35,11 @@ function PinIcon({ pinned }) {
   );
 }
 
-// 主要角色 chips preview — 最多顯示 1 個 + `+N` 摺疊（PR #228、釋出欄寬給
-// 名稱欄）。`flex-nowrap` 強制一行、配合 row 等高策略。
+// 主要角色 chips preview — 最多顯示 2 個 + `+N` 摺疊。`flex-nowrap` 強制
+// 一行、配合 row 等高策略。
 function RolesPreview({ roles }) {
   const arr = Array.isArray(roles) ? roles : [];
-  const visible = arr.slice(0, 1);
+  const visible = arr.slice(0, 2);
   const more = arr.length - visible.length;
   if (arr.length === 0) {
     return <span className="text-[11px] text-ink-faint">—</span>;
@@ -71,7 +71,7 @@ function SortableHeader({ column, label, sortKey, onSortKeyChange, className = '
         className={`inline-flex items-center gap-1 hover:text-ink transition-colors ${isActive ? 'text-ink' : ''}`}
         title={`點擊以${isAsc ? '改為降序' : '排序'}`}>
         <span>{label}</span>
-        <span className={`text-[10px] ${isActive ? '' : 'opacity-30'}`}>
+        <span className={`text-[11px] ${isActive ? '' : 'opacity-30'}`}>
           {isDesc ? '↓' : '↑'}
         </span>
       </button>
@@ -113,10 +113,9 @@ export function FlowListTable({
 }) {
   return (
     <div className="overflow-x-auto border border-line rounded-lg bg-card">
-      {/* 字級 spec fs-body 13px（PR #228、整批拉齊 spec 7 階）；
-          table-fixed 配合明確欄寬讓名稱 truncate 生效 */}
-      <table className="w-full text-[13px] border-collapse table-fixed">
-        <thead className="bg-paper-2 text-ink-soft">
+      {/* 字級 spec fs-body 14px（new 7 階）；table-fixed 配合明確欄寬讓名稱 truncate 生效 */}
+      <table className="w-full text-sm border-collapse table-fixed">
+        <thead className="bg-paper-2 text-ink-soft sticky top-0 z-10">
           <tr className="text-left">
             <th className="px-3 py-2 w-10">
               <HeaderCheckbox
@@ -126,10 +125,10 @@ export function FlowListTable({
                 onClearSelected={onClearSelected} />
             </th>
             <th className="px-2 py-2 w-8"></th>
-            <SortableHeader column="number" label="編號"
+            <SortableHeader column="number" label="L3編號"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange}
               className="w-24" />
-            <SortableHeader column="name" label="名稱"
+            <SortableHeader column="name" label="L3活動名稱"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange} />
             <SortableHeader column="roles" label="角色"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange}
@@ -137,10 +136,10 @@ export function FlowListTable({
             <SortableHeader column="tasks" label="任務"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange}
               className="w-16 text-center" />
-            <th className="px-3 py-2 w-32 font-semibold">主要角色</th>
+            <th className="px-3 py-2 w-48 font-semibold">主要角色</th>
             <SortableHeader column="updated" label="日期"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange}
-              className="w-64" />
+              className="w-40" />
             <th className="px-3 py-2 w-[22rem] font-semibold">動作</th>
           </tr>
         </thead>
@@ -169,9 +168,14 @@ export function FlowListTable({
                 <td className="px-3 py-2">
                   <Chip variant="id">{flow.l3Number}</Chip>
                 </td>
-                {/* L3 名稱 — truncate `…` + hover tooltip 顯示全名（PR #228 row 等高策略） */}
+                {/* L3 活動名稱 — clickable button 進編輯（PR #234 加）、
+                    truncate `…` + hover tooltip 顯示全名 */}
                 <td className="px-3 py-2 font-medium text-ink">
-                  <div className="truncate" title={flow.l3Name}>{autoSpace(flow.l3Name)}</div>
+                  <button onClick={() => onEdit(flow.id)}
+                    title={`${flow.l3Name} — 點擊進入編輯`}
+                    className="w-full text-left truncate hover:text-brand transition-colors cursor-pointer">
+                    {autoSpace(flow.l3Name)}
+                  </button>
                 </td>
                 {/* 角色 count */}
                 <td className="px-3 py-2 text-center text-ink-soft">{flow.roles?.length ?? 0}</td>
@@ -181,7 +185,7 @@ export function FlowListTable({
                 <td className="px-3 py-2">
                   <RolesPreview roles={flow.roles} />
                 </td>
-                {/* 日期 — whitespace-nowrap 確保兩列不折成四列；text-[11px] fs-caption */}
+                {/* 日期 — whitespace-nowrap 確保兩列不折成四列；fs-caption 11 */}
                 <td className="px-3 py-2 text-[11px] text-ink-faint leading-tight whitespace-nowrap">
                   {flow.createdAt && <div>建立：{fmtDateTime(flow.createdAt)}</div>}
                   {flow.updatedAt && <div>更新：{fmtDateTime(flow.updatedAt)}</div>}

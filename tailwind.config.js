@@ -12,6 +12,7 @@ export default {
       colors: {
         brand: 'var(--brand)',
         'brand-dark': 'var(--brand-dark)',
+        'brand-dark-hover': 'var(--brand-dark-hover)',
         'brand-darker': 'var(--brand-darker)',
         'brand-light': 'var(--brand-light)',
         'brand-light-deep': 'var(--brand-light-deep)',

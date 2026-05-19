@@ -30,6 +30,7 @@
    * / BackToTop 等多處仍寫死 `#2A5598`，把 token 對齊既有實際使用色更實際。
    */
   --brand-dark:   #2A5598;
+  --brand-dark-hover: #1E4677;   /* brand-dark button :hover state */
   /*
    * --brand-darker：spec 原 brand-dark `#1B2E4C` 深 navy（更深一階）。
    * 2026-05-18 加：使用者「首頁 L3 編號的 chip 請都改成用品牌深色 #1B2E4C」。
@@ -139,18 +140,20 @@
   --font-mono: var(--font-sans);
 
   /* ============================================================
-     TYPOGRAPHY — 字級 7 階
+     TYPOGRAPHY — 字級 7 階 + 裝飾外掛
      ------------------------------------------------------------
      不在此 7 階之外發明新字級。最小 11px（--fs-caption）。
-     Display 一頁僅 1 處。同螢幕最多 3 階層次。
+     --fs-display 為裝飾外掛（空狀態大型 emoji 等）、不計入 7 階核心、
+     同螢幕最多 3 階層次。
      ============================================================ */
-  --fs-display: 32px;   /* 頁面主標 */
-  --fs-h1:      22px;   /* 區塊標題 · Toolbar h3 */
-  --fs-h2:      17px;   /* 卡片大標 · Modal title */
-  --fs-h3:      15px;   /* 卡片名稱 · 列表 item */
-  --fs-body:    13px;   /* 預設 UI · 按鈕 · 表格 */
-  --fs-label:   12px;   /* Chip · 次要 label */
-  --fs-caption: 11px;   /* 日期 · 計數 · 提示 */
+  --fs-h1:      24px;   /* 頁面主標題 */
+  --fs-h2:      20px;   /* Modal 標題 · Section 大標 */
+  --fs-h3:      18px;   /* Panel 標題 · Section 副標 */
+  --fs-ui:      16px;   /* 主要 button · Form input · Header 元件 */
+  --fs-body:    14px;   /* 預設 UI 文字 · 表格列 · Drawer */
+  --fs-label:   12px;   /* Chip · 次要 label · 副標 */
+  --fs-caption: 11px;   /* 日期 · 計數 · 提示 · debug */
+  --fs-display: 48px;   /* 裝飾外掛：空狀態 emoji（非 7 階核心）*/
 
   /* 字重 */
   --fw-regular:  400;
@@ -200,6 +203,7 @@
 .t-h1      { font-size: var(--fs-h1);      font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
 .t-h2      { font-size: var(--fs-h2);      font-weight: var(--fw-semibold); line-height: var(--lh-snug);  }
 .t-h3      { font-size: var(--fs-h3);      font-weight: var(--fw-semibold); line-height: var(--lh-snug);  }
+.t-ui      { font-size: var(--fs-ui);      font-weight: var(--fw-medium);   line-height: var(--lh-snug); }
 .t-body    { font-size: var(--fs-body);    font-weight: var(--fw-regular);  line-height: var(--lh-normal); }
 .t-label   { font-size: var(--fs-label);   font-weight: var(--fw-medium);   line-height: 1.55; }
 .t-caption { font-size: var(--fs-caption); font-weight: var(--fw-regular);  line-height: 1.4; color: var(--ink-soft); }

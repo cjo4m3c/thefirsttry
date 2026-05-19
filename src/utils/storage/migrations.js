@@ -344,41 +344,15 @@ export function migrateTypeFromL4Suffix(tasks) {
  */
 export function migrateImportWarningsToFixes(flow) {
   if (!flow) return { importFixes: [], importNotices: [] };
-  const hasNew = Array.isArray(flow.importFixes) || Array.isArray(flow.importNotices);
-  if (hasNew) {
-    return {
-      importFixes: Array.isArray(flow.importFixes) ? flow.importFixes : [],
-      importNotices: Array.isArray(flow.importNotices) ? flow.importNotices : [],
-    };
-  }
-  const legacy = Array.isArray(flow.importWarnings) ? flow.importWarnings : [];
-  if (legacy.length === 0) return { importFixes: [], importNotices: [] };
-
-  const fixes = [];
-  const notices = [];
-  let bucket = null;  // 'fix' | null：fix headline 後續 lines 跟著進 fix
-  for (const line of legacy) {
-    if (typeof line !== 'string') { notices.push(String(line)); continue; }
-    if (/^已自動補上/.test(line) || /^已自動調整/.test(line)) {
-      bucket = 'fix';
-      fixes.push(line);
-      continue;
-    }
-    if (/^🔧/.test(line)) {
-      bucket = null;
-      fixes.push(line);
-      continue;
-    }
-    // 視為新 notice 開頭（重置 bucket）的 patterns：blocking / cross-row / merge / validation
-    if (/^❌/.test(line) || /^\[L3 /.test(line) || /^第 \d+ 列/.test(line)
-        || /^任務|^角色|^外部角色|^連線/.test(line)) {
-      bucket = null;
-      notices.push(line);
-      continue;
-    }
-    // 沒匹配到任何 standalone pattern → 視為 detail continuation
-    if (bucket === 'fix') fixes.push(line);
-    else notices.push(line);
-  }
-  return { importFixes: fixes, importNotices: notices };
+  // PR #236：banner 結構從 flat string → nested group `{ l3, headline, details[] }`。
+  // 使用者「以新為主、不要並存」— 舊 flat string 形式（含 PR #235 之前的 nested 之前的
+  // importFixes/importNotices 都是 string array、以及更舊的 importWarnings 單一 array）
+  // 一次性清空。使用者下次 import 才會看到新 nested 結構的 banner。
+  const fixesIn = Array.isArray(flow.importFixes) ? flow.importFixes : [];
+  const noticesIn = Array.isArray(flow.importNotices) ? flow.importNotices : [];
+  const isGroup = (v) => v && typeof v === 'object' && !Array.isArray(v)
+    && typeof v.l3 === 'string' && typeof v.headline === 'string' && Array.isArray(v.details);
+  const keepFixes = fixesIn.filter(isGroup);
+  const keepNotices = noticesIn.filter(isGroup);
+  return { importFixes: keepFixes, importNotices: keepNotices };
 }

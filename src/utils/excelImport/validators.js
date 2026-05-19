@@ -160,7 +160,7 @@ export function validateNumbering(allRows) {
  *
  * Returns { tasks: normalizedTasks, fixes: [{ before, after, name }] }.
  */
-export function normalizeL4Numbers(tasks, l3Number, excelRowByL4 = {}) {
+export function normalizeL4Numbers(tasks, l3Number, excelRowsByL4 = {}) {
   const stripped = tasks.map(t => {
     if (!t.l4Number) return t;
     const { l4Number, ...rest } = t;
@@ -168,16 +168,21 @@ export function normalizeL4Numbers(tasks, l3Number, excelRowByL4 = {}) {
   });
   const generated = computeDisplayLabels(stripped, l3Number);
   const fixes = [];
+  // 同 L4 編號（例 multi-end）多個 task：按出現順序消化 Array<excelRow>
+  // 第 1 個 task with l4='5-2-6-99' 對應 excelRowsByL4['5-2-6-99'][0]、
+  // 第 2 個對應 [1]、依此類推。修 PR #236 之前「都標第一列」bug。
+  const usedByL4 = {};
   const next = tasks.map(t => {
     const expected = generated[t.id];
     if (expected && t.l4Number && t.l4Number !== expected) {
-      // PR-D12: include excelRow so users can find the offending row in
-      // their original Excel without grepping by name.
+      const arr = excelRowsByL4[t.l4Number] || [];
+      const idx = usedByL4[t.l4Number] || 0;
+      usedByL4[t.l4Number] = idx + 1;
       fixes.push({
         before: t.l4Number,
         after: expected,
         name: t.name || '（未命名）',
-        excelRow: excelRowByL4[t.l4Number] || null,
+        excelRow: arr[idx] || null,
       });
       return { ...t, l4Number: expected };
     }
