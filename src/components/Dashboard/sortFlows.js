@@ -6,10 +6,10 @@
  */
 
 export const SORT_OPTIONS = [
-  { value: 'number-asc',  label: 'L3 編號 ↑' },
-  { value: 'number-desc', label: 'L3 編號 ↓' },
-  { value: 'name-asc',    label: 'L3 名稱 ↑' },
-  { value: 'name-desc',   label: 'L3 名稱 ↓' },
+  { value: 'number-asc',  label: 'L3編號 ↑' },
+  { value: 'number-desc', label: 'L3編號 ↓' },
+  { value: 'name-asc',    label: 'L3活動名稱 ↑' },
+  { value: 'name-desc',   label: 'L3活動名稱 ↓' },
   { value: 'updated-desc', label: '更新日期（最新）' },
   { value: 'updated-asc',  label: '更新日期（最舊）' },
   { value: 'roles-desc',   label: '角色數（多 → 少）' },
@@ -69,10 +69,12 @@ export function sortFlows(flows, sortKey) {
   return [...arr.filter(f => f.pinned), ...arr.filter(f => !f.pinned)];
 }
 
+// 24h 制（hour12: false）對齊全站日期格式：「2026/05/19 15:23」
+// 而非 zh-TW default 12h「2026/05/19 下午03:23」、節省 ~32px 寬度
 export function fmtDateTime(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleString('zh-TW', {
     year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
   });
 }

@@ -35,11 +35,11 @@ function PinIcon({ pinned }) {
   );
 }
 
-// 主要角色 chips preview — 最多顯示 1 個 + `+N` 摺疊（PR #228、釋出欄寬給
-// 名稱欄）。`flex-nowrap` 強制一行、配合 row 等高策略。
+// 主要角色 chips preview — 最多顯示 2 個 + `+N` 摺疊。`flex-nowrap` 強制
+// 一行、配合 row 等高策略。
 function RolesPreview({ roles }) {
   const arr = Array.isArray(roles) ? roles : [];
-  const visible = arr.slice(0, 1);
+  const visible = arr.slice(0, 2);
   const more = arr.length - visible.length;
   if (arr.length === 0) {
     return <span className="text-[11px] text-ink-faint">—</span>;
@@ -125,10 +125,10 @@ export function FlowListTable({
                 onClearSelected={onClearSelected} />
             </th>
             <th className="px-2 py-2 w-8"></th>
-            <SortableHeader column="number" label="編號"
+            <SortableHeader column="number" label="L3編號"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange}
               className="w-24" />
-            <SortableHeader column="name" label="名稱"
+            <SortableHeader column="name" label="L3活動名稱"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange} />
             <SortableHeader column="roles" label="角色"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange}
@@ -136,10 +136,10 @@ export function FlowListTable({
             <SortableHeader column="tasks" label="任務"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange}
               className="w-16 text-center" />
-            <th className="px-3 py-2 w-32 font-semibold">主要角色</th>
+            <th className="px-3 py-2 w-48 font-semibold">主要角色</th>
             <SortableHeader column="updated" label="日期"
               sortKey={sortKey} onSortKeyChange={onSortKeyChange}
-              className="w-64" />
+              className="w-40" />
             <th className="px-3 py-2 w-[22rem] font-semibold">動作</th>
           </tr>
         </thead>
@@ -168,9 +168,14 @@ export function FlowListTable({
                 <td className="px-3 py-2">
                   <Chip variant="id">{flow.l3Number}</Chip>
                 </td>
-                {/* L3 名稱 — truncate `…` + hover tooltip 顯示全名（PR #228 row 等高策略） */}
+                {/* L3 活動名稱 — clickable button 進編輯（PR #234 加）、
+                    truncate `…` + hover tooltip 顯示全名 */}
                 <td className="px-3 py-2 font-medium text-ink">
-                  <div className="truncate" title={flow.l3Name}>{autoSpace(flow.l3Name)}</div>
+                  <button onClick={() => onEdit(flow.id)}
+                    title={`${flow.l3Name} — 點擊進入編輯`}
+                    className="w-full text-left truncate hover:text-brand transition-colors cursor-pointer">
+                    {autoSpace(flow.l3Name)}
+                  </button>
                 </td>
                 {/* 角色 count */}
                 <td className="px-3 py-2 text-center text-ink-soft">{flow.roles?.length ?? 0}</td>
