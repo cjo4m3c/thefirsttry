@@ -27,7 +27,9 @@ export function useDragEndpoint({ svgRef, flow, positions, connections, editable
     const pointerId = evt.pointerId;
     try { target.setPointerCapture?.(pointerId); } catch {}
     const [sx, sy] = screenToSvg(svgRef.current, evt);
-    setDragInfo({ connKey, endpoint, pointerId, cursor: [sx, sy], proposedSide: null });
+    // v1.18 R3: 記下起點，endDrag 用 deadband 過濾微小移動
+    setDragInfo({ connKey, endpoint, pointerId, cursor: [sx, sy],
+                  startCursor: [sx, sy], proposedSide: null });
   }
 
   function moveDrag(evt) {
@@ -63,6 +65,21 @@ export function useDragEndpoint({ svgRef, flow, positions, connections, editable
     const idx = parseInt(dragInfo.connKey.slice(1), 10);
     const conn = connections[idx];
     if (!conn) { setDragInfo(null); return; }
+
+    // v1.18 R3: deadband — 過濾微小拖曳避免 sibling pin / override 誤觸發
+    // 解問題 3.1：使用者「拖了但沒動」時仍觸發 sibling 「已編輯」橘點
+    // 條件：未拖到不同 task (dropTargetId 為 null) 且 cursor 移動 < MIN_DRAG_DELTA
+    const MIN_DRAG_DELTA = 8;  // 1 grid cell = 8px
+    if (!dragInfo.dropTargetId && dragInfo.startCursor) {
+      const [sx0, sy0] = dragInfo.startCursor;
+      const [sx1, sy1] = dragInfo.cursor;
+      const moveDist = Math.hypot(sx1 - sx0, sy1 - sy0);
+      if (moveDist < MIN_DRAG_DELTA) {
+        // 微小移動 — 視為「沒拖」，不寫 override 也不 pin sibling
+        setDragInfo(null);
+        return;
+      }
+    }
 
     // Priority 1 — PR J: target handle dropped on a different valid task →
     // change the connection's target. Snap port = nearest side of new target
