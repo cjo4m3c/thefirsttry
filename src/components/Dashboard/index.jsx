@@ -16,6 +16,7 @@ import { useState, useMemo, useEffect } from 'react';
 // `InfoDropdown`「說明 ▾」單顆按鈕（使用者：「這三個按鈕不是第一眼需要
 // 知道的資訊、有什麼好方法可以收攏」）。
 import InfoDropdown from '../InfoDropdown.jsx';
+import { Button } from '../ui/Button.jsx';
 import DiagramRenderer from '../DiagramRenderer.jsx';
 import BackToTop from '../BackToTop.jsx';
 import { exportDrawio } from '../../utils/drawioExport.js';
@@ -28,7 +29,7 @@ import { FlowListTable } from './FlowListTable.jsx';
 import { ViewSwitcher } from './ViewSwitcher.jsx';
 import { DuplicateImportModal } from './DuplicateImportModal.jsx';
 import { CloneFlowModal } from './CloneFlowModal.jsx';
-import { SearchBar, EmptyState } from './SearchBar.jsx';
+import { SearchBar, EmptyState, SelectWithChevron } from './SearchBar.jsx';
 import { Pagination } from './Pagination.jsx';
 import { useExcelImport } from './useExcelImport.js';
 
@@ -204,7 +205,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
   return (
     <div className="min-h-screen" style={{ background: '#F5F8FC' }}>
       {/* Top bar */}
-      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-dark)', color: 'white' }}>
+      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-darker)', color: 'white' }}>
         <img
           src={`${import.meta.env.BASE_URL}logo.png`}
           alt="FlowSprite Logo"
@@ -219,24 +220,12 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Page title */}
+        {/* Page title — 頁標題 + 兩顆 CTA。view/sort 已搬到下方 SearchBar 列 */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">L3 工作流</h1>
-            <p className="text-sm text-gray-500 mt-1">點星星可置頂、勾選可批量下載</p>
           </div>
           <div className="flex items-center gap-2">
-            <ViewSwitcher value={view} onChange={setView} />
-            {/* sort select / 上傳 / 新增 字級拉齊 new spec fs-body 14px */}
-            <select
-              value={sortKey}
-              onChange={e => setSortKey(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
-              {SORT_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -245,22 +234,13 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
               className="hidden"
               onChange={handleFileChange}
             />
-            <button
-              onClick={triggerFilePicker}
-              className="px-5 py-2 rounded-lg text-white text-sm font-medium shadow transition-colors"
-              style={{ background: '#2A5598' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
-              onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
+            <Button variant="primary" onClick={triggerFilePicker} className="px-5 py-2 shadow">
               上傳 Excel
-            </button>
+            </Button>
 
-            <button onClick={onNew}
-              className="px-5 py-2 rounded-lg text-white text-sm font-medium shadow transition-colors"
-              style={{ background: '#2A5598' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
-              onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
-              + 新增 L3 工作流
-            </button>
+            <Button variant="primary" onClick={onNew} className="px-5 py-2 shadow">
+              新增 L3 工作流
+            </Button>
           </div>
         </div>
 
@@ -286,22 +266,29 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
 
         <PngProgressBanner pngQueue={pngQueue} pngTotal={pngTotal} />
 
-        {/* 搜尋 / 篩選 bar — PR #235、3 filter AND 結合（keyword / L2 / 角色多選）*/}
+        {/* 搜尋 / 篩選 bar + view/sort 控制（PR #237 合併到同一列、置右）。
+            沒內容（flows.length === 0）時整列不渲染。 */}
         {flows.length > 0 && (
           <SearchBar
             keyword={keyword} onKeywordChange={setKeyword}
             l2={l2} onL2Change={setL2}
             roles={filterRoles} onRolesChange={setFilterRoles}
             l2Options={l2Options} roleOptions={roleOptions}
-            resultCount={sortedFlows.length} totalCount={flows.length}
-            onClearAll={clearAllFilters} />
+            onClearAll={clearAllFilters}
+            viewSwitcher={<ViewSwitcher value={view} onChange={setView} />}
+            sortControl={
+              <SelectWithChevron value={sortKey} onChange={setSortKey} ariaLabel="排序方式">
+                {SORT_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </SelectWithChevron>
+            } />
         )}
 
         {/* Flow list — 2026-05-18：view='cards' 或 'table'、所有功能 parity */}
         {flows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <div className="text-5xl mb-4">📋</div>
-            <p className="text-lg">尚無活動，點選右上角「新增 L3 活動」或「上傳 Excel」開始</p>
+          <div className="flex flex-col items-center justify-center py-20 text-ink-faint">
+            <p className="text-lg">尚無活動，點選右上角「新增 L3 工作流」或「上傳 Excel」開始</p>
           </div>
         ) : sortedFlows.length === 0 ? (
           <EmptyState onClearAll={clearAllFilters} />

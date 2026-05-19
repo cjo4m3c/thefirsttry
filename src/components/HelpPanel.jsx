@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Modal, ModalBody, ModalFoot } from './ui/Modal.jsx';
+import { Button } from './ui/Button.jsx';
 import {
   HIERARCHY,
   NUMBERING,
@@ -48,29 +50,15 @@ function Content({ value, className = '' }) {
 // 2026-05-18 改 controlled — 由 InfoDropdown 控制 open state、把 trigger
 // button 抽出去（一顆 dropdown 包 3 個 modal）。原本內建按鈕已移除。
 export default function HelpPanel({ isOpen = false, onClose = () => {} }) {
-  // 用 isOpen 參數取代內部 state；舊 useState(open) 移除避免 dead code。
-  // useState 仍 import（其他 helper 元件用）。
   return (
-    <>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.45)' }}
-          onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">業務規則 / Business Rules</h2>
-                <p className="text-xs text-gray-400 mt-0.5">本頁說明與系統實際規則同步，如有更新將一併修訂</p>
-              </div>
-              <button onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none px-2">
-                ×
-              </button>
-            </div>
-
-            {/* Scrollable body */}
-            <div className="overflow-y-auto px-6 py-5 text-sm text-gray-700 flex-1">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      width={768}
+      title="業務規則 / Business Rules"
+      subtitle="本頁說明與系統實際規則同步，如有更新將一併修訂"
+    >
+      <ModalBody>
 
               {/* ── 1. Hierarchy ── */}
               <Section title="層級架構 Hierarchy">
@@ -208,21 +196,10 @@ export default function HelpPanel({ isOpen = false, onClose = () => {} }) {
                 </div>
               </Section>
 
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
-              <button onClick={onClose}
-                className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-                style={{ background: 'var(--brand-dark)' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-dark-hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dark)'}>
-                關閉
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      </ModalBody>
+      <ModalFoot>
+        <Button variant="primary" onClick={onClose}>關閉</Button>
+      </ModalFoot>
+    </Modal>
   );
 }

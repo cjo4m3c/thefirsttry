@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { CHANGELOG } from '../data/changelog/index.js';
+import { Modal, ModalFoot } from './ui/Modal.jsx';
+import { Button } from './ui/Button.jsx';
 
 /**
  * ChangelogPanel — 版本更新紀錄
@@ -35,38 +37,24 @@ function Section({ entry, isFirst }) {
 }
 
 // 2026-05-18 改 controlled — InfoDropdown 統管 open state，trigger 已移除。
+// PR #238：改用 Modal base + Button primary（design system 一致性）。
 export default function ChangelogPanel({ isOpen = false, onClose = () => {} }) {
-  if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <div>
-            <h2 className="text-lg font-bold text-gray-800">版本更新紀錄</h2>
-            <p className="text-xs text-gray-400 mt-0.5">最新更新排列在最上方，點選標題可展開/收合明細</p>
-          </div>
-          <button onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none px-2">
-            ×
-          </button>
-        </div>
-        <div className="overflow-y-auto flex-1">
-          {CHANGELOG.map((entry, i) => (
-            <Section key={i} entry={entry} isFirst={i === 0} />
-          ))}
-        </div>
-        <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
-          <button onClick={onClose}
-            className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-            style={{ background: 'var(--brand-dark)' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-dark-hover)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dark)'}>
-            關閉
-          </button>
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      width={672}
+      title="版本更新紀錄"
+      subtitle="最新更新排列在最上方，點選標題可展開/收合明細"
+    >
+      <div className="overflow-y-auto flex-1">
+        {CHANGELOG.map((entry, i) => (
+          <Section key={i} entry={entry} isFirst={i === 0} />
+        ))}
       </div>
-    </div>
+      <ModalFoot>
+        <Button variant="primary" onClick={onClose}>關閉</Button>
+      </ModalFoot>
+    </Modal>
   );
 }

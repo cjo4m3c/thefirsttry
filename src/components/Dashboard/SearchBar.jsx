@@ -1,8 +1,9 @@
 /**
- * Dashboard search + filter bar — 3 filters AND 結合：
+ * Dashboard search + filter bar — 3 filters AND 結合 + 右側 view/sort 控制：
  *   - 搜尋 input（L3 名稱 / 編號 / L4 任務名 substring）
  *   - L2 dropdown（單選、列出所有現存 L2 prefix）
  *   - 角色 dropdown 多選（chip 樣式）
+ *   - 右側置右：ViewSwitcher + sort dropdown（PR #237、從頁面標題列移過來）
  * + active filter chips（含「✕ 清除」單獨 + 全部清除）
  */
 import { useState, useRef, useEffect } from 'react';
@@ -15,8 +16,9 @@ export function SearchBar({
   l2, onL2Change,
   roles, onRolesChange,
   l2Options, roleOptions,
-  resultCount, totalCount,
   onClearAll,
+  // PR #237：view + sort 從頁面標題列移到 SearchBar 同列、置右
+  viewSwitcher, sortControl,
 }) {
   const hasAnyFilter = keyword.trim() || l2 || roles.length > 0;
   return (
@@ -32,13 +34,15 @@ export function SearchBar({
         <L2Dropdown value={l2} options={l2Options} onChange={onL2Change} />
         <RolesDropdown value={roles} options={roleOptions} onChange={onRolesChange} />
         {hasAnyFilter && (
-          <Button onClick={onClearAll}>✕ 清除全部</Button>
+          <Button onClick={onClearAll}>清除全部</Button>
         )}
-        <span className="ml-auto text-xs text-ink-soft">
-          {hasAnyFilter
-            ? `共 ${resultCount} 個結果（總 ${totalCount}）`
-            : `共 ${totalCount} 個`}
-        </span>
+        {/* 置右區：view 切換 + sort dropdown */}
+        {(viewSwitcher || sortControl) && (
+          <div className="ml-auto flex items-center gap-2">
+            {viewSwitcher}
+            {sortControl}
+          </div>
+        )}
       </div>
       {hasAnyFilter && (
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -64,27 +68,56 @@ export function SearchBar({
   );
 }
 
+// FilterChip — 包 `<Chip variant="filter">` + 內嵌「✕ 清除」按鈕
 function FilterChip({ children, onClear }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-brand-soft text-brand-dark text-xs">
+    <Chip variant="filter">
       {children}
       <button onClick={onClear} className="hover:text-danger" title="清除此篩選">✕</button>
-    </span>
+    </Chip>
   );
 }
 
 function L2Dropdown({ value, options, onChange }) {
   return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      className="px-3 py-2 rounded-lg border border-line text-sm bg-card focus:outline-none focus:ring-2 focus:ring-brand-light"
-      title="按 L2 編號（前兩段）篩選">
-      <option value="">L2 ▾ 全部</option>
+    <SelectWithChevron value={value} onChange={onChange}
+      title="按 L2 編號（前兩段）篩選" ariaLabel="L2 篩選">
+      <option value="">全部 L2</option>
       {options.map(o => (
         <option key={o.value} value={o.value}>{o.value} ({o.count})</option>
       ))}
-    </select>
+    </SelectWithChevron>
+  );
+}
+
+// SVG chevron-down — 飽和實心三角、3 個 dropdown 一致用此（PR #240）。
+// L2 / sort dropdown 用 `<select>` + `appearance-none` 隱藏 native arrow、
+// 包裝 div overlay 此元件；角色 dropdown 是 button + 直接放此元件。
+function ChevronDown() {
+  return (
+    <svg width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
+      <polygon points="0,0 10,0 5,6" />
+    </svg>
+  );
+}
+
+// Wrapper: native <select> + 隱藏內建箭頭 + 自繪實心 SVG chevron overlay。
+// L2 / sort dropdown 共用此 pattern 跟角色 button trigger 視覺一致。
+export function SelectWithChevron({ value, onChange, title, children, ariaLabel }) {
+  return (
+    <div className="relative inline-block">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        title={title}
+        aria-label={ariaLabel}
+        className="appearance-none pl-3 pr-8 py-2 rounded-lg border border-line text-sm bg-card focus:outline-none focus:ring-2 focus:ring-brand-light cursor-pointer">
+        {children}
+      </select>
+      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-ink-soft">
+        <ChevronDown />
+      </span>
+    </div>
   );
 }
 
@@ -104,9 +137,10 @@ function RolesDropdown({ value, options, onChange }) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(v => !v)}
-        className="px-3 py-2 rounded-lg border border-line text-sm bg-card hover:bg-paper-2 focus:outline-none focus:ring-2 focus:ring-brand-light"
+        className="px-3 py-2 rounded-lg border border-line text-sm bg-card hover:bg-paper-2 focus:outline-none focus:ring-2 focus:ring-brand-light inline-flex items-center gap-2"
         title="按角色多選篩選">
-        角色 ▾ {value.length > 0 && `(${value.length})`}
+        <span>{value.length > 0 ? `角色 (${value.length})` : '全部角色'}</span>
+        <ChevronDown />
       </button>
       {open && (
         <div className="absolute right-0 mt-1 min-w-[220px] max-h-72 overflow-y-auto bg-card border border-line rounded-lg shadow-lg z-20 py-1">
@@ -130,8 +164,7 @@ function RolesDropdown({ value, options, onChange }) {
 export function EmptyState({ onClearAll }) {
   return (
     <div className="text-center py-16 text-ink-soft">
-      <div className="text-4xl mb-2">🔍</div>
-      <p className="text-sm mb-3">沒有符合篩選的流程</p>
+      <div className="text-sm mb-3">沒有符合篩選的流程</div>
       <Button onClick={onClearAll}>清除全部篩選</Button>
     </div>
   );

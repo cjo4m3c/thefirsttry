@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { LegendModal } from '../DiagramRenderer/legend.jsx';
 import { Button } from '../ui/Button.jsx';
+import { SaveButton } from './SaveButton.jsx';
 
 // Encouragement phrases shown as the save-button tooltip when there are
 // unsaved changes. Picked once per edit session (locks until save) so the
@@ -70,8 +71,8 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
 
   return (
     <header className="px-6 py-3 shadow-md flex items-center gap-4 sticky top-0 z-10"
-      style={{ background: 'var(--brand-dark)', color: 'white' }}>
-      <button onClick={onBack} className="opacity-70 hover:opacity-100 text-base flex-shrink-0">← 返回</button>
+      style={{ background: 'var(--brand-darker)', color: 'white' }}>
+      <Button variant="dark-bar" onClick={onBack}>← 返回</Button>
       <img
         src={`${import.meta.env.BASE_URL}logo.png`}
         alt="FlowSprite Logo"
@@ -153,58 +154,39 @@ export function Header({ liveFlow, hasChanges, logoReaction, onBack, onPatch,
             <div className="absolute right-0 mt-1 min-w-[160px] bg-white rounded shadow-lg border border-gray-200 py-1 z-20">
               <button
                 onClick={() => pickDownload('png')}
-                className="block w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-blue-50">
+                className="block w-full text-left px-4 py-2 text-sm text-ink hover:bg-paper-2">
                 下載 PNG
               </button>
               <button
                 onClick={() => pickDownload('drawio')}
                 title="可用 diagrams.net（免費）或 VS Code Draw.io 擴充套件開啟編輯"
-                className="block w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-blue-50">
+                className="block w-full text-left px-4 py-2 text-sm text-ink hover:bg-paper-2">
                 下載 Drawio
               </button>
               <button
                 onClick={() => pickDownload('excel')}
-                className="block w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-blue-50">
+                className="block w-full text-left px-4 py-2 text-sm text-ink hover:bg-paper-2">
                 下載 Excel
               </button>
             </div>
           )}
         </div>
-        <div className="relative">
-          <button
-            onClick={onSave}
-            title={hasChanges ? savePhrase : '目前沒有未儲存的變更'}
-            className={`px-3 py-1.5 text-base rounded border font-semibold transition-colors ${
-              saveCelebrate
-                ? 'border-emerald-400 save-celebrate-flash'
-                : savePulse !== 'none'
-                  ? 'border-amber-300 bg-amber-400 text-amber-950 hover:bg-amber-300 save-pulse'
-                  : hasChanges
-                    ? 'border-white bg-white text-brand-dark-hover hover:bg-opacity-90'
-                    : 'border-white border-opacity-40 text-white font-normal hover:bg-white hover:bg-opacity-10'
-            }`}>
-            儲存
-          </button>
-          {saveCelebrate && (
-            // 5-particle confetti burst — colored circles + rotated squares
-            // fan out from the button (no emoji). Range ~42px per user
-            // 2026-05-04 (+30% vs. previous single-sparkle implementation).
-            <>
-              <span aria-hidden="true" className="confetti confetti-1" />
-              <span aria-hidden="true" className="confetti confetti-2" />
-              <span aria-hidden="true" className="confetti confetti-3" />
-              <span aria-hidden="true" className="confetti confetti-4" />
-              <span aria-hidden="true" className="confetti confetti-5" />
-            </>
-          )}
-        </div>
+        <SaveButton
+          hasChanges={hasChanges}
+          savePulse={savePulse}
+          saveCelebrate={saveCelebrate}
+          savePhrase={savePhrase}
+          onSave={onSave} />
+        {/* 置頂 ★：icon-only button、加 border + hover bg-white/10 跟其他
+            dark-bar button 拉齊（PR #239）。icon 18px / padding 縮小但
+            視覺與其他按鈕一致。 */}
         <button
           onClick={onTogglePin}
           title={liveFlow.pinned ? '取消置頂' : '置頂此工作流'}
-          className="p-1.5 rounded transition-transform hover:scale-110">
-          <svg width="20" height="20" viewBox="0 0 24 24"
+          className="px-2 py-1.5 rounded-md border border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10 transition-colors inline-flex items-center justify-center">
+          <svg width="18" height="18" viewBox="0 0 24 24"
             fill={liveFlow.pinned ? '#FBBF24' : 'none'}
-            stroke={liveFlow.pinned ? '#FBBF24' : 'white'} strokeWidth="2"
+            stroke={liveFlow.pinned ? '#FBBF24' : 'currentColor'} strokeWidth="2"
             strokeLinejoin="round">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>

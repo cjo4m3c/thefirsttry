@@ -8,6 +8,8 @@
  *
  * controlled — open state 由 caller（InfoDropdown）管。
  */
+import { Modal, ModalBody, ModalFoot } from './ui/Modal.jsx';
+import { Button } from './ui/Button.jsx';
 
 // 8 種節點 pill + 卡背配色（取自 docs/business-spec.md §13.9.2）
 const NODE_TYPES = [
@@ -92,26 +94,15 @@ function Swatch({ token, label, desc }) {
 }
 
 export default function DesignGuidelinePanel({ isOpen = false, onClose = () => {} }) {
-  if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
-          <div>
-            <h2 className="text-lg font-bold text-ink">設計規範 / Design Guideline</h2>
-            <p className="text-xs text-ink-faint mt-0.5">本頁摘要 + 範例；完整規格見 `docs/business-spec.md` §13.9</p>
-          </div>
-          <button onClick={onClose}
-            className="text-ink-faint hover:text-ink text-xl font-bold leading-none px-2">
-            ×
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto px-6 py-5 flex-1">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      width={768}
+      title="設計規範 / Design Guideline"
+      subtitle="本頁摘要 + 範例；完整規格見 `docs/business-spec.md` §13.9"
+    >
+      <ModalBody>
 
           <Section title="色彩 Color tokens">
             <p className="text-xs text-ink-soft mb-2">改 hex 改 `src/styles/tokens.css`（SOT）；SVG attribute 不認 CSS variable、用 hex literal 但須跟 token 同步。</p>
@@ -172,19 +163,10 @@ export default function DesignGuidelinePanel({ isOpen = false, onClose = () => {
             </div>
           </Section>
 
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-3 border-t border-line-dim flex justify-end">
-          <button onClick={onClose}
-            className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-            style={{ background: 'var(--brand-dark)' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-dark-hover)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dark)'}>
-            關閉
-          </button>
-        </div>
-      </div>
-    </div>
+      </ModalBody>
+      <ModalFoot>
+        <Button variant="primary" onClick={onClose}>關閉</Button>
+      </ModalFoot>
+    </Modal>
   );
 }

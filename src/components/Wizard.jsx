@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { generateId } from '../utils/storage.js';
+import { Button } from './ui/Button.jsx';
 import { ReorderButtons, moveItem } from './reorderButtons.jsx';
 import { syncTasksToRoles, ensureExternalPrefix, stripExternalPrefix } from '../utils/elementTypes.js';
 import {
@@ -27,22 +28,23 @@ function initFormData(flow) {
 }
 
 // ── Step indicator ───────────────────────────────────────────────
+// PR #240：tailwind blue-600 → brand token、跟 spec primary 一致。
 function StepIndicator({ current, steps }) {
   return (
     <div className="flex items-center justify-center mb-8">
       {steps.map((label, i) => (
         <div key={i} className="flex items-center">
           <div className={`flex items-center justify-center w-8 h-8 rounded-full text-base font-semibold transition-colors
-            ${i < current  ? 'bg-blue-600 text-white' :
-              i === current ? 'bg-blue-600 text-white ring-4 ring-blue-100' :
-                              'bg-gray-200 text-gray-500'}`}>
+            ${i < current  ? 'bg-brand text-white' :
+              i === current ? 'bg-brand text-white ring-4 ring-brand-soft' :
+                              'bg-paper-2 text-ink-faint'}`}>
             {i + 1}
           </div>
-          <span className={`ml-2 text-base ${i === current ? 'font-semibold text-blue-600' : 'text-gray-500'}`}>
+          <span className={`ml-2 text-base ${i === current ? 'font-semibold text-brand' : 'text-ink-faint'}`}>
             {label}
           </span>
           {i < steps.length - 1 && (
-            <div className={`w-8 h-0.5 mx-2 ${i < current ? 'bg-blue-600' : 'bg-gray-200'}`} />
+            <div className={`w-8 h-0.5 mx-2 ${i < current ? 'bg-brand' : 'bg-paper-2'}`} />
           )}
         </div>
       ))}
@@ -243,8 +245,8 @@ export default function Wizard({ flow, onSave, onCancel }) {
 
   return (
     <div className="min-h-screen" style={{ background: '#F5F8FC' }}>
-      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-dark)', color: 'white' }}>
-        <button onClick={onCancel} className="opacity-70 hover:opacity-100 text-base">← 返回</button>
+      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-darker)', color: 'white' }}>
+        <Button variant="dark-bar" onClick={onCancel}>← 返回</Button>
         <span className="text-2xl font-bold tracking-wide">
           {flow ? `編輯：${data.l3Number} ${data.l3Name}` : '新增 L3 工作流'}
         </span>
@@ -268,26 +270,17 @@ export default function Wizard({ flow, onSave, onCancel }) {
         </div>
 
         <div className="flex justify-between">
-          <button onClick={step === 0 ? onCancel : handleBack}
-            className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 text-base hover:bg-gray-50 transition-colors">
+          <Button onClick={step === 0 ? onCancel : handleBack} className="px-5 py-2">
             {step === 0 ? '取消' : '← 上一步'}
-          </button>
+          </Button>
           {step < LAST_WIZARD_STEP ? (
-            <button onClick={handleNext}
-              className="px-5 py-2 rounded-lg text-white text-base font-medium transition-colors"
-              style={{ background: '#3470B5' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#274F86'}
-              onMouseLeave={e => e.currentTarget.style.background = '#3470B5'}>
+            <Button variant="primary" onClick={handleNext} className="px-5 py-2">
               下一步 →
-            </button>
+            </Button>
           ) : (
-            <button onClick={handleSave}
-              className="px-5 py-2 rounded-lg text-white text-base font-medium transition-colors"
-              style={{ background: 'var(--brand-dark)' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-dark-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dark)'}>
+            <Button variant="primary" onClick={handleSave} className="px-5 py-2">
               進入編輯流程 →
-            </button>
+            </Button>
           )}
         </div>
       </main>
