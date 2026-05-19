@@ -218,10 +218,11 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
           </div>
           <div className="flex items-center gap-2">
             <ViewSwitcher value={view} onChange={setView} />
+            {/* sort select / 上傳 / 新增 字級拉齊 spec fs-body 13px（PR #228） */}
             <select
               value={sortKey}
               onChange={e => setSortKey(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+              className="px-3 py-2 rounded-lg border border-gray-300 text-[13px] text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
               {SORT_OPTIONS.map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
@@ -237,7 +238,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             />
             <button
               onClick={() => { setImportError(''); fileInputRef.current?.click(); }}
-              className="px-5 py-2 rounded-lg text-white font-medium shadow transition-colors"
+              className="px-5 py-2 rounded-lg text-white text-[13px] font-medium shadow transition-colors"
               style={{ background: '#2A5598' }}
               onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
               onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
@@ -245,7 +246,7 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             </button>
 
             <button onClick={onNew}
-              className="px-5 py-2 rounded-lg text-white font-medium shadow transition-colors"
+              className="px-5 py-2 rounded-lg text-white text-[13px] font-medium shadow transition-colors"
               style={{ background: '#2A5598' }}
               onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
               onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
@@ -287,6 +288,10 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             flows={sortedFlows}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelected}
+            onSelectAll={selectAll}
+            onClearSelected={clearSelected}
+            sortKey={sortKey}
+            onSortKeyChange={setSortKey}
             onTogglePin={onTogglePin}
             onEdit={onEdit}
             onDelete={handleDelete}

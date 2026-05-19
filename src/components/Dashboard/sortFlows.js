@@ -8,6 +8,8 @@
 export const SORT_OPTIONS = [
   { value: 'number-asc',  label: 'L3 編號 ↑' },
   { value: 'number-desc', label: 'L3 編號 ↓' },
+  { value: 'name-asc',    label: 'L3 名稱 ↑' },
+  { value: 'name-desc',   label: 'L3 名稱 ↓' },
   { value: 'updated-desc', label: '更新日期（最新）' },
   { value: 'updated-asc',  label: '更新日期（最舊）' },
   { value: 'roles-desc',   label: '角色數（多 → 少）' },
@@ -31,6 +33,12 @@ export function sortFlows(flows, sortKey) {
       break;
     case 'number-desc':
       arr.sort((a, b) => String(b.l3Number ?? '').localeCompare(String(a.l3Number ?? ''), 'zh-TW', { numeric: true }));
+      break;
+    case 'name-asc':
+      arr.sort((a, b) => String(a.l3Name ?? '').localeCompare(String(b.l3Name ?? ''), 'zh-TW'));
+      break;
+    case 'name-desc':
+      arr.sort((a, b) => String(b.l3Name ?? '').localeCompare(String(a.l3Name ?? ''), 'zh-TW'));
       break;
     case 'updated-desc':
       arr.sort((a, b) => (b.updatedAt ?? b.createdAt ?? '').localeCompare(a.updatedAt ?? a.createdAt ?? ''));
