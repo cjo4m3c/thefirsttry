@@ -38,15 +38,16 @@ const COLOR_TOKENS = [
   { token: '--external-node',    label: '板岩 — 外部互動',   desc: '外部互動節點' },
 ];
 
-// 字級 7 階
+// 字級 7 階 + display 裝飾外掛
 const FONT_SIZES = [
-  { token: '--fs-display', px: 32, sample: '頁面主標 32px' },
-  { token: '--fs-h1',      px: 22, sample: '區塊標題 22px' },
-  { token: '--fs-h2',      px: 17, sample: '卡片大標 17px' },
-  { token: '--fs-h3',      px: 15, sample: '卡片名稱 15px' },
-  { token: '--fs-body',    px: 13, sample: '預設 UI 字 13px' },
+  { token: '--fs-h1',      px: 24, sample: '頁面主標題 24px' },
+  { token: '--fs-h2',      px: 20, sample: 'Modal 標題 / Section 大標 20px' },
+  { token: '--fs-h3',      px: 18, sample: 'Panel 標題 / Section 副標 18px' },
+  { token: '--fs-ui',      px: 16, sample: '主要 button / Form input 16px' },
+  { token: '--fs-body',    px: 14, sample: '預設 UI 文字 / 表格列 14px' },
   { token: '--fs-label',   px: 12, sample: 'Chip / 次要 label 12px' },
-  { token: '--fs-caption', px: 11, sample: '日期 / 提示 11px' },
+  { token: '--fs-caption', px: 11, sample: '日期 / 計數 / 提示 11px' },
+  { token: '--fs-display', px: 48, sample: '空狀態裝飾 emoji 48px（非 7 階）' },
 ];
 
 function Section({ title, children }) {
@@ -126,7 +127,7 @@ export default function DesignGuidelinePanel({ isOpen = false, onClose = () => {
             </div>
           </Section>
 
-          <Section title="字級 Typography（7 階）">
+          <Section title="字級 Typography（7 階 + display 裝飾）">
             <p className="text-xs text-ink-soft mb-2">最小 11px、不允許更小。同螢幕最多 3 階層次。Display 一頁僅 1 處。</p>
             <div className="space-y-1">
               {FONT_SIZES.map(f => (

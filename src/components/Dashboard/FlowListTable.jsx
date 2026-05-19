@@ -71,7 +71,7 @@ function SortableHeader({ column, label, sortKey, onSortKeyChange, className = '
         className={`inline-flex items-center gap-1 hover:text-ink transition-colors ${isActive ? 'text-ink' : ''}`}
         title={`點擊以${isAsc ? '改為降序' : '排序'}`}>
         <span>{label}</span>
-        <span className={`text-[10px] ${isActive ? '' : 'opacity-30'}`}>
+        <span className={`text-[11px] ${isActive ? '' : 'opacity-30'}`}>
           {isDesc ? '↓' : '↑'}
         </span>
       </button>
@@ -113,9 +113,8 @@ export function FlowListTable({
 }) {
   return (
     <div className="overflow-x-auto border border-line rounded-lg bg-card">
-      {/* 字級 spec fs-body 13px（PR #228、整批拉齊 spec 7 階）；
-          table-fixed 配合明確欄寬讓名稱 truncate 生效 */}
-      <table className="w-full text-[13px] border-collapse table-fixed">
+      {/* 字級 spec fs-body 14px（new 7 階）；table-fixed 配合明確欄寬讓名稱 truncate 生效 */}
+      <table className="w-full text-sm border-collapse table-fixed">
         <thead className="bg-paper-2 text-ink-soft">
           <tr className="text-left">
             <th className="px-3 py-2 w-10">
@@ -181,7 +180,7 @@ export function FlowListTable({
                 <td className="px-3 py-2">
                   <RolesPreview roles={flow.roles} />
                 </td>
-                {/* 日期 — whitespace-nowrap 確保兩列不折成四列；text-[11px] fs-caption */}
+                {/* 日期 — whitespace-nowrap 確保兩列不折成四列；fs-caption 11 */}
                 <td className="px-3 py-2 text-[11px] text-ink-faint leading-tight whitespace-nowrap">
                   {flow.createdAt && <div>建立：{fmtDateTime(flow.createdAt)}</div>}
                   {flow.updatedAt && <div>更新：{fmtDateTime(flow.updatedAt)}</div>}

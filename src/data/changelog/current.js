@@ -5,33 +5,17 @@
  */
 export default [
   {
-    date: '2026-05-19',
-    title: 'Dashboard 表格 view 再優化 — 字級 spec 13px、列高同高、名稱加寬、動作加大 + DesignGuidelinePanel 移除文件位置',
+    date: '2026-05-20',
+    title: '字級 spec 7 階重新校準 — 以實際網頁字級反推、新 11/12/14/16/18/20/24 + display 48',
     items: [
-      '**緣由**：使用者三項表格 view 優化 + 一項 panel 調整：(1) ViewSwitcher 字級拉齊右側按鈕/下拉、是否違反 spec？ (2) 每列高度相同 (3) 螢幕 100% 時 L3 名稱加寬、動作按鈕加大 (4) 設計規範彈窗移除「文件位置」section。',
-      '**設計規範檢視**：spec §13.9.3 規定字級 7 階 `32/22/17/15/13/12/11`、明文「預設 UI · 按鈕 · 表格 = fs-body 13px」。Audit 後發現 sort dropdown (text-sm 14px) / 上傳 (text-base 16px) / 新增 (text-base 16px) / 表格列 (text-sm 14px) 早已違規不在 7 階。**使用者選整批拉齊到 13px**（最符合 spec、順便修既有違規）。',
-      '**1. 字級拉齊 spec 13px**：`ViewSwitcher` inner button `text-xs` → `text-[13px]`、Dashboard `sort select` `text-sm` → `text-[13px]`、`上傳 Excel / + 新增 L3` 加 `text-[13px]`、`FlowListTable` table `text-sm` → `text-[13px]`、日期 cell `text-xs` → `text-[11px]` (fs-caption)。',
-      '**2. 列高同高策略**：truncate `…` + hover tooltip — (a) L3 名稱 cell 包 `<div className="truncate" title={name}>`、超出顯示 `…`，hover 看全名 (b) `RolesPreview` 從 `flex-wrap` → `flex-nowrap overflow-hidden`、cap 從 2 chips → **1 chip + N**（順帶釋出欄寬給名稱）(c) 動作 `flex-wrap` → `flex-nowrap`。table 加 `table-fixed` 讓 truncate 在明確欄寬下生效。',
-      '**3. 名稱欄加寬 + 動作 button 加大**：動作 6 顆 `size="xs"` → `size="sm"`（11px → 12px、padding `py-0.5` → `py-1`）；主要角色欄 `w-48` → `w-32` 釋出 64px 給名稱；名稱欄從 ~136px → ~200px（1280 視窗）。動作欄維持 `w-[22rem]` 容納 sm 6 顆（~308px + buffer）。',
-      '**4. DesignGuidelinePanel 移除「文件位置」section**：使用者：「設計規範 popup 裡面不要放文件位置資訊」— 移除 `Section title="文件位置"` 整段（原列出 tokens.css / ui/ / elementTypes.js / business-spec.md / tailwind.config.js 5 個路徑）。Panel header subtitle 仍有 `docs/business-spec.md §13.9` 引用作為連結提示、不重複。',
-      '**動到的檔案（5 個）**：`src/components/Dashboard/ViewSwitcher.jsx`（字級 13px）/ `src/components/Dashboard/index.jsx`（sort/上傳/新增 字級 13px）/ `src/components/Dashboard/FlowListTable.jsx`（table-fixed + 字級 13px + truncate + 主要角色 1 chip+N + 動作 sm + 欄寬重排）/ `src/components/DesignGuidelinePanel.jsx`（移除文件位置 section）/ `src/data/changelog/current.js`（本條）。',
-      '**全站 audit 警告**：跑完字級 audit 全站還有 **162 處違規**（text-sm 80 / text-base 57 / text-lg 10 / text-xl 8 / text-2xl 6 / text-5xl 1）— FlowEditor Header (22 處)、ConnectionSection (28)、FlowTable (15)、Wizard (13) 為大宗。本 PR 只處理 Dashboard 表格 view 範圍、其他違規列入下批處理 backlog。',
-      '**驗證**：`npm run build` 通過。手動：(a) 卡片/表格 segment + sort + 上傳 + 新增 + 表格列字 視覺一致 13px (b) 名稱超長顯示 `…`、hover 看到 tooltip 全名 (c) 主要角色 1 chip + N (d) 動作 6 顆比之前大、不 wrap (e) 列高一致 (f) 點「設計規範 ▾」彈窗、底部沒有「文件位置」section。',
-    ],
-  },
-  {
-    date: '2026-05-19',
-    title: 'Dashboard 表格 view 優化 — segment 對齊、表頭 checkbox 全選、5 欄可排序、動作 6 顆展開、日期不折行',
-    items: [
-      '**緣由**：使用者提 5 項表格 view 優化 — (1) 切換 segment 高度跟右側按鈕/下拉一樣 (2) 點標題列 checkbox 全選 (3) 除動作外都可排序 (4) 動作按鈕全展開不收合 (5) 兩列日期螢幕 100% 不能折成 4 列。',
-      '**1. ViewSwitcher 高度對齊**（`Dashboard/ViewSwitcher.jsx`）：segmented control 從 `py-1 text-xs`（~28px）對齊到 `h-[38px]` + `p-0.5` + inner `h-full px-3 text-xs`，跟右側 sort dropdown / 上傳 / 新增 button（py-2 + text-sm ≈ 36-38px）同高。',
-      '**2. 表頭 checkbox 全選**（`Dashboard/FlowListTable.jsx`）：新 `HeaderCheckbox` 元件 — 沿用 Dashboard 既有 `selectAll` / `clearSelected` callback、用 ref + useEffect 設 `HTMLInputElement.indeterminate` 處理部分選中態。total=0 disabled、全選 → `checked`、部分 → `indeterminate`、未選 → `unchecked`。點擊：if 全選 → 清空，否則 → 全選。',
-      '**3. 5 欄表頭可排序**（編號 / 名稱 / 角色 / 任務 / 日期）：新 `SortableHeader` 元件 — 點擊在 `column-asc` / `column-desc` 之間切換。跟外面 sort dropdown 共享同一個 `sortKey` state（完全同步、雙向）— Dashboard 把 `sortKey` + `setSortKey` 透傳給 FlowListTable。Active 欄顯示 `↑` / `↓`、非 active 欄 `opacity-30` 提示可排序。`sortFlows.js` 新增 `name-asc` / `name-desc` case + SORT_OPTIONS 兩條 `L3 名稱 ↑↓`。checkbox / pin / 主要角色 三欄不排序（per 使用者選 A）。',
-      '**4. 動作 6 顆全展開**：拆掉 `DownloadMenu` dropdown、展成 6 顆 `<Button size="xs">`：編輯 / 複製 / PNG / Drawio / Excel / 刪除。動作欄寬從 `w-72` (288px) → `w-[22rem]` (352px) 容納 6 顆。',
-      '**5. 日期欄不折行**：日期 `<td>` 加 `whitespace-nowrap`、欄寬從 `w-44` (176px) → `w-64` (256px) 確保 `建立：2026/05/18 下午02:30` / `更新：...` 兩列在常見視窗（1280+）不會折成 4 列。主要角色欄相應從 `w-56` 收到 `w-48` (192px) 釋放空間。',
-      '**Changelog freeze**：current.js 累積到 49KB（11 條未凍）、本 PR 凍結為 `c29.js`、`index.js` 加 import、current.js 重置（之後維護要確實在 7KB 凍結）。',
-      '**動到的檔案（6 個）**：`src/components/Dashboard/ViewSwitcher.jsx`（高度對齊）/ `src/components/Dashboard/FlowListTable.jsx`（HeaderCheckbox + SortableHeader + 6 顆展開 + 日期 nowrap + 欄寬重排）/ `src/components/Dashboard/sortFlows.js`（name-asc/desc）/ `src/components/Dashboard/index.jsx`（透傳新 props）/ `src/data/changelog/c29.js`（新、凍結之前累積）/ `src/data/changelog/index.js`（加 c29 import）/ `src/data/changelog/current.js`（重置 + 本條）。',
-      '**驗證**：`npm run build` 通過。手動驗證：(a) 卡片/表格 segment 高度跟旁邊 dropdown / button 平齊 (b) 表頭 checkbox 點擊全選 / 取消、部分選中時 indeterminate (c) 點編號/名稱/角色/任務/日期 表頭排序、會切 ↑↓、跟右上 sort dropdown 同步 (d) 動作欄 6 顆按鈕全部可見不收合 (e) 螢幕 100% (1280+) 日期欄兩列不折成四列。',
+      '**緣由**：PR #228 audit 揭露全站 162 處字級違反舊 spec 7 階 (11/12/13/15/17/22/32)。盤點實際使用：12px 121 處 ⭐ / 14px 72 處 ⭐ / 16px 51 處 ⭐ / 18px 8 / 20px 6 / 24px 5 / 48px 1、舊 spec 的 15/17/22/32 幾乎沒人用（0-4 處）。使用者：「以現在網頁字級為基準，做七階層字級設計後，反過頭來拉齊網頁中所有不合規的內容」→ 反推新 spec 而非拉齊到舊 spec。',
+      '**新 spec 7 階 + display 外掛**：`--fs-h1:24` / `--fs-h2:20` / `--fs-h3:18` / `--fs-ui:16`（**新增階**、主要 button / Form input / Header）/ `--fs-body:14` / `--fs-label:12` / `--fs-caption:11` + `--fs-display:48`（裝飾外掛、空狀態 emoji）。Tailwind 對應：text-2xl=24 / text-xl=20 / text-lg=18 / text-base=16 / text-sm=14 / text-xs=12。',
+      '**動到的 spec 文件 3 處**：(1) `src/styles/tokens.css` — 改 7 階 CSS variables + 新增 `.t-ui` class (2) `docs/business-spec.md §13.9.3` — 改字級表 + Tailwind 對照 (3) `src/components/DesignGuidelinePanel.jsx` — 字級 demo data + section title 改「7 階 + display 裝飾」。',
+      '**Outliers 機械替換 11 處**：(a) `text-[10px]` × 2 → `text-[11px]`（HelpPanel pill badge / FlowListTable pin icon）(b) `text-[13px]` × 9 → `text-sm`：`ui/Button.jsx` md size（影響全站所有 `<Button size="md">`）/ `DiagramRenderer/overlays.jsx` 任務 tooltip × 2 / **PR #228 revert** ViewSwitcher + sort + 上傳 + 新增 + 表格本體 × 5（13→14、視覺差 1px 幾乎看不出）(c) `ui/Button.jsx` sm size `text-[12px]` → `text-xs`、`ui/Chip.jsx` `text-[12px]` → `text-xs`（值不變、統一用 tailwind 別名）。',
+      '**自動連動的 11 處 `.t-*` class 用法**：`ui/Modal.jsx` `t-h1` 22→24、`t-caption` 維持 11、`ui/Callout.jsx` 用 `var(--fs-body)` 13→14、`ui/Chip.jsx` id variant 用 `var(--fs-caption)` 維持 11 — 全部自動跟新 spec value、不用改程式碼。',
+      '**結果**：全站 162 處字級「違反舊 spec」→ **0 處違反新 spec**。`text-sm` 14px 從「違規」變「body 階」、`text-base` 16px 變「ui 階」、`text-lg` 18px 變「h3」、`text-xl` 20 變「h2」、`text-2xl` 24 變「h1」、`text-5xl` 48 變「display」— 既有視覺保持不變、只是 spec 改成符合現況。',
+      '**動到的檔案（11 個）**：`src/styles/tokens.css` / `docs/business-spec.md` / `src/components/DesignGuidelinePanel.jsx` / `src/components/ui/Button.jsx` / `src/components/ui/Chip.jsx` / `src/components/HelpPanel.jsx` / `src/components/DiagramRenderer/overlays.jsx` / `src/components/Dashboard/{ViewSwitcher,index,FlowListTable}.jsx`（3 個 sub）+ `src/data/changelog/{current,c30,index}.js`（c30 凍結之前的 PR #227/#228 兩條、current.js 從 10.3KB 降回 ~5KB）。',
+      '**驗證**：`npm run build` 通過。audit script 確認無 `text-[10/13/15/17/22/32]px` 殘留。手動：(a) 點「設計規範 ▾」彈窗看字級階是新 7 階 + display (b) Dashboard 上傳/新增/sort 字回到 14px (c) Modal 標題視覺與之前一致（24/20px 來自既有 text-2xl/text-xl）。',
     ],
   },
 ];

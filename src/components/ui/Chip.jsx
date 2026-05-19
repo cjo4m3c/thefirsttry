@@ -35,7 +35,7 @@ const ID_STYLE = { fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-caption)'
 
 export function Chip({ variant = 'default', className = '', children, ...rest }) {
   const v = VARIANTS[variant] || VARIANTS.default;
-  const sizeCls = variant === 'id' ? '' : 'text-[12px]';  // fs-label for non-id
+  const sizeCls = variant === 'id' ? '' : 'text-xs';  // fs-label 12 for non-id
   const inlineStyle = variant === 'id' ? ID_STYLE : undefined;
   return (
     <span

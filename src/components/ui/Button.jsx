@@ -32,9 +32,9 @@ import { forwardRef } from 'react';
 const BASE = 'inline-flex items-center gap-1 whitespace-nowrap border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-1';
 
 const SIZES = {
-  md: 'px-3 py-1.5 text-[13px] leading-[1.4] rounded-md font-medium',  // fs-body
-  sm: 'px-2.5 py-1 text-[12px] leading-[1.4] rounded-[5px] font-medium', // fs-label / radius-sm
-  xs: 'px-2 py-0.5 text-[11px] leading-[1.4] rounded font-medium',     // fs-caption / radius-xs
+  md: 'px-3 py-1.5 text-sm leading-[1.4] rounded-md font-medium',      // fs-body 14
+  sm: 'px-2.5 py-1 text-xs leading-[1.4] rounded-[5px] font-medium',   // fs-label 12 / radius-sm
+  xs: 'px-2 py-0.5 text-[11px] leading-[1.4] rounded font-medium',     // fs-caption 11 / radius-xs
 };
 
 const VARIANTS = {
