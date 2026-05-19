@@ -19,7 +19,15 @@
  */
 import { useEffect } from 'react';
 
-export function Modal({ isOpen, onClose, title, subtitle, width = 720, children, className = '' }) {
+// Header bg / border / title color tokens per variant. Default 走中性 line-dim、
+// warning/danger 用 semantic tokens（給 SaveModal blocking / ResetAll warning 等用）。
+const HEADER_VARIANTS = {
+  default: { bg: '',                 border: 'border-line-dim',  title: '' },
+  warning: { bg: 'bg-warning-soft',  border: 'border-warning',   title: 'text-warning-ink' },
+  danger:  { bg: 'bg-danger-soft',   border: 'border-danger',    title: 'text-danger-ink' },
+};
+
+export function Modal({ isOpen, onClose, title, subtitle, variant = 'default', width = 720, children, className = '' }) {
   // ESC key + body scroll lock
   useEffect(() => {
     if (!isOpen) return;
@@ -49,23 +57,26 @@ export function Modal({ isOpen, onClose, title, subtitle, width = 720, children,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {(title || subtitle || onClose) && (
-          <div className="px-6 pt-5 pb-4 border-b border-line-dim flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              {title && <h2 className="t-h1 m-0">{title}</h2>}
-              {subtitle && <p className="t-caption mt-1 m-0">{subtitle}</p>}
+        {(title || subtitle || onClose) && (() => {
+          const v = HEADER_VARIANTS[variant] || HEADER_VARIANTS.default;
+          return (
+            <div className={`px-6 pt-5 pb-4 border-b ${v.bg} ${v.border} flex items-start justify-between gap-4`}>
+              <div className="flex-1 min-w-0">
+                {title && <h2 className={`t-h1 m-0 ${v.title}`}>{title}</h2>}
+                {subtitle && <p className="t-caption mt-1 m-0">{subtitle}</p>}
+              </div>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  title="關閉（Esc）"
+                  className="w-7 h-7 rounded-md text-ink-soft text-base inline-flex items-center justify-center flex-shrink-0 hover:bg-paper-2 hover:text-ink"
+                >
+                  ✕
+                </button>
+              )}
             </div>
-            {onClose && (
-              <button
-                onClick={onClose}
-                title="關閉（Esc）"
-                className="w-7 h-7 rounded-md text-ink-soft text-base inline-flex items-center justify-center flex-shrink-0 hover:bg-paper-2 hover:text-ink"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        )}
+          );
+        })()}
         {children}
       </div>
     </div>
