@@ -42,6 +42,9 @@ const VARIANTS = {
   primary: 'bg-brand border-brand text-white hover:opacity-90',
   ghost:   'bg-card border-line border-dashed text-ink-soft hover:bg-paper-2',
   danger:  'bg-card border-line text-danger hover:bg-danger-soft',
+  // dark-bar：跑在 --brand-dark Header bg 上的透明白邊白字 button
+  // （FlowEditor / Dashboard / Wizard 三個深藍 header 共用）
+  'dark-bar': 'bg-transparent border-white border-opacity-40 text-white hover:bg-white hover:bg-opacity-10',
 };
 
 export const Button = forwardRef(function Button(
