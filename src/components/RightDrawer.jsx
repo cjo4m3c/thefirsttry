@@ -45,18 +45,18 @@ export default function RightDrawer({
       {/* Drawer panel */}
       <aside
         className={`fixed top-0 right-0 h-screen z-40 ${width} bg-white shadow-2xl
-          border-l border-gray-200 flex flex-col
+          border-l border-line flex flex-col
           transition-transform duration-300 ease-in-out
           ${open ? 'translate-x-0' : 'translate-x-full'}`}
         aria-hidden={!open}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-          <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-paper-2 flex-shrink-0">
+          <h3 className="text-sm font-semibold text-ink">{title}</h3>
           <button
             onClick={onClose}
             title="收合（Esc）"
-            className="w-8 h-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded text-ink-soft hover:bg-paper-2 hover:text-ink transition-colors"
           >
             ✕
           </button>
@@ -64,15 +64,15 @@ export default function RightDrawer({
 
         {/* Optional tab bar */}
         {tabs && tabs.length > 0 && (
-          <div className="flex border-b border-gray-200 flex-shrink-0">
+          <div className="flex border-b border-line flex-shrink-0">
             {tabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => onTabChange?.(tab.key)}
                 className={`flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.key
-                    ? 'border-blue-600 text-blue-700 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    ? 'border-brand text-brand bg-brand-soft'
+                    : 'border-transparent text-ink-soft hover:text-ink hover:bg-paper-2'
                 }`}
               >
                 {tab.label}

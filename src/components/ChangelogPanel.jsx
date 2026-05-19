@@ -14,19 +14,19 @@ import { Button } from './ui/Button.jsx';
 function Section({ entry, isFirst }) {
   const [open, setOpen] = useState(isFirst);
   return (
-    <div className="border-b border-gray-100 last:border-0">
+    <div className="border-b border-line-dim last:border-0">
       <button
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-paper-2 transition-colors"
         onClick={() => setOpen(o => !o)}>
-        <span className="text-xs font-mono text-gray-400 flex-shrink-0 w-24">{entry.date}</span>
-        <span className="flex-1 text-sm font-medium text-gray-800">{entry.title}</span>
-        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+        <span className="text-xs font-mono text-ink-faint flex-shrink-0 w-24">{entry.date}</span>
+        <span className="flex-1 text-sm font-medium text-ink">{entry.title}</span>
+        <span className="text-ink-faint text-xs">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <ul className="px-4 pb-3 space-y-1 ml-24">
           {entry.items.map((item, i) => (
-            <li key={i} className="text-xs text-gray-600 flex gap-2">
-              <span className="text-gray-300 flex-shrink-0 mt-0.5">•</span>
+            <li key={i} className="text-xs text-ink-soft flex gap-2">
+              <span className="text-ink-faint flex-shrink-0 mt-0.5">•</span>
               <span>{item}</span>
             </li>
           ))}

@@ -19,9 +19,7 @@ import InfoDropdown from '../InfoDropdown.jsx';
 import { Button } from '../ui/Button.jsx';
 import DiagramRenderer from '../DiagramRenderer.jsx';
 import BackToTop from '../BackToTop.jsx';
-import { exportDrawio } from '../../utils/drawioExport.js';
-import { exportFlowToExcel } from '../../utils/excelExport.js';
-import { SORT_OPTIONS, sortFlows, filterFlows, extractL2Options, extractRoleOptions } from './sortFlows.js';
+import { sortFlows, filterFlows, extractL2Options, extractRoleOptions, SORT_OPTIONS } from './sortFlows.js';
 import { ImportErrorBanner, ImportSuccessBanner, ImportWarningsBanner } from './Banners.jsx';
 import { BulkToolbar, PngProgressBanner } from './BulkToolbar.jsx';
 import { FlowCard } from './FlowCard.jsx';
@@ -32,62 +30,22 @@ import { CloneFlowModal } from './CloneFlowModal.jsx';
 import { SearchBar, EmptyState, SelectWithChevron } from './SearchBar.jsx';
 import { Pagination } from './Pagination.jsx';
 import { useExcelImport } from './useExcelImport.js';
+import { useDashboardFilters } from './useDashboardFilters.js';
+import { useBulkActions } from './useBulkActions.js';
 
-const VIEW_PREF_KEY = 'bpm_dashboard_view';
-const SORT_PREF_KEY = 'flowsprite.dashboardSortKey';
-const SEARCH_STATE_KEY = 'flowsprite.dashboardSearch'; // sessionStorage、跨 page navigate 保留、不跨 browser session
-const VALID_SORT_KEYS = new Set(SORT_OPTIONS.map(o => o.value));
 const PAGE_SIZE = 25;
 
-function loadSearchState() {
-  try {
-    const raw = sessionStorage.getItem(SEARCH_STATE_KEY);
-    if (!raw) return null;
-    const v = JSON.parse(raw);
-    return {
-      keyword: typeof v.keyword === 'string' ? v.keyword : '',
-      l2: typeof v.l2 === 'string' ? v.l2 : '',
-      roles: Array.isArray(v.roles) ? v.roles.filter(x => typeof x === 'string') : [],
-    };
-  } catch { return null; }
-}
-
 export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExcel, onTogglePin, onClone }) {
-  // sortKey localStorage 持久化（PR #234）— 跨 session 記住、跟 view 同 pattern
-  const [sortKey, setSortKey] = useState(() => {
-    try {
-      const v = localStorage.getItem(SORT_PREF_KEY);
-      return v && VALID_SORT_KEYS.has(v) ? v : 'number-asc';
-    } catch { return 'number-asc'; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(SORT_PREF_KEY, sortKey); } catch { /* quota / disabled */ }
-  }, [sortKey]);
-  // 2026-05-18 表格 view（方案 A）— 卡片 / 表格 二選一、localStorage 記憶。
-  // 兩個 view 共享所有 state（sort / search / filter / select）、只是渲染不同。
-  const [view, setView] = useState(() => {
-    try {
-      const v = localStorage.getItem(VIEW_PREF_KEY);
-      return v === 'table' ? 'table' : 'cards';
-    } catch { return 'cards'; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(VIEW_PREF_KEY, view); } catch { /* quota / disabled */ }
-  }, [view]);
-  // 搜尋 / 篩選 state（PR #235）— sessionStorage 持久化、跨 page navigate
-  // 保留、不跨瀏覽器 session（搜尋是臨時行為、不該長期記）
-  const initialSearch = loadSearchState();
-  const [keyword, setKeyword] = useState(initialSearch?.keyword ?? '');
-  const [l2, setL2] = useState(initialSearch?.l2 ?? '');
-  const [filterRoles, setFilterRoles] = useState(initialSearch?.roles ?? []);
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({ keyword, l2, roles: filterRoles }));
-    } catch { /* quota / disabled */ }
-  }, [keyword, l2, filterRoles]);
-  const [page, setPage] = useState(1);
-  // 篩選改變 → page 自動 reset 到 1（避免「第 3 頁但 filter 後只剩 2 頁」）
-  useEffect(() => { setPage(1); }, [keyword, l2, filterRoles]);
+  // 篩選 / 排序 / 分頁 state — PR #242 抽到 useDashboardFilters hook
+  const {
+    sortKey, setSortKey,
+    view, setView,
+    keyword, setKeyword,
+    l2, setL2,
+    filterRoles, setFilterRoles,
+    page, setPage,
+    clearAllFilters,
+  } = useDashboardFilters();
 
   const [logoReaction, setLogoReaction] = useState(null); // 'flash' | 'dim' | null
   // Excel 匯入相關 state / handler — PR #236 抽到 useExcelImport hook
@@ -105,11 +63,6 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
     triggerFilePicker,
   } = importHook;
   const [pendingPngFlow, setPendingPngFlow] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [bulkFormats, setBulkFormats] = useState({ png: true, drawio: true, excel: true });
-  const [pngQueue, setPngQueue] = useState([]); // flows awaiting PNG render
-  const [pngTotal, setPngTotal] = useState(0);
-  // pendingImport / handleDuplicateResolve / fileInputRef 由 useExcelImport hook 提供
   const [pendingClone, setPendingClone] = useState(null);
 
   // 篩選 dropdown 選項（從全集 flows 抽出，非 filtered 結果）
@@ -127,11 +80,18 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
     () => sortedFlows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [sortedFlows, safePage]
   );
-  function clearAllFilters() {
-    setKeyword('');
-    setL2('');
-    setFilterRoles([]);
-  }
+
+  // 批量選取 / 下載 / 刪除 — PR #242 抽到 useBulkActions hook
+  const bulkHook = useBulkActions({ sortedFlows, onDelete, setLogoReaction });
+  const {
+    selectedIds,
+    bulkFormats, setBulkFormats,
+    pngQueue, setPngQueue,
+    pngTotal,
+    toggleSelected, selectAll, clearSelected,
+    handleBulkDownload, handleBulkDelete,
+    removeFromSelection,
+  } = bulkHook;
 
   // Auto-clear logo reaction after animation completes
   useEffect(() => {
@@ -140,58 +100,11 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
     return () => clearTimeout(timer);
   }, [logoReaction]);
 
-  function toggleSelected(id) {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-
-  function selectAll() { setSelectedIds(new Set(sortedFlows.map(f => f.id))); }
-  function clearSelected() { setSelectedIds(new Set()); }
-
-  function handleBulkDownload() {
-    const selected = sortedFlows.filter(f => selectedIds.has(f.id));
-    if (selected.length === 0) return;
-    const { png, drawio, excel } = bulkFormats;
-    if (!png && !drawio && !excel) return;
-
-    // Chrome silently drops downloads when too many fire inside a short
-    // window. Serialize drawio + excel one flow at a time with a generous
-    // gap so even 30+ selections reliably download every file.
-    const STEP_MS = 450;
-    let slot = 0;
-    selected.forEach(flow => {
-      if (drawio) { setTimeout(() => exportDrawio(flow),       slot * STEP_MS); slot++; }
-      if (excel)  { setTimeout(() => exportFlowToExcel(flow),  slot * STEP_MS); slot++; }
-    });
-
-    // PNG: queue async rendering (one at a time via hidden renderer)
-    if (png) {
-      setPngQueue(selected);
-      setPngTotal(selected.length);
-    }
-  }
-
+  // 單筆刪除 — 同步從 bulk selection 移除（避免幽靈 ID）
   function handleDelete(id) {
     setLogoReaction('dim');
     onDelete(id);
-    setSelectedIds(prev => {
-      if (!prev.has(id)) return prev;
-      const next = new Set(prev); next.delete(id); return next;
-    });
-  }
-
-  function handleBulkDelete() {
-    const selected = sortedFlows.filter(f => selectedIds.has(f.id));
-    if (selected.length === 0) return;
-    const preview = selected.slice(0, 10).map(f => `• ${f.l3Number} ${f.l3Name}`).join('\n');
-    const more = selected.length > 10 ? `\n… 另外 ${selected.length - 10} 個` : '';
-    if (!window.confirm(`確定要刪除以下 ${selected.length} 個活動嗎？此動作無法復原。\n\n${preview}${more}`)) return;
-    selected.forEach(f => onDelete(f.id));
-    setLogoReaction('dim');
-    setSelectedIds(new Set());
+    removeFromSelection(id);
   }
 
   // finalizeImport / handleDuplicateResolve / handleFileChange 全在 useExcelImport hook
