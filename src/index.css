@@ -95,7 +95,7 @@ svg text {
 @keyframes save-celebrate-flash {
   0%   { background: #FBBF24; color: #422006; transform: scale(1.05); }
   25%  { background: #38BDF8; color: #FFFFFF; transform: scale(1.15); box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.5); }
-  100% { background: #FFFFFF; color: #1E4677; transform: scale(1);    box-shadow: none; }
+  100% { background: #FFFFFF; color: var(--brand-dark-hover); transform: scale(1);    box-shadow: none; }
 }
 .save-celebrate-flash { animation: save-celebrate-flash 0.7s ease-out forwards; }
 

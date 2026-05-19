@@ -173,7 +173,7 @@ function InsertPicker({ index, allTasks, displayLabels,
         </button>
         <button type="button" onClick={handleSubmit} disabled={!canConfirm}
           className="px-3 py-1 text-sm rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: canConfirm ? '#2A5598' : '#9CA3AF' }}>
+          style={{ background: canConfirm ? 'var(--brand-dark)' : '#9CA3AF' }}>
           確認新增
         </button>
       </div>

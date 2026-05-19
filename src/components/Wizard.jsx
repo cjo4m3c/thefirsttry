@@ -243,7 +243,7 @@ export default function Wizard({ flow, onSave, onCancel }) {
 
   return (
     <div className="min-h-screen" style={{ background: '#F5F8FC' }}>
-      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: '#2A5598', color: 'white' }}>
+      <header className="px-6 py-3 shadow-md flex items-center gap-4" style={{ background: 'var(--brand-dark)', color: 'white' }}>
         <button onClick={onCancel} className="opacity-70 hover:opacity-100 text-base">← 返回</button>
         <span className="text-2xl font-bold tracking-wide">
           {flow ? `編輯：${data.l3Number} ${data.l3Name}` : '新增 L3 工作流'}
@@ -283,9 +283,9 @@ export default function Wizard({ flow, onSave, onCancel }) {
           ) : (
             <button onClick={handleSave}
               className="px-5 py-2 rounded-lg text-white text-base font-medium transition-colors"
-              style={{ background: '#2A5598' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#1E4677'}
-              onMouseLeave={e => e.currentTarget.style.background = '#2A5598'}>
+              style={{ background: 'var(--brand-dark)' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-dark-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dark)'}>
               進入編輯流程 →
             </button>
           )}

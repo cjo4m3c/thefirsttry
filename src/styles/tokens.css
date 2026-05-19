@@ -30,6 +30,7 @@
    * / BackToTop 等多處仍寫死 `#2A5598`，把 token 對齊既有實際使用色更實際。
    */
   --brand-dark:   #2A5598;
+  --brand-dark-hover: #1E4677;   /* brand-dark button :hover state */
   /*
    * --brand-darker：spec 原 brand-dark `#1B2E4C` 深 navy（更深一階）。
    * 2026-05-18 加：使用者「首頁 L3 編號的 chip 請都改成用品牌深色 #1B2E4C」。
