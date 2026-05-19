@@ -287,6 +287,10 @@ export default function Dashboard({ flows, onNew, onEdit, onDelete, onImportExce
             flows={sortedFlows}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelected}
+            onSelectAll={selectAll}
+            onClearSelected={clearSelected}
+            sortKey={sortKey}
+            onSortKeyChange={setSortKey}
             onTogglePin={onTogglePin}
             onEdit={onEdit}
             onDelete={handleDelete}
